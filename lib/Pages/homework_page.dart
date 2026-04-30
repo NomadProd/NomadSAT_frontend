@@ -4,9 +4,7 @@ import 'package:flutter_web/Pages/homework_detail_page.dart';
 import 'package:flutter_web/Pages/mock_result_detail_page.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
-import 'package:flutter_web/Widgets/auth_guard.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
-import 'dart:math' as math;
 
 // в”Ђв”Ђв”Ђ Design Tokens в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 const _kPrimary = Color(0xFF1A4AF0);
@@ -130,16 +128,13 @@ class _HomeworkPageState extends State<HomeworkPage>
     if (item.isMock) {
       final submitted = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
-          builder: (_) => AuthGuard(
-            requiredRoles: const ['student'],
-            child: MockResultDetailPage(
-              title: item.title,
-              className: item.classInfo.className,
-              deadline: item.deadlineLabel,
-              sessionType: _capitalize(item.session.sessionType),
-              assignment: item.assignment,
-              result: item.mockResult,
-            ),
+          builder: (_) => MockResultDetailPage(
+            title: item.title,
+            className: item.classInfo.className,
+            deadline: item.deadlineLabel,
+            sessionType: _capitalize(item.session.sessionType),
+            assignment: item.assignment,
+            result: item.mockResult,
           ),
         ),
       );
@@ -155,16 +150,13 @@ class _HomeworkPageState extends State<HomeworkPage>
 
     final submitted = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => AuthGuard(
-          requiredRoles: const ['student'],
-          child: HomeworkDetailPage(
-            title: item.title,
-            className: item.classInfo.className,
-            deadline: item.deadlineLabel,
-            sessionType: _capitalize(item.session.sessionType),
-            assignment: item.assignment,
-            result: item.result,
-          ),
+        builder: (_) => HomeworkDetailPage(
+          title: item.title,
+          className: item.classInfo.className,
+          deadline: item.deadlineLabel,
+          sessionType: _capitalize(item.session.sessionType),
+          assignment: item.assignment,
+          result: item.result,
         ),
       ),
     );

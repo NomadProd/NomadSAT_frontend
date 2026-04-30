@@ -8,7 +8,6 @@ import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Pages/academic_plan_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
-import 'package:flutter_web/Widgets/auth_guard.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 
 part '../Widgets/shared_widgets.dart';
@@ -480,15 +479,12 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     if (d == null) return;
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AuthGuard(
-          requiredRoles: const ['admin', 'mentor', 'teacher', 'student'],
-          child: TimetablePage(
-            className: widget.className,
-            sessions: d.sessions,
-            verbalTeacher: d.detail.verbalTeacher,
-            mathTeacher: d.detail.mathTeacher,
-            teachers: d.teachers,
-          ),
+        builder: (_) => TimetablePage(
+          className: widget.className,
+          sessions: d.sessions,
+          verbalTeacher: d.detail.verbalTeacher,
+          mathTeacher: d.detail.mathTeacher,
+          teachers: d.teachers,
         ),
       ),
     );
@@ -497,12 +493,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
   void _openAcademicPlanPage() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AuthGuard(
-          requiredRoles: const ['admin', 'mentor', 'teacher', 'student'],
-          child: AcademicPlanPage(
-            classId: widget.classId,
-            className: widget.className,
-          ),
+        builder: (_) => AcademicPlanPage(
+          classId: widget.classId,
+          className: widget.className,
         ),
       ),
     );
@@ -1421,12 +1414,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final user = _pageData?.user;
     if (user == null || !_canOpenStudentProgress(user)) return;
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AuthGuard(
-          requiredRoles: const ['admin', 'mentor', 'teacher', 'student'],
-          child: ProgressHistoryPage(student: student),
-        ),
-      ),
+      MaterialPageRoute(builder: (_) => ProgressHistoryPage(student: student)),
     );
   }
 

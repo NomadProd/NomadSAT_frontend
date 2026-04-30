@@ -4,7 +4,6 @@ import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Pages/class_detail_page.dart';
 import 'package:flutter_web/Pages/control_panel_page.dart';
-import 'package:flutter_web/Widgets/auth_guard.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 
 class ClassesPage extends StatefulWidget {
@@ -93,10 +92,7 @@ class _ClassesPageState extends State<ClassesPage> {
                   onOpenControlPanel: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const AuthGuard(
-                          requiredRoles: ['admin', 'mentor'],
-                          child: ControlPanelPage(),
-                        ),
+                        builder: (_) => const ControlPanelPage(),
                       ),
                     );
                   },
@@ -859,12 +855,9 @@ class _ClassTileState extends State<_ClassTile>
         _ctrl.reverse();
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => AuthGuard(
-              requiredRoles: const ['admin', 'mentor', 'teacher', 'student'],
-              child: ClassDetailPage(
-                classId: widget.info.classId,
-                className: widget.info.className,
-              ),
+            builder: (_) => ClassDetailPage(
+              classId: widget.info.classId,
+              className: widget.info.className,
             ),
           ),
         );

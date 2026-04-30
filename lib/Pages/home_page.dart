@@ -9,7 +9,6 @@ import 'package:flutter_web/Pages/progress_history_page.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/app_route_observer.dart';
-import 'package:flutter_web/Widgets/auth_guard.dart';
 
 // РІвЂќР‚РІвЂќР‚РІвЂќР‚ Palette РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
 const _kPrimary = Color(0xFF1A4AF0);
@@ -333,12 +332,8 @@ class _HomePageState extends State<HomePage> with RouteAware {
                                 progress: data.progress,
                                 onOpenHistory: () => Navigator.of(context).push(
                                   MaterialPageRoute(
-                                    builder: (_) => AuthGuard(
-                                      requiredRoles: const ['student'],
-                                      child: ProgressHistoryPage(
-                                        student: data.user,
-                                      ),
-                                    ),
+                                    builder: (_) =>
+                                        ProgressHistoryPage(student: data.user),
                                   ),
                                 ),
                               ),
@@ -750,15 +745,12 @@ class _HomeworkTile extends StatelessWidget {
     if (item.isMock) {
       final submitted = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
-          builder: (_) => AuthGuard(
-            requiredRoles: const ['student'],
-            child: MockResultDetailPage(
-              title: _assignmentTitle(item.assignment, item.session),
-              className: item.classInfo.className,
-              deadline: _formatMockSubmissionLabel(item.session),
-              sessionType: _capitalize(item.session.sessionType),
-              assignment: item.assignment,
-            ),
+          builder: (_) => MockResultDetailPage(
+            title: _assignmentTitle(item.assignment, item.session),
+            className: item.classInfo.className,
+            deadline: _formatMockSubmissionLabel(item.session),
+            sessionType: _capitalize(item.session.sessionType),
+            assignment: item.assignment,
           ),
         ),
       );
@@ -768,16 +760,13 @@ class _HomeworkTile extends StatelessWidget {
 
     final submitted = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => AuthGuard(
-          requiredRoles: const ['student'],
-          child: HomeworkDetailPage(
-            title: _assignmentTitle(item.assignment, item.session),
-            className: item.classInfo.className,
-            deadline: _formatDeadline(item.assignment),
-            sessionType: _capitalize(item.session.sessionType),
-            assignment: item.assignment,
-            result: item.result,
-          ),
+        builder: (_) => HomeworkDetailPage(
+          title: _assignmentTitle(item.assignment, item.session),
+          className: item.classInfo.className,
+          deadline: _formatDeadline(item.assignment),
+          sessionType: _capitalize(item.session.sessionType),
+          assignment: item.assignment,
+          result: item.result,
         ),
       ),
     );
@@ -1269,12 +1258,9 @@ class _QuickNav extends StatelessWidget {
   });
 
   void _openHomework(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            const AuthGuard(requiredRoles: ['student'], child: HomeworkPage()),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const HomeworkPage()));
   }
 
   void _openAcademicPlan(BuildContext context) {
@@ -1288,12 +1274,9 @@ class _QuickNav extends StatelessWidget {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AuthGuard(
-          requiredRoles: const ['student'],
-          child: AcademicPlanPage(
-            classId: classInfo.classId,
-            className: classInfo.className,
-          ),
+        builder: (_) => AcademicPlanPage(
+          classId: classInfo.classId,
+          className: classInfo.className,
         ),
       ),
     );
@@ -1316,15 +1299,12 @@ class _QuickNav extends StatelessWidget {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AuthGuard(
-          requiredRoles: const ['student'],
-          child: TimetablePage(
-            className: classHome.classInfo.className,
-            sessions: classHome.sessions,
-            verbalTeacher: classHome.detail.verbalTeacher,
-            mathTeacher: classHome.detail.mathTeacher,
-            teachers: _teachersForTimetable(classHome.detail),
-          ),
+        builder: (_) => TimetablePage(
+          className: classHome.classInfo.className,
+          sessions: classHome.sessions,
+          verbalTeacher: classHome.detail.verbalTeacher,
+          mathTeacher: classHome.detail.mathTeacher,
+          teachers: _teachersForTimetable(classHome.detail),
         ),
       ),
     );

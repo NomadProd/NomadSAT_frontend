@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'Pages/auth_page.dart';
 import 'Pages/home_page.dart';
 import 'Pages/classes_page.dart';
-import 'Widgets/auth_guard.dart';
 import 'Widgets/app_route_observer.dart';
 
 void main() {
@@ -20,12 +19,8 @@ class MyApp extends StatelessWidget {
       navigatorObservers: [appRouteObserver],
       routes: {
         '/login': (context) => const AuthPage(),
-        '/home': (context) =>
-            const AuthGuard(requiredRoles: ['student'], child: HomePage()),
-        '/classes': (context) => const AuthGuard(
-          requiredRoles: ['admin', 'mentor', 'teacher'],
-          child: ClassesPage(),
-        ),
+        '/home': (context) => const HomePage(),
+        '/classes': (context) => const ClassesPage(),
       },
     );
   }

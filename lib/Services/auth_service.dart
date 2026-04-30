@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/browser_client.dart';
-import 'package:flutter_web/Models/auth_models.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/api_config.dart';
 import 'package:flutter_web/Services/api_json.dart';
@@ -30,19 +29,6 @@ class AuthService {
     }
 
     throw Exception(data["detail"] ?? "Login failed");
-  }
-
-  Future<AuthResult> checkAuth() async {
-    try {
-      final user = await fetchMe();
-      return AuthResult(
-        isAuthenticated: true,
-        role: user.role,
-        userId: user.userId,
-      );
-    } catch (e) {
-      return AuthResult(isAuthenticated: false, role: "", userId: 0);
-    }
   }
 
   Future<Map<String, dynamic>> register(
