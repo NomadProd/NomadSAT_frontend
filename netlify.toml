@@ -1,5 +1,17 @@
 [build]
-  command = "flutter build web --release --dart-define=API_BASE_URL=https://api.turansat.com"
+  command = """
+    set -e
+    FLUTTER_HOME="${NETLIFY_BUILD_BASE:-/opt/buildhome}/cache/flutter"
+    if [ ! -x "$FLUTTER_HOME/bin/flutter" ]; then
+      rm -rf "$FLUTTER_HOME"
+      git clone --depth 1 --branch stable https://github.com/flutter/flutter.git "$FLUTTER_HOME"
+    fi
+    export PATH="$FLUTTER_HOME/bin:$PATH"
+    flutter --version
+    flutter config --enable-web
+    flutter pub get
+    flutter build web --release --dart-define=API_BASE_URL=https://api.turansat.com
+  """
   publish = "build/web"
 
 [[redirects]]
