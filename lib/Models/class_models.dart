@@ -1,0 +1,414 @@
+class UserInfo {
+  final int userId;
+  final String name;
+  final String surname;
+  final String? email;
+  final String role;
+
+  UserInfo({
+    required this.userId,
+    required this.name,
+    required this.surname,
+    this.email,
+    required this.role,
+  });
+
+  String get fullName => '$name $surname'.trim();
+
+  factory UserInfo.fromJson(Map<String, dynamic> json) {
+    return UserInfo(
+      userId: json['user_id'] ?? 0,
+      name: json['name'] ?? '',
+      surname: json['surname'] ?? '',
+      email: json['email'],
+      role: json['role'] ?? '',
+    );
+  }
+}
+
+class ClassInfo {
+  final int classId;
+  final String className;
+
+  final int? verbalTeacherId;
+  final int? mathTeacherId;
+
+  final String? verbalTeacherName;
+  final String? verbalTeacherSurname;
+  final String? mathTeacherName;
+  final String? mathTeacherSurname;
+
+  ClassInfo({
+    required this.classId,
+    required this.className,
+    this.verbalTeacherId,
+    this.mathTeacherId,
+    this.verbalTeacherName,
+    this.verbalTeacherSurname,
+    this.mathTeacherName,
+    this.mathTeacherSurname,
+  });
+
+  factory ClassInfo.fromJson(Map<String, dynamic> json) {
+    return ClassInfo(
+      classId: json['class_id'] ?? 0,
+      className: json['class_name'] ?? '',
+      verbalTeacherId: json['verbal_teacher_id'],
+      mathTeacherId: json['math_teacher_id'],
+      verbalTeacherName: json['verbal_teacher_name'],
+      verbalTeacherSurname: json['verbal_teacher_surname'],
+      mathTeacherName: json['math_teacher_name'],
+      mathTeacherSurname: json['math_teacher_surname'],
+    );
+  }
+}
+
+class SessionInfo {
+  final int sessionId;
+  final int classId;
+  final int? teacherId;
+  final String date;
+  final String? startTime;
+  final String? endTime;
+  final String sessionType;
+  final String? topic;
+  final int? academicPlanItemId;
+  final List<int> academicPlanItemIds;
+  final String? lessonNotes;
+
+  SessionInfo({
+    required this.sessionId,
+    required this.classId,
+    required this.teacherId,
+    required this.date,
+    required this.startTime,
+    required this.endTime,
+    required this.sessionType,
+    required this.topic,
+    required this.academicPlanItemId,
+    required this.academicPlanItemIds,
+    required this.lessonNotes,
+  });
+
+  factory SessionInfo.fromJson(Map<String, dynamic> json) {
+    return SessionInfo(
+      sessionId: json['session_id'] ?? 0,
+      classId: json['class_id'] ?? 0,
+      teacherId: json['teacher_id'],
+      date: json['date']?.toString() ?? '',
+      startTime: json['start_time']?.toString(),
+      endTime: json['end_time']?.toString(),
+      sessionType: json['session_type'] ?? '',
+      topic: json['topic']?.toString(),
+      academicPlanItemId: json['academic_plan_item_id'],
+      academicPlanItemIds:
+          (json['academic_plan_item_ids'] as List<dynamic>? ?? [])
+              .map((e) => e as int)
+              .toList(),
+      lessonNotes: json['lesson_notes']?.toString(),
+    );
+  }
+}
+
+class AssignmentInfo {
+  final int assignmentId;
+  final int sessionId;
+  final int studentId;
+  final int? slotIndex;
+  final String? title;
+  final String? instruction;
+  final String? taskLink;
+  final String? dueDate;
+  final String? dueTime;
+  final bool photoRequired;
+
+  AssignmentInfo({
+    required this.assignmentId,
+    required this.sessionId,
+    required this.studentId,
+    required this.slotIndex,
+    required this.title,
+    required this.instruction,
+    required this.taskLink,
+    required this.dueDate,
+    required this.dueTime,
+    required this.photoRequired,
+  });
+
+  factory AssignmentInfo.fromJson(Map<String, dynamic> json) {
+    return AssignmentInfo(
+      assignmentId: json['assignment_id'] ?? 0,
+      sessionId: json['session_id'] ?? 0,
+      studentId: json['student_id'] ?? 0,
+      slotIndex: json['slot_index'],
+      title: json['title']?.toString(),
+      instruction: json['instruction']?.toString(),
+      taskLink: json['task_link']?.toString(),
+      dueDate: json['due_date']?.toString(),
+      dueTime: json['due_time']?.toString(),
+      photoRequired: json['photo_required'] ?? false,
+    );
+  }
+}
+
+class AttendanceInfo {
+  final int attendanceId;
+  final int sessionId;
+  final int studentId;
+  final bool status;
+
+  AttendanceInfo({
+    required this.attendanceId,
+    required this.sessionId,
+    required this.studentId,
+    required this.status,
+  });
+
+  factory AttendanceInfo.fromJson(Map<String, dynamic> json) {
+    return AttendanceInfo(
+      attendanceId: json['attendance_id'] ?? 0,
+      sessionId: json['session_id'] ?? 0,
+      studentId: json['student_id'] ?? 0,
+      status: json['status'] ?? false,
+    );
+  }
+}
+
+class HomeworkResultInfo {
+  final int resultId;
+  final int assignmentId;
+  final int studentId;
+  final bool submitted;
+  final String? submittedAt;
+  final String? photoLink;
+  final int? correctTotal;
+  final int? incorrectTotal;
+  final String? analysis;
+  final double? accuracy;
+
+  HomeworkResultInfo({
+    required this.resultId,
+    required this.assignmentId,
+    required this.studentId,
+    required this.submitted,
+    required this.submittedAt,
+    required this.photoLink,
+    required this.correctTotal,
+    required this.incorrectTotal,
+    required this.analysis,
+    required this.accuracy,
+  });
+
+  factory HomeworkResultInfo.fromJson(Map<String, dynamic> json) {
+    return HomeworkResultInfo(
+      resultId: json['result_id'] ?? 0,
+      assignmentId: json['assignment_id'] ?? 0,
+      studentId: json['student_id'] ?? 0,
+      submitted: json['submitted'] ?? false,
+      submittedAt: json['submitted_at']?.toString(),
+      photoLink: json['photo_link']?.toString(),
+      correctTotal: json['correct_total'],
+      incorrectTotal: json['incorrect_total'],
+      analysis: json['analysis']?.toString(),
+      accuracy: (json['accuracy'] as num?)?.toDouble(),
+    );
+  }
+}
+
+class MockResultInfo {
+  final int resultId;
+  final int assignmentId;
+  final int studentId;
+  final bool submitted;
+  final int? totalPoints;
+  final int? verbalPoints;
+  final int? mathPoints;
+  final int? verbalIncorrect;
+  final int? mathIncorrect;
+  final String? weakAreas;
+  final String? photoLink;
+
+  MockResultInfo({
+    required this.resultId,
+    required this.assignmentId,
+    required this.studentId,
+    required this.submitted,
+    required this.totalPoints,
+    required this.verbalPoints,
+    required this.mathPoints,
+    required this.verbalIncorrect,
+    required this.mathIncorrect,
+    required this.weakAreas,
+    required this.photoLink,
+  });
+
+  factory MockResultInfo.fromJson(Map<String, dynamic> json) {
+    return MockResultInfo(
+      resultId: json['result_id'] ?? 0,
+      assignmentId: json['assignment_id'] ?? 0,
+      studentId: json['student_id'] ?? 0,
+      submitted: json['submitted'] ?? false,
+      totalPoints: json['total_points'],
+      verbalPoints: json['verbal_points'],
+      mathPoints: json['math_points'],
+      verbalIncorrect: json['verbal_incorrect'],
+      mathIncorrect: json['math_incorrect'],
+      weakAreas: json['weak_areas']?.toString(),
+      photoLink: json['photo_link']?.toString(),
+    );
+  }
+}
+
+class StudentHomeworkHistoryInfo {
+  final HomeworkResultInfo result;
+  final AssignmentInfo assignment;
+  final SessionInfo session;
+  final ClassInfo classInfo;
+
+  StudentHomeworkHistoryInfo({
+    required this.result,
+    required this.assignment,
+    required this.session,
+    required this.classInfo,
+  });
+
+  factory StudentHomeworkHistoryInfo.fromJson(Map<String, dynamic> json) {
+    return StudentHomeworkHistoryInfo(
+      result: HomeworkResultInfo.fromJson(json),
+      assignment: AssignmentInfo.fromJson(json['assignment'] ?? {}),
+      session: SessionInfo.fromJson(json['session'] ?? {}),
+      classInfo: ClassInfo.fromJson(json['class'] ?? {}),
+    );
+  }
+}
+
+class StudentMockHistoryInfo {
+  final MockResultInfo result;
+  final AssignmentInfo assignment;
+  final SessionInfo session;
+  final ClassInfo classInfo;
+
+  StudentMockHistoryInfo({
+    required this.result,
+    required this.assignment,
+    required this.session,
+    required this.classInfo,
+  });
+
+  factory StudentMockHistoryInfo.fromJson(Map<String, dynamic> json) {
+    return StudentMockHistoryInfo(
+      result: MockResultInfo.fromJson(json),
+      assignment: AssignmentInfo.fromJson(json['assignment'] ?? {}),
+      session: SessionInfo.fromJson(json['session'] ?? {}),
+      classInfo: ClassInfo.fromJson(json['class'] ?? {}),
+    );
+  }
+}
+
+class ClassDetailInfo {
+  final int classId;
+  final String className;
+  final UserInfo? verbalTeacher;
+  final UserInfo? mathTeacher;
+  final List<UserInfo> students;
+  final List<SessionInfo> sessions;
+
+  ClassDetailInfo({
+    required this.classId,
+    required this.className,
+    required this.verbalTeacher,
+    required this.mathTeacher,
+    required this.students,
+    required this.sessions,
+  });
+
+  UserInfo? get teacher => verbalTeacher;
+
+  factory ClassDetailInfo.fromJson(Map<String, dynamic> json) {
+    return ClassDetailInfo(
+      classId: json['class_id'] ?? json['class']?['class_id'] ?? 0,
+      className: json['class_name'] ?? json['class']?['name'] ?? '',
+      verbalTeacher: json['verbal_teacher'] != null
+          ? UserInfo.fromJson({...json['verbal_teacher'], 'role': 'teacher'})
+          : null,
+      mathTeacher: json['math_teacher'] != null
+          ? UserInfo.fromJson({...json['math_teacher'], 'role': 'teacher'})
+          : null,
+      students: (json['students'] as List<dynamic>? ?? [])
+          .map((e) => UserInfo.fromJson({...e, 'role': e['role'] ?? 'student'}))
+          .toList(),
+      sessions: (json['sessions'] as List<dynamic>? ?? [])
+          .map((e) => SessionInfo.fromJson(e))
+          .toList(),
+    );
+  }
+}
+
+class ClassFullDetailInfo {
+  final int classId;
+  final String className;
+  final UserInfo? verbalTeacher;
+  final UserInfo? mathTeacher;
+  final List<UserInfo> students;
+  final List<SessionInfo> sessions;
+  final List<AssignmentInfo> assignments;
+  final List<AttendanceInfo> attendance;
+
+  ClassFullDetailInfo({
+    required this.classId,
+    required this.className,
+    required this.verbalTeacher,
+    required this.mathTeacher,
+    required this.students,
+    required this.sessions,
+    required this.assignments,
+    required this.attendance,
+  });
+
+  factory ClassFullDetailInfo.fromJson(Map<String, dynamic> json) {
+    return ClassFullDetailInfo(
+      classId: json['class_id'] ?? json['class']?['class_id'] ?? 0,
+      className: json['class_name'] ?? json['class']?['name'] ?? '',
+      verbalTeacher: json['verbal_teacher'] != null
+          ? UserInfo.fromJson({...json['verbal_teacher'], 'role': 'teacher'})
+          : null,
+      mathTeacher: json['math_teacher'] != null
+          ? UserInfo.fromJson({...json['math_teacher'], 'role': 'teacher'})
+          : null,
+      students: (json['students'] as List? ?? [])
+          .map((e) => UserInfo.fromJson({...e, 'role': e['role'] ?? 'student'}))
+          .toList(),
+      sessions: (json['sessions'] as List? ?? [])
+          .map((e) => SessionInfo.fromJson(e))
+          .toList(),
+      assignments: (json['assignments'] as List? ?? [])
+          .map((e) => AssignmentInfo.fromJson(e))
+          .toList(),
+      attendance: (json['attendance'] as List? ?? [])
+          .map((e) => AttendanceInfo.fromJson(e))
+          .toList(),
+    );
+  }
+
+  ClassFullDetailInfo copyWith({
+    int? classId,
+    String? className,
+    UserInfo? verbalTeacher,
+    UserInfo? mathTeacher,
+    List<UserInfo>? students,
+    List<SessionInfo>? sessions,
+    List<AssignmentInfo>? assignments,
+    List<AttendanceInfo>? attendance,
+  }) {
+    return ClassFullDetailInfo(
+      classId: classId ?? this.classId,
+      className: className ?? this.className,
+      verbalTeacher: verbalTeacher ?? this.verbalTeacher,
+      mathTeacher: mathTeacher ?? this.mathTeacher,
+      students: students ?? this.students,
+      sessions: sessions ?? this.sessions,
+      assignments: assignments ?? this.assignments,
+      attendance: attendance ?? this.attendance,
+    );
+  }
+}
