@@ -22,7 +22,6 @@ class _AuthPageState extends State<AuthPage>
 
   static const Color kBlue = Color(0xFF1A4AF0);
   static const Color kBlueDark = Color(0xFF1A4AF0);
-  static const Color kBlueSoft = Color(0xFFEEF2FF);
 
   @override
   void initState() {
@@ -229,8 +228,8 @@ class _AuthPageState extends State<AuthPage>
                               style:
                                   ElevatedButton.styleFrom(
                                     backgroundColor: kBlue,
-                                    disabledBackgroundColor: kBlue.withOpacity(
-                                      0.6,
+                                    disabledBackgroundColor: kBlue.withValues(
+                                      alpha: 0.6,
                                     ),
                                     foregroundColor: Colors.white,
                                     elevation: 0,
@@ -246,7 +245,9 @@ class _AuthPageState extends State<AuthPage>
                                           if (states.contains(
                                             WidgetState.pressed,
                                           )) {
-                                            return kBlueDark.withOpacity(0.3);
+                                            return kBlueDark.withValues(
+                                              alpha: 0.3,
+                                            );
                                           }
                                           return null;
                                         }),
@@ -292,11 +293,10 @@ class _AuthPageState extends State<AuthPage>
     });
 
     try {
-      await authService.login(
+      final user = await authService.login(
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
-      final user = await authService.fetchMe();
       if (!mounted) return;
       setState(() => loading = false);
       Navigator.pushReplacementNamed(context, _homeRouteForRole(user.role));

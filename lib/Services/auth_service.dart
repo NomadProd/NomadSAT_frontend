@@ -10,38 +10,36 @@ class AuthService {
   final String baseUrl = ApiConfig.baseUrl;
   final http.Client _client = BrowserClient()..withCredentials = true;
 
-  Future<bool> login(String email, String password) async {
+  static UserInfo? _cachedUser;
+  static Future<UserInfo>? _inFlightUser;
+
+  Future<UserInfo> login(String email, String password) async {
     final response = await _client.post(
       Uri.parse("$baseUrl/auth/login"),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode({"email": email, "password": password}),
     );
 
+    final data = decodeJsonResponse(response);
+
     if (response.statusCode == 200) {
-      return true;
+      final user = UserInfo.fromJson(data);
+      _cachedUser = user;
+      _inFlightUser = null;
+      return user;
     }
 
-    final data = decodeJsonResponse(response);
     throw Exception(data["detail"] ?? "Login failed");
   }
 
   Future<AuthResult> checkAuth() async {
     try {
-      final response = await _client.get(
-        Uri.parse("$baseUrl/auth/me"),
-        headers: {"Content-Type": "application/json"},
+      final user = await fetchMe();
+      return AuthResult(
+        isAuthenticated: true,
+        role: user.role,
+        userId: user.userId,
       );
-
-      if (response.statusCode == 200) {
-        final data = decodeJsonResponse(response);
-        return AuthResult(
-          isAuthenticated: true,
-          role: data["role"],
-          userId: data["user_id"],
-        );
-      }
-
-      return AuthResult(isAuthenticated: false, role: "", userId: 0);
     } catch (e) {
       return AuthResult(isAuthenticated: false, role: "", userId: 0);
     }
@@ -88,6 +86,23 @@ class AuthService {
   }
 
   Future<UserInfo> fetchMe() async {
+    final cachedUser = _cachedUser;
+    if (cachedUser != null) return cachedUser;
+
+    final inFlightUser = _inFlightUser;
+    if (inFlightUser != null) return inFlightUser;
+
+    _inFlightUser = _fetchMeFromServer();
+    try {
+      final user = await _inFlightUser!;
+      _cachedUser = user;
+      return user;
+    } finally {
+      _inFlightUser = null;
+    }
+  }
+
+  Future<UserInfo> _fetchMeFromServer() async {
     final response = await _client.get(
       Uri.parse("$baseUrl/auth/me"),
       headers: {"Content-Type": "application/json"},
@@ -106,6 +121,9 @@ class AuthService {
       Uri.parse("$baseUrl/auth/logout"),
       headers: {"Content-Type": "application/json"},
     );
+
+    _cachedUser = null;
+    _inFlightUser = null;
 
     if (response.statusCode != 200) {
       final data = decodeJsonResponse(response);
