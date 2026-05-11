@@ -113,23 +113,20 @@ class _HomePageState extends State<HomePage> with RouteAware {
       );
     }
 
-    final enrolledClassHome = classHomes
-        .where(
-          (classHome) =>
-              classHome.detail.students.any((s) => s.userId == user.userId) ||
-              classHome.detail.assignments.any(
-                (a) => a.studentId == user.userId,
-              ),
-        )
-        .firstOrNull;
+    final enrolledClassHomes = classHomes.where((classHome) {
+      return classHome.detail.students.any((s) => s.userId == user.userId) ||
+          classHome.detail.assignments.any((a) => a.studentId == user.userId);
+    }).toList();
+
+    final enrolledClassHome = enrolledClassHomes.firstOrNull;
 
     return _StudentHomeData(
       user: user,
       academicPlanClass: enrolledClassHome?.classInfo,
       timetableClass: enrolledClassHome,
-      dueHomework: _buildDueHomework(classHomes),
-      nextClass: _buildNextClass(classHomes),
-      progress: _buildProgress(classHomes),
+      dueHomework: _buildDueHomework(enrolledClassHomes, user.userId),
+      nextClass: _buildNextClass(enrolledClassHomes),
+      progress: _buildProgress(enrolledClassHomes),
     );
   }
 
@@ -139,20 +136,29 @@ class _HomePageState extends State<HomePage> with RouteAware {
     Navigator.of(context).pushReplacementNamed('/login');
   }
 
-  List<_DueHomeworkItem> _buildDueHomework(List<_StudentClassHome> classes) {
+  List<_DueHomeworkItem> _buildDueHomework(
+    List<_StudentClassHome> classes,
+    int userId,
+  ) {
     final items = <_DueHomeworkItem>[];
+
     for (final classHome in classes) {
       for (final assignment in classHome.detail.assignments) {
+        if (assignment.studentId != userId) continue;
+
         final session = _sessionForAssignment(classHome.sessions, assignment);
         if (session == null) continue;
 
         if (_isMockSession(session)) {
           if (!_isMockSubmissionOpen(session)) continue;
+
           final result = classHome
               .mockResultsByAssignment[assignment.assignmentId]
               ?.where((r) => r.submitted)
               .firstOrNull;
+
           if (result != null) continue;
+
           items.add(
             _DueHomeworkItem(
               assignment: assignment,
@@ -163,6 +169,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
               isMock: true,
             ),
           );
+
           continue;
         }
 
@@ -170,7 +177,9 @@ class _HomePageState extends State<HomePage> with RouteAware {
             .homeworkResultsByAssignment[assignment.assignmentId]
             ?.where((r) => r.submitted)
             .firstOrNull;
+
         if (result != null) continue;
+
         items.add(
           _DueHomeworkItem(
             assignment: assignment,
@@ -183,10 +192,12 @@ class _HomePageState extends State<HomePage> with RouteAware {
         );
       }
     }
+
     items.sort((a, b) {
       if (a.isLate != b.isLate) return a.isLate ? -1 : 1;
       return _deadlineFor(a.assignment).compareTo(_deadlineFor(b.assignment));
     });
+
     return items;
   }
 
