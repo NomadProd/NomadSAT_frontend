@@ -81,13 +81,22 @@ class _HomePageState extends State<HomePage> with RouteAware {
         classInfo.classId,
       );
 
+      final isUserInClass = detail.students.any((s) => s.userId == user.userId) ||
+          detail.assignments.any((a) => a.studentId == user.userId);
+
+      if (!isUserInClass) continue;
+
       final sessions = [...detail.sessions]
         ..sort((a, b) => _parseDate(a.date).compareTo(_parseDate(b.date)));
 
       final homeworkResultsByAssignment = <int, List<HomeworkResultInfo>>{};
       final mockResultsByAssignment = <int, List<MockResultInfo>>{};
 
-      for (final assignment in detail.assignments) {
+      final userAssignments = detail.assignments
+          .where((a) => a.studentId == user.userId)
+          .toList();
+
+      for (final assignment in userAssignments) {
         final session = _sessionForAssignment(sessions, assignment);
         if (session == null) continue;
 
@@ -97,8 +106,8 @@ class _HomePageState extends State<HomePage> with RouteAware {
         } else {
           homeworkResultsByAssignment[assignment.assignmentId] =
               await _classService.fetchHomeworkResultsByAssignment(
-                assignment.assignmentId,
-              );
+            assignment.assignmentId,
+          );
         }
       }
 
@@ -113,20 +122,15 @@ class _HomePageState extends State<HomePage> with RouteAware {
       );
     }
 
-    final enrolledClassHomes = classHomes.where((classHome) {
-      return classHome.detail.students.any((s) => s.userId == user.userId) ||
-          classHome.detail.assignments.any((a) => a.studentId == user.userId);
-    }).toList();
-
-    final enrolledClassHome = enrolledClassHomes.firstOrNull;
+    final enrolledClassHome = classHomes.firstOrNull;
 
     return _StudentHomeData(
       user: user,
       academicPlanClass: enrolledClassHome?.classInfo,
       timetableClass: enrolledClassHome,
-      dueHomework: _buildDueHomework(enrolledClassHomes, user.userId),
-      nextClass: _buildNextClass(enrolledClassHomes),
-      progress: _buildProgress(enrolledClassHomes),
+      dueHomework: _buildDueHomework(classHomes, user.userId),
+      nextClass: _buildNextClass(classHomes),
+      progress: _buildProgress(classHomes),
     );
   }
 
