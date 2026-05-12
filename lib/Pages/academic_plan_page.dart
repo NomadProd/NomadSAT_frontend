@@ -562,7 +562,7 @@ class _AcademicPlanPageState extends State<AcademicPlanPage>
     setState(() {
       _verbal = results[0] as List<AcademicPlanEntry>;
       _math = results[1] as List<AcademicPlanEntry>;
-      _canEditPlan = role == 'admin' || role == 'mentor';
+      _canEditPlan = role == 'admin' || role == 'mentor' || role == 'teacher';
       _canDeletePlan = role == 'admin';
       _loading = false;
     });
