@@ -1475,132 +1475,162 @@ class _AcademicPlanEditDialogState extends State<_AcademicPlanEditDialog> {
   @override
   Widget build(BuildContext context) {
     final busy = _saving || _deleting;
+
     return Dialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        width: 640,
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 640,
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Edit Academic Plan',
-              style: TextStyle(
-                color: _kTextDark,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              widget.entry.lesson,
-              style: const TextStyle(
-                color: _kTextMid,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Row(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _subjectCtrl,
-                    enabled: !busy,
-                    decoration: _fieldDeco(
-                      'Subject',
-                      hint: 'verbal, math, mock',
-                    ),
+                const Text(
+                  'Edit Academic Plan',
+                  style: TextStyle(
+                    color: _kTextDark,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _dateCtrl,
-                    readOnly: true,
-                    enabled: !busy,
-                    onTap: busy ? null : _pickDate,
-                    decoration: _fieldDeco('Assigned date', hint: 'YYYY-MM-DD'),
+                const SizedBox(height: 6),
+                Text(
+                  widget.entry.lesson,
+                  style: const TextStyle(
+                    color: _kTextMid,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
+                ),
+                const SizedBox(height: 18),
+
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final narrow = constraints.maxWidth < 520;
+
+                    final subjectField = TextField(
+                      controller: _subjectCtrl,
+                      enabled: !busy,
+                      decoration: _fieldDeco(
+                        'Subject',
+                        hint: 'verbal, math, mock',
+                      ),
+                    );
+
+                    final dateField = TextField(
+                      controller: _dateCtrl,
+                      readOnly: true,
+                      enabled: !busy,
+                      onTap: busy ? null : _pickDate,
+                      decoration: _fieldDeco(
+                        'Assigned date',
+                        hint: 'YYYY-MM-DD',
+                      ),
+                    );
+
+                    if (narrow) {
+                      return Column(
+                        children: [
+                          subjectField,
+                          const SizedBox(height: 12),
+                          dateField,
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Expanded(child: subjectField),
+                        const SizedBox(width: 12),
+                        Expanded(child: dateField),
+                      ],
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _topicCtrl,
+                  enabled: !busy,
+                  decoration: _fieldDeco('General topic'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _planCtrl,
+                  enabled: !busy,
+                  minLines: 5,
+                  maxLines: 8,
+                  decoration: _fieldDeco('Plan text'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _notesCtrl,
+                  enabled: !busy,
+                  minLines: 4,
+                  maxLines: 7,
+                  decoration: _fieldDeco('Lesson notes'),
+                ),
+                const SizedBox(height: 18),
+
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => Navigator.of(context).pop(false),
+                      child: const Text('Cancel'),
+                    ),
+                    if (widget.canDelete)
+                      TextButton(
+                        onPressed: busy || widget.entry.planItemId == null
+                            ? null
+                            : _delete,
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFFC62828),
+                        ),
+                        child: _deleting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Delete'),
+                      ),
+                    ElevatedButton(
+                      onPressed: busy ? null : _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _kPrimary,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Save'),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _topicCtrl,
-              enabled: !busy,
-              decoration: _fieldDeco('General topic'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _planCtrl,
-              enabled: !busy,
-              minLines: 5,
-              maxLines: 8,
-              decoration: _fieldDeco('Plan text'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _notesCtrl,
-              enabled: !busy,
-              minLines: 4,
-              maxLines: 7,
-              decoration: _fieldDeco('Lesson notes'),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                TextButton(
-                  onPressed: busy
-                      ? null
-                      : () => Navigator.of(context).pop(false),
-                  child: const Text('Cancel'),
-                ),
-                const Spacer(),
-                if (widget.canDelete) ...[
-                  TextButton(
-                    onPressed: busy || widget.entry.planItemId == null
-                        ? null
-                        : _delete,
-                    style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFFC62828),
-                    ),
-                    child: _deleting
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Delete'),
-                  ),
-                  const SizedBox(width: 10),
-                ],
-                ElevatedButton(
-                  onPressed: busy ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kPrimary,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: _saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('Save'),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
