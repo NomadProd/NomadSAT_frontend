@@ -459,7 +459,7 @@ class _HomeworkHistorySection extends StatelessWidget {
       emptyMessage: 'No homework results yet',
       isEmpty: items.isEmpty,
       child: _ExcelTable(
-        minWidth: 1226,
+        minWidth: 1366,
         columns: const [
           _TableColumn('Date', 96),
           _TableColumn('Class', 140),
@@ -470,7 +470,7 @@ class _HomeworkHistorySection extends StatelessWidget {
           _TableColumn('Delta', 94),
           _TableColumn('Correct', 78),
           _TableColumn('Wrong', 78),
-          _TableColumn('Analysis', 220),
+          _TableColumn('Analysis', 360),
         ],
         rows: [
           for (final item in items)
@@ -756,7 +756,7 @@ class _HomeworkResultRow extends StatelessWidget {
         ),
         _TextCell(width: 78, text: result?.correctTotal?.toString() ?? '-'),
         _TextCell(width: 78, text: result?.incorrectTotal?.toString() ?? '-'),
-        _TextCell(width: 220, text: _textOrDash(result?.analysis)),
+        _LongTextCell(width: 220, text: _textOrDash(result?.analysis)),
       ],
     );
   }
@@ -916,6 +916,38 @@ class _TextCell extends StatelessWidget {
               fontSize: 12,
               height: 1.25,
               fontWeight: strong ? FontWeight.w900 : FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LongTextCell extends StatelessWidget {
+  final double width;
+  final String text;
+
+  const _LongTextCell({
+    required this.width,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: SelectableText(
+            text,
+            style: const TextStyle(
+              color: _kTextMid,
+              fontSize: 12,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
