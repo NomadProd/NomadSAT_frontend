@@ -577,6 +577,14 @@ Future<void> _showUserToolsDialog({
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final isAdmin = currentUserRole.toLowerCase() == 'admin';
+  final isMentor = currentUserRole.toLowerCase() == 'mentor';
+  final canDeleteUsers = isAdmin || isMentor;
+  final deleteUsers = isMentor
+      ? users.where((user) {
+          final role = user.role.toLowerCase();
+          return role == 'student' || role == 'teacher';
+        }).toList()
+      : users;
   final roleOptions = isAdmin
       ? ['student', 'teacher', 'mentor', 'admin']
       : ['student', 'teacher'];
@@ -589,7 +597,10 @@ Future<void> _showUserToolsDialog({
       ? null
       : users.where((user) => user.userId == initialUser.userId).firstOrNull;
   UserInfo? roleTarget = selectedUser ?? (users.isEmpty ? null : users.first);
-  UserInfo? deleteTarget = selectedUser ?? (users.isEmpty ? null : users.first);
+  UserInfo? deleteTarget = selectedUser != null &&
+        deleteUsers.any((user) => user.userId == selectedUser.userId)
+    ? selectedUser
+    : (deleteUsers.isEmpty ? null : deleteUsers.first);
 
   await showDialog(
     context: context,
@@ -717,11 +728,10 @@ Future<void> _showUserToolsDialog({
                           onPressed: roleTarget == null
                               ? null
                               : () async {
-                                  final result = await classService
-                                      .updateUserRole(
-                                        userId: roleTarget!.userId,
-                                        role: changeRole,
-                                      );
+                                  final result = await classService.updateUserRole(
+                                    userId: roleTarget!.userId,
+                                    role: changeRole,
+                                  );
                                   if (!context.mounted) return;
                                   _showResultSnack(context, result);
                                   if (result['success'] == true) {
@@ -733,6 +743,9 @@ Future<void> _showUserToolsDialog({
                         ),
                       ],
                     ),
+                  ],
+
+                  if (canDeleteUsers) ...[
                     const Divider(height: 28),
                     const _SubLabel('Delete user'),
                     const SizedBox(height: 10),
@@ -741,7 +754,7 @@ Future<void> _showUserToolsDialog({
                         Expanded(
                           child: _UserDropdown(
                             value: deleteTarget,
-                            users: users,
+                            users: deleteUsers,
                             onChanged: (value) {
                               setDialogState(() => deleteTarget = value);
                             },
@@ -760,11 +773,14 @@ Future<void> _showUserToolsDialog({
                                     deleteTarget!,
                                   );
                                   if (!confirmed) return;
+
                                   final result = await classService.deleteUser(
                                     userId: deleteTarget!.userId,
                                   );
+
                                   if (!context.mounted) return;
                                   _showResultSnack(context, result);
+
                                   if (result['success'] == true) {
                                     Navigator.of(dialogContext).pop();
                                     onChanged();
