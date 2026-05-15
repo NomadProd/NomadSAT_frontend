@@ -298,11 +298,13 @@ class _PageData {
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 class _AssignmentDialogResult {
   final String instruction, taskLink, dueDate, dueTime;
+  final List<UserInfo> students;
   const _AssignmentDialogResult({
     required this.instruction,
     required this.taskLink,
     required this.dueDate,
     required this.dueTime,
+    required this.students,
   });
 }
 
@@ -514,138 +516,334 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final dTime = TextEditingController(
       text: _compactTime(assignment?.dueTime),
     );
+    final selectedStudents = <UserInfo>[student];
+    int? selectedStudentId;
+
+    int? nextHomeworkSlotFor(UserInfo s) {
+      final usedSlots =
+          _studentAssignmentsForSession(
+                sessionId: session.sessionId,
+                studentId: s.userId,
+              )
+              .map((a) => a.slotIndex)
+              .whereType<int>()
+              .where((slot) => slot >= 1 && slot <= _kMaxHomeworkSlots)
+              .toSet();
+      for (var slot = 1; slot <= _kMaxHomeworkSlots; slot++) {
+        if (!usedSlots.contains(slot)) return slot;
+      }
+      return null;
+    }
+
+    List<UserInfo> availableStudents() {
+      final selectedIds = selectedStudents.map((s) => s.userId).toSet();
+      final available =
+          (_pageData?.detail.students ?? [])
+              .where((s) => !selectedIds.contains(s.userId))
+              .where((s) => nextHomeworkSlotFor(s) != null)
+              .toList()
+            ..sort((a, b) {
+              final byName = a.fullName.toLowerCase().compareTo(
+                b.fullName.toLowerCase(),
+              );
+              return byName != 0 ? byName : a.userId.compareTo(b.userId);
+            });
+      return available;
+    }
+
+    int? displayedHomeworkSlotFor(UserInfo s) {
+      if (assignment != null && s.userId == student.userId) {
+        return assignment.slotIndex ?? (slotIndex + 1);
+      }
+      return nextHomeworkSlotFor(s);
+    }
 
     final result = await showDialog<_AssignmentDialogResult>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDlg) => _DialogShell(
-          icon: Icons.assignment_rounded,
-          title: assignment == null
-              ? 'Assign Homework ${slotIndex + 1}'
-              : 'Edit Homework ${slotIndex + 1}',
-          width: 520,
-          content: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _DlgLabel('Content'),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: instr,
-                  maxLines: 4,
-                  decoration: _fieldDeco('Instruction'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: link,
-                  decoration: _fieldDeco('Task link', hint: 'https://...'),
-                ),
-                const SizedBox(height: 20),
-                const _DlgLabel('Deadline'),
-                const SizedBox(height: 10),
-                Row(
+        builder: (ctx, setDlg) {
+          final available = assignment == null
+              ? availableStudents()
+              : <UserInfo>[];
+          if (selectedStudentId != null &&
+              !available.any((s) => s.userId == selectedStudentId)) {
+            selectedStudentId = null;
+          }
+
+          return _DialogShell(
+            icon: Icons.assignment_rounded,
+            title: assignment == null
+                ? 'Assign Homework ${slotIndex + 1}'
+                : 'Edit Homework ${slotIndex + 1}',
+            width: 560,
+            content: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      flex: 3,
-                      child: TextField(
-                        controller: dDate,
-                        readOnly: true,
-                        decoration: _fieldDeco(
-                          'Date',
-                          hint: 'YYYY-MM-DD',
-                          suffixIcon: const Icon(
-                            Icons.calendar_today_rounded,
-                            size: 18,
+                    const _DlgLabel('Content'),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: instr,
+                      maxLines: 4,
+                      decoration: _fieldDeco('Instruction'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: link,
+                      decoration: _fieldDeco('Task link', hint: 'https://...'),
+                    ),
+                    const SizedBox(height: 20),
+                    const _DlgLabel('Students'),
+                    const SizedBox(height: 10),
+                    if (assignment == null) ...[
+                      DropdownButtonFormField<int>(
+                        key: ValueKey(
+                          selectedStudents.map((s) => s.userId).join(','),
+                        ),
+                        initialValue: selectedStudentId,
+                        decoration: _fieldDeco('Add student'),
+                        hint: const Text('Choose available student'),
+                        items: available
+                            .map(
+                              (s) => DropdownMenuItem<int>(
+                                value: s.userId,
+                                child: Text(
+                                  '${s.fullName}  - Homework ${nextHomeworkSlotFor(s)}',
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: available.isEmpty
+                            ? null
+                            : (v) {
+                                if (v == null) return;
+                                final selected = available
+                                    .where((s) => s.userId == v)
+                                    .firstOrNull;
+                                if (selected == null) return;
+                                setDlg(() {
+                                  selectedStudents.add(selected);
+                                  selectedStudentId = null;
+                                });
+                              },
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    if (selectedStudents.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _kErrorBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _kError.withOpacity(0.25)),
+                        ),
+                        child: const Text(
+                          'Choose at least one student.',
+                          style: TextStyle(
+                            color: _kError,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        onTap: () async {
-                          final init = dDate.text.isNotEmpty
-                              ? _parseDate(dDate.text)
-                              : _normalizeDate(
-                                  DateTime.now().add(const Duration(days: 1)),
-                                );
-                          final p = await showDatePicker(
-                            context: ctx,
-                            initialDate: init,
-                            firstDate: DateTime(2024),
-                            lastDate: DateTime(2100),
-                          );
-                          if (p != null)
-                            setDlg(() => dDate.text = _formatDateForApi(p));
-                        },
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: selectedStudents
+                            .map(
+                              (s) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 7,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _kPanelBg,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: _kBorder),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ConstrainedBox(
+                                      constraints: const BoxConstraints(
+                                        maxWidth: 360,
+                                      ),
+                                      child: Text(
+                                        '${s.fullName} - Homework ${displayedHomeworkSlotFor(s) ?? _kMaxHomeworkSlots}',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: _kTextDark,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    if (assignment == null) ...[
+                                      const SizedBox(width: 6),
+                                      InkWell(
+                                        borderRadius: BorderRadius.circular(10),
+                                        onTap: () => setDlg(
+                                          () => selectedStudents.removeWhere(
+                                            (x) => x.userId == s.userId,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.remove_circle_outline_rounded,
+                                          color: _kError,
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: TextField(
-                        controller: dTime,
-                        decoration: _fieldDeco('Time', hint: '18:30'),
-                      ),
+                    const SizedBox(height: 20),
+                    const _DlgLabel('Deadline'),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: TextField(
+                            controller: dDate,
+                            readOnly: true,
+                            decoration: _fieldDeco(
+                              'Date',
+                              hint: 'YYYY-MM-DD',
+                              suffixIcon: const Icon(
+                                Icons.calendar_today_rounded,
+                                size: 18,
+                              ),
+                            ),
+                            onTap: () async {
+                              final init = dDate.text.isNotEmpty
+                                  ? _parseDate(dDate.text)
+                                  : _normalizeDate(
+                                      DateTime.now().add(
+                                        const Duration(days: 1),
+                                      ),
+                                    );
+                              final p = await showDatePicker(
+                                context: ctx,
+                                initialDate: init,
+                                firstDate: DateTime(2024),
+                                lastDate: DateTime(2100),
+                              );
+                              if (p != null) {
+                                setDlg(() => dDate.text = _formatDateForApi(p));
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: TextField(
+                            controller: dTime,
+                            decoration: _fieldDeco('Time', hint: '18:30'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            const SizedBox(width: 8),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(
-                _AssignmentDialogResult(
-                  instruction: instr.text.trim(),
-                  taskLink: link.text.trim(),
-                  dueDate: dDate.text.trim(),
-                  dueTime: dTime.text.trim(),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: selectedStudents.isEmpty
+                    ? null
+                    : () => Navigator.of(ctx).pop(
+                        _AssignmentDialogResult(
+                          instruction: instr.text.trim(),
+                          taskLink: link.text.trim(),
+                          dueDate: dDate.text.trim(),
+                          dueTime: dTime.text.trim(),
+                          students: List<UserInfo>.from(selectedStudents),
+                        ),
+                      ),
+                child: Text(
+                  assignment == null && selectedStudents.length > 1
+                      ? 'Assign to ${selectedStudents.length}'
+                      : 'Save',
                 ),
               ),
-              child: const Text('Save'),
-            ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
     if (result == null) return;
 
     setState(() => _savingAssignment = true);
     try {
-      final r = assignment == null
-          ? await classService.createAssignmentForStudent(
-              sessionId: session.sessionId,
-              studentId: student.userId,
-              slotIndex: slotIndex + 1,
-              title: 'Homework ${slotIndex + 1}',
-              instruction: result.instruction.isEmpty
-                  ? null
-                  : result.instruction,
-              taskLink: result.taskLink.isEmpty ? null : result.taskLink,
-              dueDate: result.dueDate.isEmpty ? null : result.dueDate,
-              dueTime: _timeForApi(result.dueTime),
-            )
-          : await classService.updateAssignment(
-              assignmentId: assignment.assignmentId,
-              studentId: student.userId,
-              slotIndex: assignment.slotIndex ?? (slotIndex + 1),
-              title: assignment.title ?? 'Homework ${slotIndex + 1}',
-              instruction: result.instruction.isEmpty
-                  ? null
-                  : result.instruction,
-              taskLink: result.taskLink.isEmpty ? null : result.taskLink,
-              dueDate: result.dueDate.isEmpty ? null : result.dueDate,
-              dueTime: _timeForApi(result.dueTime),
+      if (assignment == null) {
+        var created = 0;
+        final failures = <String>[];
+        for (final selectedStudent in result.students) {
+          final nextSlot = nextHomeworkSlotFor(selectedStudent);
+          if (nextSlot == null) {
+            failures.add('${selectedStudent.fullName}: no homework slots left');
+            continue;
+          }
+          final r = await classService.createAssignmentForStudent(
+            sessionId: session.sessionId,
+            studentId: selectedStudent.userId,
+            slotIndex: nextSlot,
+            title: 'Homework $nextSlot',
+            instruction: result.instruction.isEmpty ? null : result.instruction,
+            taskLink: result.taskLink.isEmpty ? null : result.taskLink,
+            dueDate: result.dueDate.isEmpty ? null : result.dueDate,
+            dueTime: _timeForApi(result.dueTime),
+          );
+          if (r['success'] == true) {
+            created++;
+          } else {
+            failures.add(
+              '${selectedStudent.fullName}: ${r['message'] ?? 'failed'}',
             );
+          }
+        }
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(r['message'] ?? 'Done')));
-      if (r['success'] == true) await _reload();
+        if (!mounted) return;
+        final message = failures.isEmpty
+            ? 'Homework assigned to $created student${created == 1 ? '' : 's'}'
+            : 'Assigned to $created. ${failures.length} failed.';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+        if (created > 0) await _reload();
+      } else {
+        final r = await classService.updateAssignment(
+          assignmentId: assignment.assignmentId,
+          studentId: student.userId,
+          slotIndex: assignment.slotIndex ?? (slotIndex + 1),
+          title: assignment.title ?? 'Homework ${slotIndex + 1}',
+          instruction: result.instruction.isEmpty ? null : result.instruction,
+          taskLink: result.taskLink.isEmpty ? null : result.taskLink,
+          dueDate: result.dueDate.isEmpty ? null : result.dueDate,
+          dueTime: _timeForApi(result.dueTime),
+        );
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(r['message'] ?? 'Done')));
+        if (r['success'] == true) await _reload();
+      }
     } finally {
       if (mounted) setState(() => _savingAssignment = false);
     }
