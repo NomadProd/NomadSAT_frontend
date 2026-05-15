@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 
 class AuthPage extends StatefulWidget {
@@ -153,31 +154,49 @@ class _AuthPageState extends State<AuthPage>
                           const SizedBox(height: 40),
 
                           // ── Email field ────────────────────────────
-                          _InputField(
-                            controller: _emailController,
-                            label: 'Email address',
-                            keyboardType: TextInputType.emailAddress,
-                            prefixIcon: Icons.mail_outline_rounded,
-                          ),
-                          const SizedBox(height: 16),
+                          AutofillGroup(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _InputField(
+                                  controller: _emailController,
+                                  label: 'Email address',
+                                  keyboardType: TextInputType.emailAddress,
+                                  prefixIcon: Icons.mail_outline_rounded,
+                                  autofillHints: const [
+                                    AutofillHints.username,
+                                    AutofillHints.email,
+                                  ],
+                                  textInputAction: TextInputAction.next,
+                                ),
+                                const SizedBox(height: 16),
 
-                          // ── Password field ─────────────────────────
-                          _InputField(
-                            controller: _passwordController,
-                            label: 'Password',
-                            obscureText: _obscurePassword,
-                            prefixIcon: Icons.lock_outline_rounded,
-                            suffixIcon: GestureDetector(
-                              onTap: () => setState(
-                                () => _obscurePassword = !_obscurePassword,
-                              ),
-                              child: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_off_outlined
-                                    : Icons.visibility_outlined,
-                                color: const Color(0xFF7B8AA0),
-                                size: 20,
-                              ),
+                                // ── Password field ─────────────────────────
+                                _InputField(
+                                  controller: _passwordController,
+                                  label: 'Password',
+                                  obscureText: _obscurePassword,
+                                  prefixIcon: Icons.lock_outline_rounded,
+                                  autofillHints: const [AutofillHints.password],
+                                  textInputAction: TextInputAction.done,
+                                  onSubmitted: (_) {
+                                    if (!loading) _login();
+                                  },
+                                  suffixIcon: GestureDetector(
+                                    onTap: () => setState(
+                                      () =>
+                                          _obscurePassword = !_obscurePassword,
+                                    ),
+                                    child: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_off_outlined
+                                          : Icons.visibility_outlined,
+                                      color: const Color(0xFF7B8AA0),
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 28),
@@ -298,6 +317,7 @@ class _AuthPageState extends State<AuthPage>
         _passwordController.text.trim(),
       );
       if (!mounted) return;
+      TextInput.finishAutofillContext();
       setState(() => loading = false);
       Navigator.pushReplacementNamed(context, _homeRouteForRole(user.role));
     } catch (e) {
@@ -329,6 +349,9 @@ class _InputField extends StatelessWidget {
   final TextInputType keyboardType;
   final IconData prefixIcon;
   final Widget? suffixIcon;
+  final Iterable<String>? autofillHints;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
 
   const _InputField({
     required this.controller,
@@ -337,6 +360,9 @@ class _InputField extends StatelessWidget {
     this.obscureText = false,
     this.keyboardType = TextInputType.text,
     this.suffixIcon,
+    this.autofillHints,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   static const Color kBlue = Color(0xFF1A4AF0);
@@ -347,6 +373,9 @@ class _InputField extends StatelessWidget {
       controller: controller,
       obscureText: obscureText,
       keyboardType: keyboardType,
+      autofillHints: autofillHints,
+      textInputAction: textInputAction,
+      onSubmitted: onSubmitted,
       style: const TextStyle(fontSize: 15, color: Color(0xFF0D1A3A)),
       decoration: InputDecoration(
         labelText: label,
