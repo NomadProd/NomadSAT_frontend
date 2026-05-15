@@ -465,6 +465,23 @@ class ClassService {
     return data.map((e) => HomeworkResultInfo.fromJson(e)).toList();
   }
 
+  Future<List<HomeworkResultInfo>> fetchHomeworkResultsByClass(
+    int classId,
+  ) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/classes/$classId/homework-results'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode != 200) {
+      final data = decodeJsonResponse(response);
+      throw Exception(data['detail'] ?? 'Failed to load homework results');
+    }
+
+    final List data = decodeJsonResponse(response);
+    return data.map((e) => HomeworkResultInfo.fromJson(e)).toList();
+  }
+
   Future<Map<String, dynamic>> createHomeworkResult({
     required int assignmentId,
     required bool submitted,
