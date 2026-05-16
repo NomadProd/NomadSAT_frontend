@@ -242,7 +242,9 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     final details = _DetailsCard(
+                      taskLink: widget.assignment.taskLink?.trim() ?? '',
                       photoRequired: widget.assignment.photoRequired,
+                      onOpenLink: _openLink,
                     );
                     final form = _SubmissionCard(
                       formKey: _formKey,
@@ -397,9 +399,15 @@ class _HeroChip extends StatelessWidget {
 }
 
 class _DetailsCard extends StatelessWidget {
+  final String taskLink;
   final bool photoRequired;
+  final ValueChanged<String> onOpenLink;
 
-  const _DetailsCard({required this.photoRequired});
+  const _DetailsCard({
+    required this.taskLink,
+    required this.photoRequired,
+    required this.onOpenLink,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -421,6 +429,46 @@ class _DetailsCard extends StatelessWidget {
                 height: 1.5,
               ),
             ),
+          ),
+          const SizedBox(height: 14),
+          _InfoBlock(
+            label: 'Mock Link',
+            icon: Icons.link_rounded,
+            child: taskLink.isEmpty
+                ? const Text(
+                    'No link attached.',
+                    style: TextStyle(
+                      color: _kTextLight,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  )
+                : InkWell(
+                    onTap: () => onOpenLink(taskLink),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            taskLink,
+                            style: const TextStyle(
+                              color: _kPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.open_in_new_rounded,
+                          size: 14,
+                          color: _kPrimary,
+                        ),
+                      ],
+                    ),
+                  ),
           ),
           const SizedBox(height: 14),
           _RequirementBanner(photoRequired: photoRequired),

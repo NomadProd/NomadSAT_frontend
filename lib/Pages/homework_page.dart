@@ -1474,7 +1474,7 @@ class _HomeworkItem {
   bool get isCompleted =>
       isMock ? mockResult?.submitted == true : result?.submitted == true;
   bool get isSubmissionOpen =>
-      !isMock || !_parseDate(session.date).isAfter(DateTime.now());
+      !isMock || !DateTime.now().isBefore(_sessionDateTime(session));
   bool get isLate => !isCompleted && DateTime.now().isAfter(deadline);
 
   DateTime get deadline =>
@@ -1530,6 +1530,19 @@ class _HomeworkItem {
 DateTime _deadlineFromParts(String? dueDate, String? dueTime) {
   final date = DateTime.tryParse(dueDate ?? '') ?? DateTime(2999);
   final time = _compactTime(dueTime);
+  var hour = 23;
+  var minute = 59;
+  if (time.contains(':')) {
+    final parts = time.split(':');
+    hour = int.tryParse(parts[0]) ?? 23;
+    minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 59 : 59;
+  }
+  return DateTime(date.year, date.month, date.day, hour, minute);
+}
+
+DateTime _sessionDateTime(SessionInfo session) {
+  final date = _parseDate(session.date);
+  final time = _compactTime(session.startTime);
   var hour = 23;
   var minute = 59;
   if (time.contains(':')) {

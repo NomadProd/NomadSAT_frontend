@@ -81,7 +81,8 @@ class _HomePageState extends State<HomePage> with RouteAware {
         classInfo.classId,
       );
 
-      final isUserInClass = detail.students.any((s) => s.userId == user.userId) ||
+      final isUserInClass =
+          detail.students.any((s) => s.userId == user.userId) ||
           detail.assignments.any((a) => a.studentId == user.userId);
 
       if (!isUserInClass) continue;
@@ -106,8 +107,8 @@ class _HomePageState extends State<HomePage> with RouteAware {
         } else {
           homeworkResultsByAssignment[assignment.assignmentId] =
               await _classService.fetchHomeworkResultsByAssignment(
-            assignment.assignmentId,
-          );
+                assignment.assignmentId,
+              );
         }
       }
 
@@ -2064,9 +2065,8 @@ bool _isDeadlinePassed(String? dueDate, String? dueTime) {
   return DateTime.now().isAfter(_deadlineFromParts(dueDate, dueTime));
 }
 
-bool _isMockSubmissionOpen(SessionInfo session) => !_normalizeDate(
-  DateTime.now(),
-).isBefore(_normalizeDate(_parseDate(session.date)));
+bool _isMockSubmissionOpen(SessionInfo session) =>
+    !DateTime.now().isBefore(_sessionDateTime(session));
 
 bool _isMockSubmissionLate(SessionInfo session) => _normalizeDate(
   DateTime.now(),
