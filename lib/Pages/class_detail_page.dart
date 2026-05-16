@@ -415,9 +415,16 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
         .map((a) => a.assignmentId)
         .toSet();
 
-    final classHomeworkResults = await classService.fetchHomeworkResultsByClass(
+    final classHomeworkResultsFuture = classService.fetchHomeworkResultsByClass(
       widget.classId,
     );
+    final classMockResultsFuture = classService.fetchMockResultsByClass(
+      widget.classId,
+    );
+
+    final classHomeworkResults = await classHomeworkResultsFuture;
+    final classMockResults = await classMockResultsFuture;
+
     for (final result in classHomeworkResults) {
       if (!visibleAssignmentIds.contains(result.assignmentId)) continue;
       homeworkResults
@@ -425,19 +432,12 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
           .add(result);
     }
 
-    await Future.wait(
-      visibleAssignments
-          .where((a) {
-            final s = sessions
-                .where((x) => x.sessionId == a.sessionId)
-                .firstOrNull;
-            return s != null && _isMockSession(s);
-          })
-          .map((a) async {
-            mockResults[a.assignmentId] = await classService
-                .fetchMockResultsByAssignment(a.assignmentId);
-          }),
-    );
+    for (final result in classMockResults) {
+      if (!visibleAssignmentIds.contains(result.assignmentId)) continue;
+      mockResults
+          .putIfAbsent(result.assignmentId, () => <MockResultInfo>[])
+          .add(result);
+    }
 
     if (_selectedSessionId == null ||
         sessions.every((s) => s.sessionId != _selectedSessionId)) {

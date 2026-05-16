@@ -96,20 +96,32 @@ class _HomePageState extends State<HomePage> with RouteAware {
       final userAssignments = detail.assignments
           .where((a) => a.studentId == user.userId)
           .toList();
+      final userAssignmentIds = userAssignments
+          .map((a) => a.assignmentId)
+          .toSet();
 
-      for (final assignment in userAssignments) {
-        final session = _sessionForAssignment(sessions, assignment);
-        if (session == null) continue;
+      final homeworkResultsFuture = _classService.fetchHomeworkResultsByClass(
+        classInfo.classId,
+      );
+      final mockResultsFuture = _classService.fetchMockResultsByClass(
+        classInfo.classId,
+      );
 
-        if (_isMockSession(session)) {
-          mockResultsByAssignment[assignment.assignmentId] = await _classService
-              .fetchMockResultsByAssignment(assignment.assignmentId);
-        } else {
-          homeworkResultsByAssignment[assignment.assignmentId] =
-              await _classService.fetchHomeworkResultsByAssignment(
-                assignment.assignmentId,
-              );
-        }
+      final classHomeworkResults = await homeworkResultsFuture;
+      final classMockResults = await mockResultsFuture;
+
+      for (final result in classHomeworkResults) {
+        if (!userAssignmentIds.contains(result.assignmentId)) continue;
+        homeworkResultsByAssignment
+            .putIfAbsent(result.assignmentId, () => <HomeworkResultInfo>[])
+            .add(result);
+      }
+
+      for (final result in classMockResults) {
+        if (!userAssignmentIds.contains(result.assignmentId)) continue;
+        mockResultsByAssignment
+            .putIfAbsent(result.assignmentId, () => <MockResultInfo>[])
+            .add(result);
       }
 
       classHomes.add(

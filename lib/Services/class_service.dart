@@ -645,6 +645,21 @@ class ClassService {
     return data.map((e) => MockResultInfo.fromJson(e)).toList();
   }
 
+  Future<List<MockResultInfo>> fetchMockResultsByClass(int classId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/classes/$classId/mock-results'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode != 200) {
+      final data = decodeJsonResponse(response);
+      throw Exception(data['detail'] ?? 'Failed to load mock results');
+    }
+
+    final List data = decodeJsonResponse(response);
+    return data.map((e) => MockResultInfo.fromJson(e)).toList();
+  }
+
   Future<List<StudentHomeworkHistoryInfo>> fetchStudentHomeworkHistory(
     int studentId,
   ) async {
