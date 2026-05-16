@@ -1641,15 +1641,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
         .firstOrNull;
     if (session == null) return [];
     late final List<AssignmentInfo> items;
-    if (_isMockSession(session)) {
-      items = _pageData!.detail.assignments
-          .where((a) => a.sessionId == sessionId)
-          .toList();
-    } else {
-      items = _pageData!.detail.assignments
-          .where((a) => a.sessionId == sessionId && a.studentId == studentId)
-          .toList();
-    }
+    items = _pageData!.detail.assignments
+        .where((a) => a.sessionId == sessionId && a.studentId == studentId)
+        .toList();
     items.sort((a, b) {
       final as_ = a.slotIndex ?? 999999, bs_ = b.slotIndex ?? 999999;
       if (as_ != bs_) return as_.compareTo(bs_);
