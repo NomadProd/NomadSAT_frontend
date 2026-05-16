@@ -105,6 +105,21 @@ class ClassService {
     return ClassFullDetailInfo.fromJson(decodeJsonResponse(response));
   }
 
+  Future<List<ClassFullDetailInfo>> fetchStudentHomeClassDetails() async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/classes/student-home/details'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode != 200) {
+      final data = decodeJsonResponse(response);
+      throw Exception(data['detail'] ?? 'Failed to load student classes');
+    }
+
+    final List data = decodeJsonResponse(response);
+    return data.map((e) => ClassFullDetailInfo.fromJson(e)).toList();
+  }
+
   Future<Map<String, dynamic>> updateClass({
     required int classId,
     String? name,

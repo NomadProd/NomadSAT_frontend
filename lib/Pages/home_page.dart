@@ -73,20 +73,11 @@ class _HomePageState extends State<HomePage> with RouteAware {
 
   Future<_StudentHomeData> _loadHome() async {
     final user = await _authService.fetchMe();
-    final classes = await _classService.fetchClasses();
+    final details = await _classService.fetchStudentHomeClassDetails();
     final classHomes = <_StudentClassHome>[];
 
-    for (final classInfo in classes) {
-      final detail = await _classService.fetchClassFullDetail(
-        classInfo.classId,
-      );
-
-      final isUserInClass =
-          detail.students.any((s) => s.userId == user.userId) ||
-          detail.assignments.any((a) => a.studentId == user.userId);
-
-      if (!isUserInClass) continue;
-
+    for (final detail in details) {
+      final classInfo = _classInfoFromDetail(detail);
       final sessions = [...detail.sessions]
         ..sort((a, b) => _parseDate(a.date).compareTo(_parseDate(b.date)));
 
@@ -2069,6 +2060,19 @@ SessionInfo? _sessionForAssignment(
 
 AssignmentInfo? _assignmentById(List<AssignmentInfo> list, int id) =>
     list.where((a) => a.assignmentId == id).firstOrNull;
+
+ClassInfo _classInfoFromDetail(ClassFullDetailInfo detail) {
+  return ClassInfo(
+    classId: detail.classId,
+    className: detail.className,
+    verbalTeacherId: detail.verbalTeacher?.userId,
+    mathTeacherId: detail.mathTeacher?.userId,
+    verbalTeacherName: detail.verbalTeacher?.name,
+    verbalTeacherSurname: detail.verbalTeacher?.surname,
+    mathTeacherName: detail.mathTeacher?.name,
+    mathTeacherSurname: detail.mathTeacher?.surname,
+  );
+}
 
 bool _isMockSession(SessionInfo s) => s.sessionType.toLowerCase() == 'mock';
 

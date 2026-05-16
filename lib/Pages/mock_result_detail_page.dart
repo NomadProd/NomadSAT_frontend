@@ -131,7 +131,7 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
 
   Future<void> _pickScreenshot() async {
     final input = html.FileUploadInputElement()
-      ..accept = 'image/*'
+      ..accept = 'image/*,application/pdf,.pdf'
       ..multiple = false;
     input.click();
     await input.onChange.first;
@@ -153,7 +153,9 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
     final hasPhoto =
         _selectedPhotoFile != null || (_photoLink ?? '').isNotEmpty;
     if (widget.assignment.photoRequired && !hasPhoto) {
-      setState(() => _error = 'Please add a screenshot before submitting.');
+      setState(
+        () => _error = 'Please attach a screenshot or PDF before submitting.',
+      );
       return;
     }
 
@@ -421,7 +423,7 @@ class _DetailsCard extends StatelessWidget {
             label: 'Submission',
             icon: Icons.quiz_rounded,
             child: const Text(
-              'Enter your verbal and math points, add notes for your teacher, and upload a screenshot proof if needed.',
+              'Enter your verbal and math points, add notes for your teacher, and upload a screenshot or PDF proof if needed.',
               style: TextStyle(
                 color: _kTextDark,
                 fontSize: 14,
@@ -853,10 +855,10 @@ class _ScreenshotDropZone extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   hasPhoto
-                      ? selectedFileName ?? 'Screenshot attached'
+                      ? selectedFileName ?? 'File attached'
                       : active
                       ? 'Release to attach'
-                      : 'Drag screenshot here',
+                      : 'Drag screenshot or PDF here',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: hasPhoto ? _kSuccess : _kTextDark,
@@ -868,7 +870,7 @@ class _ScreenshotDropZone extends StatelessWidget {
                 Text(
                   hasPhoto
                       ? 'Temporary URL generated - tap to replace'
-                      : 'or tap to choose an image from your device',
+                      : 'or tap to choose an image or PDF from your device',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: _kTextMid,
@@ -882,7 +884,7 @@ class _ScreenshotDropZone extends StatelessWidget {
                     onPressed: hasUploadedPhoto ? onOpenPhoto : null,
                     icon: const Icon(Icons.open_in_new_rounded, size: 15),
                     label: Text(
-                      hasUploadedPhoto ? 'Open screenshot' : 'Upload pending',
+                      hasUploadedPhoto ? 'Open file' : 'Upload pending',
                     ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: _kPrimary,
@@ -1023,12 +1025,10 @@ class _RequirementBanner extends StatelessWidget {
     final icon = photoRequired
         ? Icons.photo_camera_back_rounded
         : Icons.task_alt_rounded;
-    final title = photoRequired
-        ? 'Screenshot proof required'
-        : 'Screenshot proof optional';
+    final title = photoRequired ? 'Proof file required' : 'Proof file optional';
     final message = photoRequired
-        ? 'Attach a mock result screenshot before submitting.'
-        : 'You can still attach a screenshot if you want to show your work.';
+        ? 'Attach a mock result screenshot or PDF before submitting.'
+        : 'You can still attach a screenshot or PDF if you want to show your work.';
 
     return Container(
       width: double.infinity,
