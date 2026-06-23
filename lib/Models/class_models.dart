@@ -353,6 +353,8 @@ class ClassFullDetailInfo {
   final List<SessionInfo> sessions;
   final List<AssignmentInfo> assignments;
   final List<AttendanceInfo> attendance;
+  final int homeworkResultCount;
+  final int mockResultCount;
 
   ClassFullDetailInfo({
     required this.classId,
@@ -363,6 +365,8 @@ class ClassFullDetailInfo {
     required this.sessions,
     required this.assignments,
     required this.attendance,
+    required this.homeworkResultCount,
+    required this.mockResultCount,
   });
 
   factory ClassFullDetailInfo.fromJson(Map<String, dynamic> json) {
@@ -387,6 +391,8 @@ class ClassFullDetailInfo {
       attendance: (json['attendance'] as List? ?? [])
           .map((e) => AttendanceInfo.fromJson(e))
           .toList(),
+      homeworkResultCount: json['homework_result_count'] ?? 0,
+      mockResultCount: json['mock_result_count'] ?? 0,
     );
   }
 
@@ -399,6 +405,8 @@ class ClassFullDetailInfo {
     List<SessionInfo>? sessions,
     List<AssignmentInfo>? assignments,
     List<AttendanceInfo>? attendance,
+    int? homeworkResultCount,
+    int? mockResultCount,
   }) {
     return ClassFullDetailInfo(
       classId: classId ?? this.classId,
@@ -409,6 +417,8 @@ class ClassFullDetailInfo {
       sessions: sessions ?? this.sessions,
       assignments: assignments ?? this.assignments,
       attendance: attendance ?? this.attendance,
+      homeworkResultCount: homeworkResultCount ?? this.homeworkResultCount,
+      mockResultCount: mockResultCount ?? this.mockResultCount,
     );
   }
 }

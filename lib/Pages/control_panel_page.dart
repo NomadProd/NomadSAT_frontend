@@ -1,4 +1,4 @@
-﻿import 'dart:html' as html;
+import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
@@ -43,33 +43,6 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
       }),
     );
     final users = await _classService.fetchUsers();
-    final resultBundles = <int, _ClassResultBundle>{};
-
-    for (final detail in details) {
-      final homeworkResults = <HomeworkResultInfo>[];
-      final mockResults = <MockResultInfo>[];
-      for (final assignment in detail.assignments) {
-        final session = _sessionForAssignment(detail, assignment);
-        if (session == null) continue;
-        if (session.sessionType.toLowerCase() == 'mock') {
-          mockResults.addAll(
-            await _classService.fetchMockResultsByAssignment(
-              assignment.assignmentId,
-            ),
-          );
-        } else {
-          homeworkResults.addAll(
-            await _classService.fetchHomeworkResultsByAssignment(
-              assignment.assignmentId,
-            ),
-          );
-        }
-      }
-      resultBundles[detail.classId] = _ClassResultBundle(
-        homeworkResults: homeworkResults,
-        mockResults: mockResults,
-      );
-    }
 
     details.sort((a, b) => a.className.compareTo(b.className));
     users.sort((a, b) {
@@ -78,12 +51,7 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
       return a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase());
     });
 
-    return _ControlPanelData(
-      user: user,
-      classes: details,
-      users: users,
-      resultsByClassId: resultBundles,
-    );
+    return _ControlPanelData(user: user, classes: details, users: users);
   }
 
   void _refresh() {
@@ -145,13 +113,11 @@ class _ControlPanelData {
   final UserInfo user;
   final List<ClassFullDetailInfo> classes;
   final List<UserInfo> users;
-  final Map<int, _ClassResultBundle> resultsByClassId;
 
   const _ControlPanelData({
     required this.user,
     required this.classes,
     required this.users,
-    required this.resultsByClassId,
   });
 }
 
@@ -207,12 +173,6 @@ class _ControlPanelContent extends StatelessWidget {
                     .where((user) => user.role.toLowerCase() == 'teacher')
                     .toList(),
                 users: data.users,
-                results:
-                    data.resultsByClassId[detail.classId] ??
-                    const _ClassResultBundle(
-                      homeworkResults: [],
-                      mockResults: [],
-                    ),
                 classService: classService,
                 onChanged: onChanged,
               ),
@@ -382,7 +342,6 @@ class _ClassDatabaseCard extends StatelessWidget {
   final ClassFullDetailInfo detail;
   final List<UserInfo> teachers;
   final List<UserInfo> users;
-  final _ClassResultBundle results;
   final ClassService classService;
   final VoidCallback onChanged;
 
@@ -390,7 +349,6 @@ class _ClassDatabaseCard extends StatelessWidget {
     required this.detail,
     required this.teachers,
     required this.users,
-    required this.results,
     required this.classService,
     required this.onChanged,
   });
@@ -447,12 +405,11 @@ class _ClassDatabaseCard extends StatelessWidget {
               _InfoChip(label: 'Homeworks', value: detail.assignments.length),
               _InfoChip(
                 label: 'Homework results',
-                value: results.homeworkResults.length,
+                value: detail.homeworkResultCount,
                 onTap: () => _showClassTableDialog(
                   context: context,
                   detail: detail,
                   users: users,
-                  results: results,
                   classService: classService,
                   onChanged: onChanged,
                   category: _ClassTableCategory.homeworkResults,
@@ -460,12 +417,11 @@ class _ClassDatabaseCard extends StatelessWidget {
               ),
               _InfoChip(
                 label: 'Mock results',
-                value: results.mockResults.length,
+                value: detail.mockResultCount,
                 onTap: () => _showClassTableDialog(
                   context: context,
                   detail: detail,
                   users: users,
-                  results: results,
                   classService: classService,
                   onChanged: onChanged,
                   category: _ClassTableCategory.mockResults,
@@ -597,10 +553,11 @@ Future<void> _showUserToolsDialog({
       ? null
       : users.where((user) => user.userId == initialUser.userId).firstOrNull;
   UserInfo? roleTarget = selectedUser ?? (users.isEmpty ? null : users.first);
-  UserInfo? deleteTarget = selectedUser != null &&
-        deleteUsers.any((user) => user.userId == selectedUser.userId)
-    ? selectedUser
-    : (deleteUsers.isEmpty ? null : deleteUsers.first);
+  UserInfo? deleteTarget =
+      selectedUser != null &&
+          deleteUsers.any((user) => user.userId == selectedUser.userId)
+      ? selectedUser
+      : (deleteUsers.isEmpty ? null : deleteUsers.first);
 
   await showDialog(
     context: context,
@@ -728,10 +685,11 @@ Future<void> _showUserToolsDialog({
                           onPressed: roleTarget == null
                               ? null
                               : () async {
-                                  final result = await classService.updateUserRole(
-                                    userId: roleTarget!.userId,
-                                    role: changeRole,
-                                  );
+                                  final result = await classService
+                                      .updateUserRole(
+                                        userId: roleTarget!.userId,
+                                        role: changeRole,
+                                      );
                                   if (!context.mounted) return;
                                   _showResultSnack(context, result);
                                   if (result['success'] == true) {
@@ -1076,15 +1034,33 @@ void _showClassTableDialog({
   required BuildContext context,
   required ClassFullDetailInfo detail,
   required List<UserInfo> users,
-  _ClassResultBundle results = const _ClassResultBundle(
-    homeworkResults: [],
-    mockResults: [],
-  ),
   required ClassService classService,
   required VoidCallback onChanged,
   required _ClassTableCategory category,
 }) {
   final title = '${detail.className} - ${_categoryTitle(category)}';
+  final Future<_ClassResultBundle>? resultFuture = switch (category) {
+    _ClassTableCategory.homeworkResults =>
+      classService
+          .fetchHomeworkResultsByClass(detail.classId)
+          .then(
+            (homeworkResults) => _ClassResultBundle(
+              homeworkResults: homeworkResults,
+              mockResults: const [],
+            ),
+          ),
+    _ClassTableCategory.mockResults =>
+      classService
+          .fetchMockResultsByClass(detail.classId)
+          .then(
+            (mockResults) => _ClassResultBundle(
+              homeworkResults: const [],
+              mockResults: mockResults,
+            ),
+          ),
+    _ => null,
+  };
+
   showDialog(
     context: context,
     builder: (context) => AlertDialog(
@@ -1094,15 +1070,51 @@ void _showClassTableDialog({
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: SingleChildScrollView(
-            child: _classCategoryTable(
-              context: context,
-              detail: detail,
-              users: users,
-              results: results,
-              classService: classService,
-              onChanged: onChanged,
-              category: category,
-            ),
+            child: resultFuture == null
+                ? _classCategoryTable(
+                    context: context,
+                    detail: detail,
+                    users: users,
+                    results: const _ClassResultBundle(
+                      homeworkResults: [],
+                      mockResults: [],
+                    ),
+                    classService: classService,
+                    onChanged: onChanged,
+                    category: category,
+                  )
+                : FutureBuilder<_ClassResultBundle>(
+                    future: resultFuture,
+                    builder: (context, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const SizedBox(
+                          width: 320,
+                          height: 160,
+                          child: Center(
+                            child: CircularProgressIndicator(color: _kPrimary),
+                          ),
+                        );
+                      }
+                      if (snap.hasError) {
+                        return SizedBox(
+                          width: 420,
+                          child: _EmptyPanel(
+                            message:
+                                'Could not load ${_categoryTitle(category).toLowerCase()}: ${snap.error}',
+                          ),
+                        );
+                      }
+                      return _classCategoryTable(
+                        context: context,
+                        detail: detail,
+                        users: users,
+                        results: snap.data!,
+                        classService: classService,
+                        onChanged: onChanged,
+                        category: category,
+                      );
+                    },
+                  ),
           ),
         ),
       ),
