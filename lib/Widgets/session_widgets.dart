@@ -1,123 +1,10 @@
 // =====================================================================
 // session_widgets.dart  —  part of class_detail library
-// Contains: _SessionDateStrip, _SessionMetaCard, _MetaItem,
+// Contains: _WeeklySessionDateStrip, _SessionMetaCard, _MetaItem,
 //           _MetaActionButton, _StudentSessionRow, _AttendanceChip
 // =====================================================================
 
 part of class_detail;
-
-// ─────────────────────────────────────────────────────────────────────
-// FIX: height 90 → 108  (badge text was overflowing by ~9px because
-// the horizontal ListView's vertical padding (12+12=24) left only 66px
-// for items whose content is ~74px tall)
-// ─────────────────────────────────────────────────────────────────────
-class _SessionDateStrip extends StatelessWidget {
-  final List<SessionInfo> sessions;
-  final int selectedSessionId;
-  final DateTime weekAnchor;
-  final VoidCallback onPreviousWeek, onNextWeek, onToday;
-  final ValueChanged<int> onSelect;
-
-  const _SessionDateStrip({
-    required this.sessions,
-    required this.selectedSessionId,
-    required this.weekAnchor,
-    required this.onPreviousWeek,
-    required this.onNextWeek,
-    required this.onToday,
-    required this.onSelect,
-  });
-
-  @override
-  Widget build(BuildContext context) => Container(
-    height: 108, // ← was 90, now 108 to fit badge without overflow
-    color: Colors.white,
-    child: ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
-      scrollDirection: Axis.horizontal,
-      itemCount: sessions.length,
-      separatorBuilder: (_, __) => const SizedBox(width: 8),
-      itemBuilder: (_, index) {
-        final s = sessions[index];
-        final selected = s.sessionId == selectedSessionId;
-        final date = _parseDate(s.date);
-        final typeColor = _sessionTypeColor(s.sessionType);
-
-        return InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () => onSelect(s.sessionId),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 80,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-            decoration: BoxDecoration(
-              color: selected ? _kPrimary : Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: selected ? _kPrimary : _kBorder,
-                width: selected ? 1.5 : 1,
-              ),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: _kPrimary.withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : [],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  _weekdayShort(date),
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: selected ? Colors.white70 : _kTextLight,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  date.day.toString().padLeft(2, '0'),
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: selected ? Colors.white : _kPrimaryDark,
-                    height: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? Colors.white.withOpacity(0.25)
-                        : typeColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    s.sessionType.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      color: selected ? Colors.white : typeColor,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    ),
-  );
-}
 
 // ─────────────────────────────────────────────────────────────────────
 // Session meta card
@@ -303,8 +190,17 @@ class _WeekDaySessionCard extends StatelessWidget {
                 : isToday
                 ? _kPrimary.withOpacity(0.5)
                 : _kBorder,
-            width: hasSelected ? 1.5 : 1,
+            width: hasSelected ? 2 : 1,
           ),
+          boxShadow: hasSelected
+              ? [
+                  BoxShadow(
+                    color: _kPrimary.withOpacity(0.18),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,18 +326,18 @@ class _SessionMetaCard extends StatelessWidget {
       mathTeacher,
       teachers,
     );
-    final typeColor = _sessionTypeColor(session.sessionType);
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kBorder),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0E000000),
-            blurRadius: 20,
-            offset: Offset(0, 6),
+            color: Color(0x06000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -461,22 +357,6 @@ class _SessionMetaCard extends StatelessWidget {
                   spacing: 10,
                   runSpacing: 10,
                   children: [
-                    _MetaItem(
-                      label: 'Date',
-                      value: _formatDateHuman(_parseDate(session.date)),
-                    ),
-                    _MetaItem(
-                      label: 'Time',
-                      value: _formatTimeRange(
-                        session.startTime,
-                        session.endTime,
-                      ),
-                    ),
-                    _MetaItem(
-                      label: 'Type',
-                      value: _capitalize(session.sessionType),
-                      accent: typeColor,
-                    ),
                     _MetaItem(label: 'Teacher', value: teacher),
                     _MetaItem(
                       label: 'Topic',

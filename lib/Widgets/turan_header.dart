@@ -91,6 +91,16 @@ class TuranHeader extends StatelessWidget {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final compact = constraints.maxWidth < 430;
+                final metaLine = user == null
+                    ? (subtitle.trim().isNotEmpty && subtitle.trim() != pageLabel
+                        ? subtitle.trim()
+                        : '')
+                    : (user!.role.trim());
+                final showMetaLine = metaLine.isNotEmpty;
+                final showBottomSubtitle = subtitle.trim().isNotEmpty &&
+                    subtitle.trim() != metaLine &&
+                    subtitle.trim() != title.trim() &&
+                    subtitle.trim() != pageLabel.trim();
                 return Padding(
                   padding: EdgeInsets.fromLTRB(
                     compact ? 16 : 22,
@@ -132,42 +142,48 @@ class TuranHeader extends StatelessWidget {
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  user?.role ?? pageLabel,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.70),
-                                    fontSize: compact ? 11 : 12,
-                                    fontWeight: FontWeight.w700,
+                                if (showMetaLine) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    metaLine,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.70),
+                                      fontSize: compact ? 11 : 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
-                                ),
+                                ],
                                 SizedBox(height: compact ? 8 : 10),
-                                Text(
-                                  title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: compact ? 21 : 27,
-                                    height: 1,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.6,
+                                if (title.trim().isNotEmpty &&
+                                    title.trim() != pageLabel.trim())
+                                  Text(
+                                    title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: compact ? 21 : 27,
+                                      height: 1,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -0.6,
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  subtitle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.78),
-                                    fontSize: compact ? 11 : 13,
-                                    height: 1.1,
-                                    fontWeight: FontWeight.w600,
+                                if (showBottomSubtitle) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    subtitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.78),
+                                      fontSize: compact ? 11 : 13,
+                                      height: 1.1,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
-                                ),
+                                ],
                               ],
                             ),
                           ),

@@ -603,17 +603,14 @@ class _DashboardRow extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 760) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < children.length; i++) ...[
-                  SizedBox(width: 270, child: children[i]),
-                  if (i != children.length - 1) const SizedBox(width: 10),
-                ],
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < children.length; i++) ...[
+                children[i],
+                if (i != children.length - 1) const SizedBox(height: 14),
               ],
-            ),
+            ],
           );
         }
         return Row(

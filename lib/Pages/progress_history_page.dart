@@ -158,8 +158,11 @@ class _HistoryBodyState extends State<_HistoryBody> {
               color: const Color(0xFF00897B),
               items: widget.data.mathHomework,
             )
-          else
-            _MockHistorySection(items: widget.data.mocks),
+          else ...[
+            _MockVerbalHistorySection(items: widget.data.mocks),
+            const SizedBox(height: 16),
+            _MockMathHistorySection(items: widget.data.mocks),
+          ],
         ],
       ),
     );
@@ -458,28 +461,47 @@ class _HomeworkHistorySection extends StatelessWidget {
       color: color,
       emptyMessage: 'No homework results yet',
       isEmpty: items.isEmpty,
-      child: _ExcelTable(
-        minWidth: 1366,
-        columns: const [
-          _TableColumn('Date', 96),
-          _TableColumn('Class', 140),
-          _TableColumn('Task / instruction', 280),
-          _TableColumn('Status', 112),
-          _TableColumn('Proof', 86),
-          _TableColumn('Score', 90),
-          _TableColumn('Delta', 94),
-          _TableColumn('Correct', 78),
-          _TableColumn('Wrong', 78),
-          _TableColumn('Analysis', 360),
-        ],
-        rows: [
-          for (final item in items)
-            _HomeworkResultRow(
-              item: item,
-              delta: _homeworkDelta(item, scored),
-              color: color,
-            ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 600) {
+            return Column(
+              children: [
+                for (final item in items)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _HomeworkHistoryCard(
+                      item: item,
+                      delta: _homeworkDelta(item, scored),
+                      color: color,
+                    ),
+                  ),
+              ],
+            );
+          }
+          return _ExcelTable(
+            minWidth: 1366,
+            columns: const [
+              _TableColumn('Date', 96),
+              _TableColumn('Class', 140),
+              _TableColumn('Task / instruction', 280),
+              _TableColumn('Status', 112),
+              _TableColumn('Proof', 86),
+              _TableColumn('Score', 90),
+              _TableColumn('Delta', 94),
+              _TableColumn('Correct', 78),
+              _TableColumn('Wrong', 78),
+              _TableColumn('Analysis', 360),
+            ],
+            rows: [
+              for (final item in items)
+                _HomeworkResultRow(
+                  item: item,
+                  delta: _homeworkDelta(item, scored),
+                  color: color,
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -497,40 +519,302 @@ class _HomeworkHistorySection extends StatelessWidget {
   }
 }
 
-class _MockHistorySection extends StatelessWidget {
+class _MockVerbalHistorySection extends StatelessWidget {
   final List<_MockHistoryItem> items;
 
-  const _MockHistorySection({required this.items});
+  const _MockVerbalHistorySection({required this.items});
 
   @override
   Widget build(BuildContext context) {
     return _HistorySection(
-      title: 'Mock Results',
-      subtitle: 'Score changes compared to the previous mock result',
-      icon: Icons.workspace_premium_rounded,
-      color: _kMock,
-      emptyMessage: 'No mock results yet',
+      title: 'Mock Verbal Progress',
+      subtitle: 'Verbal points compared to your previous mock',
+      icon: Icons.menu_book_rounded,
+      color: const Color(0xFF7B1FA2),
+      emptyMessage: 'No mock verbal results yet',
       isEmpty: items.isEmpty,
-      child: _ExcelTable(
-        minWidth: 1072,
-        columns: const [
-          _TableColumn('Date', 96),
-          _TableColumn('Class', 150),
-          _TableColumn('Total', 86),
-          _TableColumn('Total Delta', 94),
-          _TableColumn('Verbal', 76),
-          _TableColumn('Verbal Delta', 94),
-          _TableColumn('Math', 76),
-          _TableColumn('Math Delta', 94),
-          _TableColumn('Proof', 86),
-          _TableColumn('Weak areas', 220),
-        ],
-        rows: [
-          for (var i = 0; i < items.length; i++)
-            _MockResultRow(
-              item: items[i],
-              previousItem: i + 1 < items.length ? items[i + 1] : null,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 600) {
+            return Column(
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _MockScoreCard(
+                      item: items[i],
+                      previousItem: i + 1 < items.length ? items[i + 1] : null,
+                      scoreLabel: 'Verbal',
+                      score: items[i].verbalScore,
+                      previousScore: i + 1 < items.length
+                          ? items[i + 1].verbalScore
+                          : null,
+                      color: const Color(0xFF7B1FA2),
+                    ),
+                  ),
+              ],
+            );
+          }
+          return _ExcelTable(
+            minWidth: 620,
+            columns: const [
+              _TableColumn('Date', 96),
+              _TableColumn('Class', 150),
+              _TableColumn('Verbal', 86),
+              _TableColumn('Verbal Delta', 110),
+            ],
+            rows: [
+              for (var i = 0; i < items.length; i++)
+                _MockScoreRow(
+                  item: items[i],
+                  previousItem: i + 1 < items.length ? items[i + 1] : null,
+                  score: items[i].verbalScore,
+                  previousScore: i + 1 < items.length
+                      ? items[i + 1].verbalScore
+                      : null,
+                  color: const Color(0xFF7B1FA2),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MockMathHistorySection extends StatelessWidget {
+  final List<_MockHistoryItem> items;
+
+  const _MockMathHistorySection({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return _HistorySection(
+      title: 'Mock Math Progress',
+      subtitle: 'Math points compared to your previous mock',
+      icon: Icons.calculate_rounded,
+      color: const Color(0xFF00897B),
+      emptyMessage: 'No mock math results yet',
+      isEmpty: items.isEmpty,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 600) {
+            return Column(
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _MockScoreCard(
+                      item: items[i],
+                      previousItem: i + 1 < items.length ? items[i + 1] : null,
+                      scoreLabel: 'Math',
+                      score: items[i].mathScore,
+                      previousScore: i + 1 < items.length
+                          ? items[i + 1].mathScore
+                          : null,
+                      color: const Color(0xFF00897B),
+                    ),
+                  ),
+              ],
+            );
+          }
+          return _ExcelTable(
+            minWidth: 620,
+            columns: const [
+              _TableColumn('Date', 96),
+              _TableColumn('Class', 150),
+              _TableColumn('Math', 86),
+              _TableColumn('Math Delta', 110),
+            ],
+            rows: [
+              for (var i = 0; i < items.length; i++)
+                _MockScoreRow(
+                  item: items[i],
+                  previousItem: i + 1 < items.length ? items[i + 1] : null,
+                  score: items[i].mathScore,
+                  previousScore: i + 1 < items.length
+                      ? items[i + 1].mathScore
+                      : null,
+                  color: const Color(0xFF00897B),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MockScoreRow extends StatelessWidget {
+  final _MockHistoryItem item;
+  final _MockHistoryItem? previousItem;
+  final double score;
+  final double? previousScore;
+  final Color color;
+
+  const _MockScoreRow({
+    required this.item,
+    required this.previousItem,
+    required this.score,
+    required this.previousScore,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _TableRowShell(
+      children: [
+        _TextCell(width: 96, text: _formatDateShort(item.date)),
+        _TextCell(width: 150, text: item.classInfo.className),
+        _TextCell(width: 86, text: '${score.toInt()}', strong: true),
+        _DeltaCell(
+          width: 110,
+          delta: previousScore == null ? null : score - previousScore!,
+        ),
+      ],
+    );
+  }
+}
+
+class _MockScoreCard extends StatelessWidget {
+  final _MockHistoryItem item;
+  final _MockHistoryItem? previousItem;
+  final String scoreLabel;
+  final double score;
+  final double? previousScore;
+  final Color color;
+
+  const _MockScoreCard({
+    required this.item,
+    required this.previousItem,
+    required this.scoreLabel,
+    required this.score,
+    required this.previousScore,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final delta = previousScore == null ? null : score - previousScore!;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${_formatDateShort(item.date)} · ${item.classInfo.className}',
+            style: const TextStyle(
+              color: _kTextMid,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
             ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                '$scoreLabel: ${score.toInt()}',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const Spacer(),
+              _DeltaBadge(delta: delta, unit: ' pt'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeworkHistoryCard extends StatelessWidget {
+  final _HomeworkHistoryItem item;
+  final double? delta;
+  final Color color;
+
+  const _HomeworkHistoryCard({
+    required this.item,
+    required this.delta,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final result = item.result;
+    final task = (item.assignment.title ?? item.assignment.instruction ?? '')
+        .trim();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${_formatDateShort(item.date)} · ${item.classInfo.className}',
+            style: const TextStyle(
+              color: _kTextMid,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            task.isEmpty ? 'Homework task' : task,
+            style: const TextStyle(
+              color: _kTextDark,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _TinyBadge(
+                label: item.status.label,
+                icon: item.status.icon,
+                color: item.status.color,
+              ),
+              const Spacer(),
+              Text(
+                item.score == null ? '-' : '${item.score!.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 8),
+              _DeltaBadge(delta: delta, unit: '%'),
+            ],
+          ),
+          if ((result?.analysis ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              result!.analysis!.trim(),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: _kTextMid,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -756,48 +1040,7 @@ class _HomeworkResultRow extends StatelessWidget {
         ),
         _TextCell(width: 78, text: result?.correctTotal?.toString() ?? '-'),
         _TextCell(width: 78, text: result?.incorrectTotal?.toString() ?? '-'),
-        _LongTextCell(width: 220, text: _textOrDash(result?.analysis)),
-      ],
-    );
-  }
-}
-
-class _MockResultRow extends StatelessWidget {
-  final _MockHistoryItem item;
-  final _MockHistoryItem? previousItem;
-
-  const _MockResultRow({required this.item, required this.previousItem});
-
-  @override
-  Widget build(BuildContext context) {
-    final previous = previousItem;
-    return _TableRowShell(
-      children: [
-        _TextCell(width: 96, text: _formatDateShort(item.date)),
-        _TextCell(width: 150, text: item.classInfo.className),
-        _TextCell(width: 86, text: '${item.score.toInt()} pt', strong: true),
-        _DeltaCell(
-          width: 94,
-          delta: previous == null ? null : item.score - previous.score,
-        ),
-        _TextCell(width: 76, text: '${item.verbalScore.toInt()}'),
-        _DeltaCell(
-          width: 94,
-          delta: previous == null
-              ? null
-              : item.verbalScore - previous.verbalScore,
-        ),
-        _TextCell(width: 76, text: '${item.mathScore.toInt()}'),
-        _DeltaCell(
-          width: 94,
-          delta: previous == null ? null : item.mathScore - previous.mathScore,
-        ),
-        _ProofLinkCell(
-          width: 86,
-          photoLink: item.result.photoLink,
-          color: _kMock,
-        ),
-        _TextCell(width: 220, text: _textOrDash(item.result.weakAreas)),
+        _LongTextCell(width: 360, text: _textOrDash(result?.analysis)),
       ],
     );
   }

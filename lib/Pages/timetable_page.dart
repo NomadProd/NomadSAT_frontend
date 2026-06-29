@@ -19,7 +19,23 @@ class TimetablePage extends StatefulWidget {
 }
 
 class _TimetablePageState extends State<TimetablePage> {
-  int _selectedMonthIndex = 0;
+  late int _selectedMonthIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMonthIndex = _initialMonthIndex();
+  }
+
+  int _initialMonthIndex() {
+    final months = _visibleMonths;
+    if (months.isEmpty) return 0;
+    final now = DateTime.now();
+    final idx = months.indexWhere(
+      (month) => month.year == now.year && month.month == now.month,
+    );
+    return idx >= 0 ? idx : 0;
+  }
 
   List<DateTime> get _visibleMonths {
     if (widget.sessions.isEmpty)
@@ -79,32 +95,46 @@ class _TimetablePageState extends State<TimetablePage> {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
             sliver: SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  _MonthSwitcher(
-                    monthLabel: _monthYearLabel(selectedMonth),
-                    rangeLabel: months.length == 1
-                        ? null
-                        : '${_monthYearLabel(months.first)} - ${_monthYearLabel(months.last)}',
-                    canGoPrevious: hasPrevious,
-                    canGoNext: hasNext,
-                    onPrevious: hasPrevious
-                        ? () => setState(() => _selectedMonthIndex--)
-                        : null,
-                    onNext: hasNext
-                        ? () => setState(() => _selectedMonthIndex++)
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-                  _MonthCalendar(
-                    month: selectedMonth,
-                    today: today,
-                    sessionsByDate: sessionsByDate,
-                    verbalTeacher: widget.verbalTeacher,
-                    mathTeacher: widget.mathTeacher,
-                    teachers: widget.teachers,
-                  ),
-                ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 600;
+                  return Column(
+                    children: [
+                      _MonthSwitcher(
+                        monthLabel: _monthYearLabel(selectedMonth),
+                        compact: compact,
+                        canGoPrevious: hasPrevious,
+                        canGoNext: hasNext,
+                        onPrevious: hasPrevious
+                            ? () => setState(() => _selectedMonthIndex--)
+                            : null,
+                        onNext: hasNext
+                            ? () => setState(() => _selectedMonthIndex++)
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _MonthCalendar(
+                        month: selectedMonth,
+                        today: today,
+                        sessionsByDate: sessionsByDate,
+                        verbalTeacher: widget.verbalTeacher,
+                        mathTeacher: widget.mathTeacher,
+                        teachers: widget.teachers,
+                        compact: compact,
+                      ),
+                      if (compact) ...[
+                        const SizedBox(height: 16),
+                        _MonthAgendaList(
+                          month: selectedMonth,
+                          sessionsByDate: sessionsByDate,
+                          verbalTeacher: widget.verbalTeacher,
+                          mathTeacher: widget.mathTeacher,
+                          teachers: widget.teachers,
+                        ),
+                      ],
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -152,13 +182,13 @@ class _TimetableHeader extends StatelessWidget {
 
 class _MonthSwitcher extends StatelessWidget {
   final String monthLabel;
-  final String? rangeLabel;
+  final bool compact;
   final bool canGoPrevious, canGoNext;
   final VoidCallback? onPrevious, onNext;
 
   const _MonthSwitcher({
     required this.monthLabel,
-    required this.rangeLabel,
+    required this.compact,
     required this.canGoPrevious,
     required this.canGoNext,
     required this.onPrevious,
@@ -169,18 +199,14 @@ class _MonthSwitcher extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 12,
+        vertical: compact ? 8 : 10,
+      ),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _kBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 10,
-            offset: Offset(0, 3),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -189,48 +215,34 @@ class _MonthSwitcher extends StatelessWidget {
             enabled: canGoPrevious,
             onTap: onPrevious,
           ),
-          const SizedBox(width: 12),
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: _kPrimary.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
+          const SizedBox(width: 10),
+          if (!compact)
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _kPrimary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.calendar_month_rounded,
+                color: _kPrimary,
+                size: 20,
+              ),
             ),
-            child: const Icon(
-              Icons.calendar_month_rounded,
-              color: _kPrimary,
-              size: 20,
+          if (!compact) const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              monthLabel,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: _kTextDark,
+                fontSize: compact ? 15 : 16,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  monthLabel,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _kTextDark,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                if (rangeLabel != null)
-                  Text(
-                    rangeLabel!,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _kTextMid,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
           _CalendarNavButton(
             icon: Icons.chevron_right_rounded,
             enabled: canGoNext,
@@ -276,36 +288,13 @@ class _CalendarNavButton extends StatelessWidget {
   }
 }
 
-class _CircleIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-  const _CircleIconButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(19),
-      child: Container(
-        width: 44,
-        height: 44,
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withOpacity(0.3)),
-        ),
-        child: Icon(icon, color: Colors.white, size: 22),
-      ),
-    );
-  }
-}
-
 class _MonthCalendar extends StatelessWidget {
   final DateTime month;
   final DateTime today;
   final Map<String, List<SessionInfo>> sessionsByDate;
   final UserInfo? verbalTeacher, mathTeacher;
   final List<UserInfo> teachers;
+  final bool compact;
 
   const _MonthCalendar({
     required this.month,
@@ -314,6 +303,7 @@ class _MonthCalendar extends StatelessWidget {
     required this.verbalTeacher,
     required this.mathTeacher,
     required this.teachers,
+    required this.compact,
   });
 
   List<DateTime?> get _cells {
@@ -342,47 +332,39 @@ class _MonthCalendar extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: _kBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0C000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-                .map(
-                  (d) => Expanded(
-                    child: Center(
-                      child: Text(
-                        d,
-                        style: const TextStyle(
-                          color: _kTextLight,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
+          if (!compact)
+            Row(
+              children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                  .map(
+                    (d) => Expanded(
+                      child: Center(
+                        child: Text(
+                          d,
+                          style: const TextStyle(
+                            color: _kTextLight,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                )
-                .toList(),
-          ),
-          const SizedBox(height: 8),
+                  )
+                  .toList(),
+            ),
+          if (!compact) const SizedBox(height: 8),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: rows * 7,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 10,
-              childAspectRatio: MediaQuery.of(context).size.width < 620
-                  ? 0.95
-                  : 1.45,
+              crossAxisSpacing: compact ? 6 : 8,
+              mainAxisSpacing: compact ? 6 : 10,
+              childAspectRatio: compact ? 1.1 : 1.45,
             ),
             itemBuilder: (context, index) {
               final day = cells[index];
@@ -396,8 +378,172 @@ class _MonthCalendar extends StatelessWidget {
                 verbalTeacher: verbalTeacher,
                 mathTeacher: mathTeacher,
                 teachers: teachers,
+                compact: compact,
               );
             },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonthAgendaList extends StatelessWidget {
+  final DateTime month;
+  final Map<String, List<SessionInfo>> sessionsByDate;
+  final UserInfo? verbalTeacher, mathTeacher;
+  final List<UserInfo> teachers;
+
+  const _MonthAgendaList({
+    required this.month,
+    required this.sessionsByDate,
+    required this.verbalTeacher,
+    required this.mathTeacher,
+    required this.teachers,
+  });
+
+  List<SessionInfo> get _monthSessions {
+    final sessions = <SessionInfo>[];
+    for (final entry in sessionsByDate.entries) {
+      final date = DateTime.tryParse(entry.key);
+      if (date == null) continue;
+      if (date.year == month.year && date.month == month.month) {
+        sessions.addAll(entry.value);
+      }
+    }
+    sessions.sort((a, b) {
+      final dateCompare = a.date.compareTo(b.date);
+      if (dateCompare != 0) return dateCompare;
+      return _compactTime(a.startTime).compareTo(_compactTime(b.startTime));
+    });
+    return sessions;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sessions = _monthSessions;
+    if (sessions.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _kBorder),
+        ),
+        child: const Text(
+          'No lessons scheduled this month.',
+          style: TextStyle(
+            color: _kTextMid,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Agenda',
+            style: TextStyle(
+              color: _kTextDark,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (var i = 0; i < sessions.length; i++) ...[
+            _AgendaSessionTile(
+              session: sessions[i],
+              verbalTeacher: verbalTeacher,
+              mathTeacher: mathTeacher,
+              teachers: teachers,
+            ),
+            if (i != sessions.length - 1) const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AgendaSessionTile extends StatelessWidget {
+  final SessionInfo session;
+  final UserInfo? verbalTeacher, mathTeacher;
+  final List<UserInfo> teachers;
+
+  const _AgendaSessionTile({
+    required this.session,
+    required this.verbalTeacher,
+    required this.mathTeacher,
+    required this.teachers,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _sessionTypeColor(session.sessionType);
+    final date = _parseDate(session.date);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.18)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            margin: const EdgeInsets.only(top: 5),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${date.day} ${_shortMonth(date.month)} · ${_formatTimeRange(session.startTime, session.endTime)}',
+                  style: const TextStyle(
+                    color: _kTextMid,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _capitalize(session.sessionType),
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                if ((session.topic ?? '').trim().isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    session.topic!.trim(),
+                    style: const TextStyle(
+                      color: _kTextDark,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -411,6 +557,7 @@ class _MonthDayCell extends StatelessWidget {
   final List<SessionInfo> sessions;
   final UserInfo? verbalTeacher, mathTeacher;
   final List<UserInfo> teachers;
+  final bool compact;
 
   const _MonthDayCell({
     required this.day,
@@ -419,11 +566,53 @@ class _MonthDayCell extends StatelessWidget {
     required this.verbalTeacher,
     required this.mathTeacher,
     required this.teachers,
+    required this.compact,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasSessions = sessions.isNotEmpty;
+  if (compact) {
+      return Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: isToday
+              ? _kPrimary.withOpacity(0.10)
+              : hasSessions
+              ? _kPanelBg
+              : const Color(0xFFFAFBFF),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isToday ? _kPrimary : _kBorder,
+            width: isToday ? 1.4 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '${day.day}',
+              style: TextStyle(
+                color: isToday ? _kPrimary : _kTextDark,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            if (hasSessions)
+              Container(
+                width: 6,
+                height: 6,
+                margin: const EdgeInsets.only(top: 4),
+                decoration: BoxDecoration(
+                  color: _sessionTypeColor(sessions.first.sessionType),
+                  shape: BoxShape.circle,
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(

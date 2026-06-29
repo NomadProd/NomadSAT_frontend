@@ -83,7 +83,19 @@ Or: `./scripts/dev-frontend.sh` (uses port 55555)
 
 ### API URL
 
-On `localhost`, the app automatically calls `http://localhost:8000`. No `--dart-define` needed.
+On `localhost` or a private LAN IP (`192.168.x.x`, etc.), the app automatically calls `http://<same-host>:8000`. No `--dart-define` needed.
+
+**Test on a phone (same Wi‑Fi):**
+
+```bash
+# Backend (must listen on all interfaces)
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# Frontend — replace with your Mac's LAN IP
+flutter run -d web-server --web-port 8080 --web-hostname 0.0.0.0
+```
+
+Open `http://192.168.x.x:8080` on the phone. The app will call `http://192.168.x.x:8000` for the API.
 
 Override for staging/production API:
 
@@ -111,8 +123,9 @@ Login uses **HTTP-only cookies** sent to the backend. Start the backend before l
 
 | Symptom | Fix |
 |---------|-----|
-| `Failed to fetch, uri=https://api.turansat.com/...` | Not running on localhost, or production `API_BASE_URL` was set. Localhost auto-detects port 8000. |
-| CORS error | Restart backend. Any `http://localhost:<port>` is allowed. |
+| `Failed to fetch, uri=http://192.168.x.x:8000/...` on phone | Backend must listen on all interfaces: `uvicorn main:app --reload --host 0.0.0.0 --port 8000` (or `./scripts/dev-backend.sh`). Without `--host 0.0.0.0` it only accepts `127.0.0.1`. |
+| `Failed to fetch, uri=https://api.turansat.com/...` | Frontend not on localhost/LAN IP, or production `API_BASE_URL` was set. Local dev auto-detects port 8000 on the same host. |
+| CORS error | Restart backend. `localhost`, `127.0.0.1`, and private LAN IPs (`192.168.x.x`, etc.) are allowed. |
 | Login OK, `/auth/me` fails | Backend needs `AUTH_COOKIE_SECURE=false` for HTTP localhost. |
 | `Failed to fetch, uri=http://localhost:8000/...` | Backend not running, or DB connection failed. Check terminal logs. |
 | `401 Wrong credentials` | User missing from database or wrong password. |

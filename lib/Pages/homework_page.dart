@@ -22,6 +22,14 @@ const _kVerbal = Color(0xFF7B1FA2);
 
 const _pageSize = 5; // completed homework per page
 
+String _paginationRangeLabel(int page, int total) {
+  if (total == 0) return 'Showing 0 of 0';
+  final start = page * _pageSize + 1;
+  final end = ((page + 1) * _pageSize).clamp(0, total);
+  if (start >= end) return 'Showing $end of $total';
+  return 'Showing $start–$end of $total';
+}
+
 // в”Ђв”Ђв”Ђ Page в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 class HomeworkPage extends StatefulWidget {
   const HomeworkPage({super.key});
@@ -434,9 +442,9 @@ class _StatCard extends StatelessWidget {
         border: Border.all(color: item.color.withOpacity(0.18)),
         boxShadow: [
           BoxShadow(
-            color: item.color.withOpacity(0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+            color: item.color.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -586,18 +594,20 @@ class _TodoSection extends StatelessWidget {
                   _PaginationBar(
                     current: currentPage,
                     total: _totalPages,
+                    totalItems: items.length,
                     onPrev: currentPage > 0
                         ? () => onPageChanged(currentPage - 1)
                         : null,
                     onNext: currentPage < _totalPages - 1
                         ? () => onPageChanged(currentPage + 1)
                         : null,
+                    onPageSelected: onPageChanged,
                   ),
                 ],
                 const SizedBox(height: 8),
                 Center(
                   child: Text(
-                    'Showing ${_visible.length} of ${items.length}',
+                    _paginationRangeLabel(currentPage, items.length),
                     style: const TextStyle(
                       color: _kTextLight,
                       fontSize: 12,
@@ -661,26 +671,25 @@ class _CompletedSection extends StatelessWidget {
                   if (i < _visible.length - 1) const SizedBox(height: 10),
                 ],
 
-                // Pagination
                 if (_totalPages > 1) ...[
                   const SizedBox(height: 16),
                   _PaginationBar(
                     current: currentPage,
                     total: _totalPages,
+                    totalItems: items.length,
                     onPrev: currentPage > 0
                         ? () => onPageChanged(currentPage - 1)
                         : null,
                     onNext: currentPage < _totalPages - 1
                         ? () => onPageChanged(currentPage + 1)
                         : null,
+                    onPageSelected: onPageChanged,
                   ),
                 ],
-
-                // Counter
                 const SizedBox(height: 8),
                 Center(
                   child: Text(
-                    'Showing ${_visible.length} of ${items.length}',
+                    _paginationRangeLabel(currentPage, items.length),
                     style: const TextStyle(
                       color: _kTextLight,
                       fontSize: 12,
@@ -698,61 +707,72 @@ class _CompletedSection extends StatelessWidget {
 class _PaginationBar extends StatelessWidget {
   final int current;
   final int total;
+  final int totalItems;
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
+  final ValueChanged<int> onPageSelected;
 
   const _PaginationBar({
     required this.current,
     required this.total,
+    required this.totalItems,
     required this.onPrev,
     required this.onNext,
+    required this.onPageSelected,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        // Prev button
-        _PagButton(
-          label: 'Previous',
-          icon: Icons.chevron_left_rounded,
-          leading: true,
-          onTap: onPrev,
+        Row(
+          children: [
+            _PagButton(
+              label: 'Previous',
+              icon: Icons.chevron_left_rounded,
+              leading: true,
+              onTap: onPrev,
+            ),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(total, (i) {
+                  final active = i == current;
+                  return GestureDetector(
+                    onTap: () => onPageSelected(i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: active ? 24 : 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: active ? _kPrimary : _kBorder,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+            _PagButton(
+              label: 'Next',
+              icon: Icons.chevron_right_rounded,
+              leading: false,
+              onTap: onNext,
+            ),
+          ],
         ),
-
-        // Dot indicators
-        Expanded(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(total, (i) {
-              final active = i == current;
-              return GestureDetector(
-                onTap: () {
-                  if (i < current && onPrev != null) onPrev!();
-                  if (i > current && onNext != null) onNext!();
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: active ? 24 : 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: active ? _kPrimary : _kBorder,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              );
-            }),
+        if (total > 1) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Page ${current + 1} of $total',
+            style: const TextStyle(
+              color: _kTextLight,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-
-        // Next button
-        _PagButton(
-          label: 'Next',
-          icon: Icons.chevron_right_rounded,
-          leading: false,
-          onTap: onNext,
-        ),
+        ],
       ],
     );
   }
@@ -856,9 +876,9 @@ class _SectionShell extends StatelessWidget {
         border: Border.all(color: _kBorder, width: 1.2),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0F1A4AF0),
-            blurRadius: 22,
-            offset: Offset(0, 8),
+            color: Color(0x081A4AF0),
+            blurRadius: 12,
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -975,9 +995,9 @@ class _HomeworkCard extends StatelessWidget {
         border: Border.all(color: color.withOpacity(0.16)),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.06),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: color.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
