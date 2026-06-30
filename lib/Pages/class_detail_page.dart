@@ -9,6 +9,7 @@ import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Pages/academic_plan_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
+import 'package:flutter_web/theme/turan_theme.dart';
 
 part '../Widgets/shared_widgets.dart';
 part '../Sections/class_detail_header.dart';
@@ -18,24 +19,24 @@ part '../Sections/mock_section.dart';
 part 'timetable_page.dart';
 
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
-// Theme constants
+// Theme aliases (tokens live in turan_theme.dart)
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
-const _kPrimary = Color(0xFF1A4AF0);
-const _kPrimaryDark = Color(0xFF1A4AF0);
-const _kBg = Color(0xFFF0F4FF);
-const _kBorder = Color(0xFFD7E3FF);
-const _kPanelBg = Color(0xFFF4F7FF);
-const _kTextDark = Color(0xFF0D1B3E);
-const _kTextMid = Color(0xFF4A5A7A);
-const _kTextLight = Color(0xFF9AAAC6);
-const _kSuccess = Color(0xFF1B873F);
-const _kSuccessBg = Color(0xFFE8F5E9);
-const _kError = Color(0xFFC62828);
-const _kErrorBg = Color(0xFFFFEBEE);
-const _kWarning = Color(0xFFBF6000);
-const _kWarningBg = Color(0xFFFFF3E0);
-const _kNeutral = Color(0xFF607D8B);
-const _kNeutralBg = Color(0xFFF5F7FA);
+const _kPrimary = TuranColors.primary;
+const _kPrimaryDark = TuranColors.primaryDark;
+const _kBg = TuranColors.bg;
+const _kBorder = TuranColors.border;
+const _kPanelBg = TuranColors.panelBg;
+const _kTextDark = TuranColors.textDark;
+const _kTextMid = TuranColors.textMid;
+const _kTextLight = TuranColors.textLight;
+const _kSuccess = TuranColors.success;
+const _kSuccessBg = TuranColors.successBg;
+const _kError = TuranColors.error;
+const _kErrorBg = TuranColors.errorBg;
+const _kWarning = TuranColors.warning;
+const _kWarningBg = TuranColors.warningBg;
+const _kNeutral = TuranColors.neutral;
+const _kNeutralBg = TuranColors.neutralBg;
 
 const int _kMaxHomeworkSlots = 5;
 const int _kMinHomeworkSlots = 1;

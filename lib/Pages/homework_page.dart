@@ -5,20 +5,20 @@ import 'package:flutter_web/Pages/mock_result_detail_page.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
+import 'package:flutter_web/theme/turan_theme.dart';
 
-// в”Ђв”Ђв”Ђ Design Tokens в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
-const _kPrimary = Color(0xFF1A4AF0);
-const _kBg = Color(0xFFF2F6FF);
-const _kSurface = Color(0xFFFFFFFF);
-const _kBorder = Color(0xFFD7E3FF);
-const _kTextDark = Color(0xFF0D1B3E);
-const _kTextMid = Color(0xFF4A5A7A);
-const _kTextLight = Color(0xFF9AAAC6);
-const _kSuccess = Color(0xFF1B873F);
-const _kError = Color(0xFFC62828);
-const _kWarning = Color(0xFFBF6000);
-const _kMath = Color(0xFF00897B);
-const _kVerbal = Color(0xFF7B1FA2);
+const _kPrimary = TuranColors.primary;
+const _kBg = TuranColors.bgAlt;
+const _kSurface = TuranColors.surface;
+const _kBorder = TuranColors.border;
+const _kTextDark = TuranColors.textDark;
+const _kTextMid = TuranColors.textMid;
+const _kTextLight = TuranColors.textLight;
+const _kSuccess = TuranColors.success;
+const _kError = TuranColors.error;
+const _kWarning = TuranColors.warning;
+const _kMath = TuranColors.math;
+const _kVerbal = TuranColors.verbal;
 
 const _pageSize = 5; // completed homework per page
 
@@ -738,16 +738,25 @@ class _PaginationBar extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(total, (i) {
                   final active = i == current;
-                  return GestureDetector(
-                    onTap: () => onPageSelected(i),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      width: active ? 24 : 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        color: active ? _kPrimary : _kBorder,
-                        borderRadius: BorderRadius.circular(4),
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => onPageSelected(i),
+                      borderRadius: BorderRadius.circular(TuranRadius.pill),
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Center(
+                          child: AnimatedContainer(
+                            duration: TuranMotion.normal,
+                            width: active ? 24 : 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              color: active ? _kPrimary : _kBorder,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   );

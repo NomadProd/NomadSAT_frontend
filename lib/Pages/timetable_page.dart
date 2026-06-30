@@ -590,24 +590,35 @@ class _MonthDayCell extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              '${day.day}',
-              style: TextStyle(
-                color: isToday ? _kPrimary : _kTextDark,
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
+            SizedBox(
+              height: 23,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    '${day.day}',
+                    style: TextStyle(
+                      color: isToday ? _kPrimary : _kTextDark,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: hasSessions
+                          ? _sessionTypeColor(sessions.first.sessionType)
+                          : Colors.transparent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
               ),
             ),
-            if (hasSessions)
-              Container(
-                width: 6,
-                height: 6,
-                margin: const EdgeInsets.only(top: 4),
-                decoration: BoxDecoration(
-                  color: _sessionTypeColor(sessions.first.sessionType),
-                  shape: BoxShape.circle,
-                ),
-              ),
           ],
         ),
       );

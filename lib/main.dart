@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_web/theme/turan_theme.dart';
 import 'Pages/auth_page.dart';
 import 'Pages/home_page.dart';
 import 'Pages/classes_page.dart';
@@ -13,7 +14,8 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'TuranSat Auth',
+      title: 'TuranSAT',
+      theme: buildTuranTheme(),
       debugShowCheckedModeBanner: false,
       initialRoute: '/login',
       navigatorObservers: [appRouteObserver],

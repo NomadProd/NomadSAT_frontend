@@ -1,9 +1,10 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
+import 'package:flutter_web/theme/turan_theme.dart';
 
-const turanHeaderPrimary = Color(0xFF1A4AF0);
-const turanHeaderPrimaryDark = Color(0xFF1A4AF0);
-const turanHeaderPrimaryLight = Color(0xFF1A4AF0);
+const turanHeaderPrimary = TuranColors.primary;
+const turanHeaderPrimaryDark = TuranColors.primaryDark;
+const turanHeaderPrimaryLight = TuranColors.primary;
 
 class TuranHeaderAction {
   final IconData icon;
@@ -51,13 +52,13 @@ class TuranHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: turanHeaderPrimary,
         boxShadow: [
           BoxShadow(
-            color: Color(0x441A4AF0),
-            blurRadius: 22,
-            offset: Offset(0, 8),
+            color: turanHeaderPrimary.withValues(alpha: 0.22),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_web/Services/auth_service.dart';
+import 'package:flutter_web/theme/turan_theme.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -20,9 +21,6 @@ class _AuthPageState extends State<AuthPage>
   late AnimationController _animController;
   late Animation<double> _fadeIn;
   late Animation<Offset> _slideUp;
-
-  static const Color kBlue = Color(0xFF1A4AF0);
-  static const Color kBlueDark = Color(0xFF1A4AF0);
 
   @override
   void initState() {
@@ -56,7 +54,7 @@ class _AuthPageState extends State<AuthPage>
     const headerHeight = 4.0;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: TuranColors.surface,
       body: Stack(
         children: [
           // ── Top-right decorative pattern ──────────────────────────────
@@ -98,7 +96,7 @@ class _AuthPageState extends State<AuthPage>
             top: 0,
             left: 0,
             right: 0,
-            child: Container(height: 4, color: kBlue),
+            child: Container(height: 4, color: TuranColors.primary),
           ),
 
           // ── Main content ──────────────────────────────────────────────
@@ -133,25 +131,20 @@ class _AuthPageState extends State<AuthPage>
                             'Welcome back',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontFamily: 'Georgia',
-                              fontSize: 30,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0D1A3A),
-                              letterSpacing: -0.5,
-                              height: 1.1,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              color: TuranColors.textDark,
+                              letterSpacing: -0.4,
+                              height: 1.2,
                             ),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: TuranSpacing.xs),
                           const Text(
-                            'Log in to continue your TuranSAT prep journey',
+                            'Log in to continue your TuranSAT prep',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14.5,
-                              color: Color(0xFF7B8AA0),
-                              height: 1.5,
-                            ),
+                            style: TuranTextStyles.subtitle,
                           ),
-                          const SizedBox(height: 40),
+                          const SizedBox(height: TuranSpacing.xxl),
 
                           // ── Email field ────────────────────────────
                           AutofillGroup(
@@ -211,10 +204,10 @@ class _AuthPageState extends State<AuthPage>
                                 vertical: 12,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFFF0F0),
-                                borderRadius: BorderRadius.circular(10),
+                                color: TuranColors.errorBg,
+                                borderRadius: BorderRadius.circular(TuranRadius.sm),
                                 border: Border.all(
-                                  color: Colors.red.shade200,
+                                  color: TuranColors.error.withValues(alpha: 0.25),
                                   width: 1,
                                 ),
                               ),
@@ -244,33 +237,6 @@ class _AuthPageState extends State<AuthPage>
                             height: 52,
                             child: ElevatedButton(
                               onPressed: loading ? null : _login,
-                              style:
-                                  ElevatedButton.styleFrom(
-                                    backgroundColor: kBlue,
-                                    disabledBackgroundColor: kBlue.withValues(
-                                      alpha: 0.6,
-                                    ),
-                                    foregroundColor: Colors.white,
-                                    elevation: 0,
-                                    shadowColor: Colors.transparent,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ).copyWith(
-                                    overlayColor:
-                                        WidgetStateProperty.resolveWith((
-                                          states,
-                                        ) {
-                                          if (states.contains(
-                                            WidgetState.pressed,
-                                          )) {
-                                            return kBlueDark.withValues(
-                                              alpha: 0.3,
-                                            );
-                                          }
-                                          return null;
-                                        }),
-                                  ),
                               child: loading
                                   ? const SizedBox(
                                       width: 22,
@@ -365,10 +331,9 @@ class _InputField extends StatelessWidget {
     this.onSubmitted,
   });
 
-  static const Color kBlue = Color(0xFF1A4AF0);
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return TextField(
       controller: controller,
       obscureText: obscureText,
@@ -376,45 +341,21 @@ class _InputField extends StatelessWidget {
       autofillHints: autofillHints,
       textInputAction: textInputAction,
       onSubmitted: onSubmitted,
-      style: const TextStyle(fontSize: 15, color: Color(0xFF0D1A3A)),
+      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 15),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(fontSize: 14, color: Color(0xFF7B8AA0)),
-        floatingLabelStyle: const TextStyle(
-          fontSize: 13,
-          color: kBlue,
-          fontWeight: FontWeight.w500,
-        ),
-        prefixIcon: Icon(prefixIcon, color: const Color(0xFFADB8CC), size: 20),
+        prefixIcon: Icon(prefixIcon, color: TuranColors.textLight, size: 20),
         prefixIconConstraints: const BoxConstraints(
           minWidth: 48,
           minHeight: 48,
         ),
         suffixIcon: suffixIcon != null
             ? Padding(
-                padding: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.only(right: TuranSpacing.sm),
                 child: suffixIcon,
               )
             : null,
-        filled: true,
-        fillColor: const Color(0xFFF7F9FF),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 16,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFDDE3EE), width: 1.2),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFDDE3EE), width: 1.2),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: kBlue, width: 1.8),
-        ),
-      ),
+      ).applyDefaults(theme.inputDecorationTheme),
     );
   }
 }

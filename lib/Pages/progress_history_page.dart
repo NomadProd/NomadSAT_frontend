@@ -3,16 +3,17 @@ import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/class_service.dart';
+import 'package:flutter_web/theme/turan_theme.dart';
 
-const _kPrimary = Color(0xFF1A4AF0);
-const _kBg = Color(0xFFF0F4FF);
-const _kBorder = Color(0xFFD7E3FF);
-const _kTextDark = Color(0xFF0D1B3E);
-const _kTextMid = Color(0xFF4A5A7A);
-const _kTextLight = Color(0xFF9AAAC6);
-const _kSuccess = Color(0xFF1B873F);
-const _kError = Color(0xFFC62828);
-const _kMock = Color(0xFFEF6C00);
+const _kPrimary = TuranColors.primary;
+const _kBg = TuranColors.bg;
+const _kBorder = TuranColors.border;
+const _kTextDark = TuranColors.textDark;
+const _kTextMid = TuranColors.textMid;
+const _kTextLight = TuranColors.textLight;
+const _kSuccess = TuranColors.success;
+const _kError = TuranColors.error;
+const _kMock = TuranColors.mock;
 
 class ProgressHistoryPage extends StatefulWidget {
   final UserInfo student;
@@ -149,13 +150,13 @@ class _HistoryBodyState extends State<_HistoryBody> {
           if (_selectedView == _HistoryResultView.verbal)
             _HomeworkHistorySection(
               title: 'Verbal Homework Results',
-              color: const Color(0xFF7B1FA2),
+              color: TuranColors.verbal,
               items: widget.data.verbalHomework,
             )
           else if (_selectedView == _HistoryResultView.math)
             _HomeworkHistorySection(
               title: 'Math Homework Results',
-              color: const Color(0xFF00897B),
+              color: TuranColors.math,
               items: widget.data.mathHomework,
             )
           else ...[
@@ -295,14 +296,14 @@ class _ResultViewSwitch extends StatelessWidget {
         label: 'Verbal',
         count: verbalCount,
         icon: Icons.menu_book_rounded,
-        color: const Color(0xFF7B1FA2),
+        color: TuranColors.verbal,
       ),
       _ResultViewOption(
         view: _HistoryResultView.math,
         label: 'Math',
         count: mathCount,
         icon: Icons.calculate_rounded,
-        color: const Color(0xFF00897B),
+        color: TuranColors.math,
       ),
       _ResultViewOption(
         view: _HistoryResultView.mock,
@@ -530,7 +531,7 @@ class _MockVerbalHistorySection extends StatelessWidget {
       title: 'Mock Verbal Progress',
       subtitle: 'Verbal points compared to your previous mock',
       icon: Icons.menu_book_rounded,
-      color: const Color(0xFF7B1FA2),
+      color: TuranColors.verbal,
       emptyMessage: 'No mock verbal results yet',
       isEmpty: items.isEmpty,
       child: LayoutBuilder(
@@ -549,7 +550,7 @@ class _MockVerbalHistorySection extends StatelessWidget {
                       previousScore: i + 1 < items.length
                           ? items[i + 1].verbalScore
                           : null,
-                      color: const Color(0xFF7B1FA2),
+                      color: TuranColors.verbal,
                     ),
                   ),
               ],
@@ -572,7 +573,7 @@ class _MockVerbalHistorySection extends StatelessWidget {
                   previousScore: i + 1 < items.length
                       ? items[i + 1].verbalScore
                       : null,
-                  color: const Color(0xFF7B1FA2),
+                  color: TuranColors.verbal,
                 ),
             ],
           );
@@ -593,7 +594,7 @@ class _MockMathHistorySection extends StatelessWidget {
       title: 'Mock Math Progress',
       subtitle: 'Math points compared to your previous mock',
       icon: Icons.calculate_rounded,
-      color: const Color(0xFF00897B),
+      color: TuranColors.math,
       emptyMessage: 'No mock math results yet',
       isEmpty: items.isEmpty,
       child: LayoutBuilder(
@@ -612,7 +613,7 @@ class _MockMathHistorySection extends StatelessWidget {
                       previousScore: i + 1 < items.length
                           ? items[i + 1].mathScore
                           : null,
-                      color: const Color(0xFF00897B),
+                      color: TuranColors.math,
                     ),
                   ),
               ],
@@ -635,7 +636,7 @@ class _MockMathHistorySection extends StatelessWidget {
                   previousScore: i + 1 < items.length
                       ? items[i + 1].mathScore
                       : null,
-                  color: const Color(0xFF00897B),
+                  color: TuranColors.math,
                 ),
             ],
           );

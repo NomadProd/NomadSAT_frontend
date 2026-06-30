@@ -11,18 +11,20 @@ import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/app_route_observer.dart';
 
 // РІвЂќР‚РІвЂќР‚РІвЂќР‚ Palette РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
-const _kPrimary = Color(0xFF1A4AF0);
-const _kBg = Color(0xFFF0F4FF);
-const _kBorder = Color(0xFFD7E3FF);
-const _kPanelBg = Color(0xFFFAFBFF);
-const _kTextDark = Color(0xFF0D1B3E);
-const _kTextMid = Color(0xFF4A5A7A);
-const _kTextLight = Color(0xFF9AAAC6);
-const _kSuccess = Color(0xFF1B873F);
-const _kError = Color(0xFFC62828);
-const _kErrorBg = Color(0xFFFFEBEE);
-const _kWarning = Color(0xFFBF6000);
-const _kWarningBg = Color(0xFFFFF3E0);
+import 'package:flutter_web/theme/turan_theme.dart';
+
+const _kPrimary = TuranColors.primary;
+const _kBg = TuranColors.bg;
+const _kBorder = TuranColors.border;
+const _kPanelBg = TuranColors.panelBgAlt;
+const _kTextDark = TuranColors.textDark;
+const _kTextMid = TuranColors.textMid;
+const _kTextLight = TuranColors.textLight;
+const _kSuccess = TuranColors.success;
+const _kError = TuranColors.error;
+const _kErrorBg = TuranColors.errorBg;
+const _kWarning = TuranColors.warning;
+const _kWarningBg = TuranColors.warningBg;
 
 // РІвЂќР‚РІвЂќР‚РІвЂќР‚ Page РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
 class HomePage extends StatefulWidget {
@@ -602,7 +604,7 @@ class _DashboardRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 760) {
+        if (constraints.maxWidth < TuranBreakpoints.tablet) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
