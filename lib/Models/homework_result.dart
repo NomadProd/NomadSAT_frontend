@@ -1,29 +1,32 @@
-class HomeworkFile {
-  final int id;
+class HomeworkAttachment {
+  final int? id;
   final String url;
+  final String publicId;
   final String filename;
   final String contentType;
   final int sizeBytes;
   final DateTime uploadedAt;
 
-  const HomeworkFile({
-    required this.id,
+  const HomeworkAttachment({
+    this.id,
     required this.url,
+    required this.publicId,
     required this.filename,
     required this.contentType,
     required this.sizeBytes,
     required this.uploadedAt,
   });
 
-  factory HomeworkFile.fromJson(Map<String, dynamic> json) {
-    return HomeworkFile(
-      id: json['id'] ?? 0,
+  factory HomeworkAttachment.fromJson(Map<String, dynamic> json) {
+    return HomeworkAttachment(
+      id: json['id'] as int?,
       url: json['url']?.toString() ?? '',
+      publicId: json['public_id']?.toString() ?? '',
       filename: json['filename']?.toString() ?? 'file',
       contentType: json['content_type']?.toString() ?? '',
       sizeBytes: json['size_bytes'] ?? 0,
-      uploadedAt:
-          _parseDateTime(json['uploaded_at']) ?? DateTime.fromMillisecondsSinceEpoch(0),
+      uploadedAt: _parseDateTime(json['uploaded_at']) ??
+          DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
 
@@ -32,6 +35,9 @@ class HomeworkFile {
 
   double get sizeMb => sizeBytes / 1024 / 1024;
 }
+
+/// Backward-compatible alias used by mock upload UI.
+typedef HomeworkFile = HomeworkAttachment;
 
 class HomeworkResult {
   final int id;
@@ -45,7 +51,7 @@ class HomeworkResult {
   final DateTime? returnedAt;
   final int? returnedById;
   final String? returnReason;
-  final List<HomeworkFile> attachments;
+  final List<HomeworkAttachment> attachments;
   final bool legacyPhoto;
 
   const HomeworkResult({
@@ -64,14 +70,17 @@ class HomeworkResult {
     this.legacyPhoto = false,
   });
 
-  bool get isReturnedForRevision =>
-      !submitted && returnedAt != null;
+  bool get isReturnedForRevision => !submitted && returnedAt != null;
 
   bool get isSubmittedLocked => submitted && !isReturnedForRevision;
 
   factory HomeworkResult.fromJson(Map<String, dynamic> json) {
     final attachments = (json['attachments'] as List<dynamic>? ?? [])
-        .map((e) => HomeworkFile.fromJson(Map<String, dynamic>.from(e as Map)))
+        .map(
+          (e) => HomeworkAttachment.fromJson(
+            Map<String, dynamic>.from(e as Map),
+          ),
+        )
         .toList();
 
     return HomeworkResult(

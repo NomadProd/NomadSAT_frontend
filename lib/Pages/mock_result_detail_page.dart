@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'dart:html' as html;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
+import 'package:flutter_web/models/homework_result.dart';
+import 'package:flutter_web/models/mock_result.dart';
+import 'package:flutter_web/widgets/file_list_tile.dart';
 
 const _kPrimary = Color(0xFF1A4AF0);
 const _kBg = Color(0xFFF2F6FF);
@@ -16,6 +20,10 @@ const _kTextLight = Color(0xFF9AAAC6);
 const _kSuccess = Color(0xFF1B873F);
 const _kError = Color(0xFFC62828);
 const _kMock = Color(0xFFEF6C00);
+
+const _maxFiles = 10;
+const _maxFileSizeBytes = 52428800;
+const _allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'pdf'];
 
 class MockResultDetailPage extends StatefulWidget {
   final String title;
@@ -47,20 +55,16 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
   final _mathController = TextEditingController();
   final _analysisController = TextEditingController();
 
-  String? _photoLink;
-  String? _selectedFileName;
-  html.File? _selectedPhotoFile;
-  bool _dragging = false;
+  MockResultDetail? _result;
+  final List<PlatformFile> _pendingFiles = [];
   bool _saving = false;
   String? _error;
+  String? _bannerError;
+  Timer? _bannerTimer;
 
   late AnimationController _heroAnim;
   late Animation<double> _heroFade;
   late Animation<Offset> _heroSlide;
-
-  StreamSubscription<html.MouseEvent>? _dragOverSub;
-  StreamSubscription<html.MouseEvent>? _dragLeaveSub;
-  StreamSubscription<html.MouseEvent>? _dropSub;
 
   @override
   void initState() {
@@ -82,43 +86,38 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
       _verbalController.text = result.verbalPoints?.toString() ?? '';
       _mathController.text = result.mathPoints?.toString() ?? '';
       _analysisController.text = result.weakAreas ?? '';
-      _photoLink = result.photoLink;
-      if ((_photoLink ?? '').isNotEmpty) {
-        _selectedFileName = 'Submitted screenshot';
+      if (result.resultId > 0) {
+        _reloadResult(result.resultId);
       }
     }
-    _wireBrowserDrop();
   }
 
   @override
   void dispose() {
+    _bannerTimer?.cancel();
     _heroAnim.dispose();
     _verbalController.dispose();
     _mathController.dispose();
     _analysisController.dispose();
-    _dragOverSub?.cancel();
-    _dragLeaveSub?.cancel();
-    _dropSub?.cancel();
     super.dispose();
   }
 
-  void _wireBrowserDrop() {
-    _dragOverSub = html.document.onDragOver.listen((e) {
-      e.preventDefault();
-      if (!_saving && mounted) setState(() => _dragging = true);
-    });
-    _dragLeaveSub = html.document.onDragLeave.listen((e) {
-      e.preventDefault();
-      if (mounted) setState(() => _dragging = false);
-    });
-    _dropSub = html.document.onDrop.listen((e) {
-      e.preventDefault();
-      if (_saving) return;
-      final file = e.dataTransfer.files?.isNotEmpty == true
-          ? e.dataTransfer.files!.first
-          : null;
-      if (mounted) setState(() => _dragging = false);
-      if (file != null) _setSelectedPhoto(file);
+  Future<void> _reloadResult(int resultId) async {
+    try {
+      final result = await _classService.fetchMockResult(resultId);
+      if (!mounted) return;
+      setState(() => _result = result);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    }
+  }
+
+  void _showBannerError(String message) {
+    _bannerTimer?.cancel();
+    setState(() => _bannerError = message);
+    _bannerTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _bannerError = null);
     });
   }
 
@@ -129,33 +128,111 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
     html.window.open(withScheme, '_blank');
   }
 
-  Future<void> _pickScreenshot() async {
-    final input = html.FileUploadInputElement()
-      ..accept = 'image/*,application/pdf,.pdf'
-      ..multiple = false;
-    input.click();
-    await input.onChange.first;
-    final file = input.files?.isNotEmpty == true ? input.files!.first : null;
-    if (file == null) return;
-    _setSelectedPhoto(file);
+  bool get _canEditFiles => _result == null || !_result!.isSubmittedLocked;
+
+  bool get _hasExistingFiles {
+    final result = _result;
+    if (result == null) return false;
+    if (result.attachments.isNotEmpty) return true;
+    return (result.photoLink ?? '').isNotEmpty;
   }
 
-  void _setSelectedPhoto(html.File file) {
+  int get _totalFileCount {
+    final uploaded = _result?.attachments.length ?? 0;
+    return uploaded + _pendingFiles.length;
+  }
+
+  Future<void> _pickFiles() async {
+    if (!_canEditFiles || _saving) return;
+
+    final picked = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: _allowedExtensions,
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+
+    for (final file in picked.files) {
+      final ext = (file.extension ?? '').toLowerCase();
+      if (!_allowedExtensions.contains(ext)) {
+        _showBannerError(
+          '«${file.name}» is not a supported file type (images and PDF only)',
+        );
+        return;
+      }
+      if (file.size > _maxFileSizeBytes) {
+        _showBannerError('«${file.name}» exceeds the 50 MB limit');
+        return;
+      }
+    }
+
+    if (_totalFileCount + picked.files.length > _maxFiles) {
+      _showBannerError('Maximum 10 files per submission');
+      return;
+    }
+
     setState(() {
-      _selectedFileName = file.name;
-      _selectedPhotoFile = file;
+      _pendingFiles.addAll(picked.files);
       _error = null;
     });
   }
 
+  void _removePendingFile(int index) {
+    setState(() => _pendingFiles.removeAt(index));
+  }
+
+  Future<void> _deleteUploadedFile(HomeworkFile file) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    final ok = await _classService.deleteMockFile(file.id);
+    if (!mounted) return;
+    if (ok && _result != null) {
+      await _reloadResult(_result!.id);
+    } else if (!ok) {
+      setState(() => _error = 'Could not delete file');
+    }
+    if (mounted) setState(() => _saving = false);
+  }
+
+  Future<int?> _ensureResultId() async {
+    final existing = _result;
+    if (existing != null && existing.id > 0) return existing.id;
+
+    final initial = widget.result;
+    if (initial != null && initial.resultId > 0) return initial.resultId;
+
+    final verbalPoints = int.tryParse(_verbalController.text.trim());
+    final mathPoints = int.tryParse(_mathController.text.trim());
+    final analysis = _analysisController.text.trim();
+
+    final created = await _classService.createMockResult(
+      assignmentId: widget.assignment.assignmentId,
+      studentId: widget.assignment.studentId,
+      submitted: false,
+      verbalPoints: verbalPoints,
+      mathPoints: mathPoints,
+      weakAreas: analysis.isEmpty ? null : analysis,
+    );
+
+    if (created['success'] != true) {
+      setState(() => _error = created['message']?.toString() ?? 'Could not create result');
+      return null;
+    }
+
+    final resultId = created['result_id'] as int?;
+    if (resultId != null) {
+      await _reloadResult(resultId);
+    }
+    return resultId;
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final hasPhoto =
-        _selectedPhotoFile != null || (_photoLink ?? '').isNotEmpty;
-    if (widget.assignment.photoRequired && !hasPhoto) {
-      setState(
-        () => _error = 'Please attach a screenshot or PDF before submitting.',
-      );
+
+    final photoRequired = widget.assignment.photoRequired;
+    if (photoRequired && _pendingFiles.isEmpty && !_hasExistingFiles) {
+      setState(() => _error = 'Please attach at least one file before submitting.');
       return;
     }
 
@@ -164,30 +241,42 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
       _error = null;
     });
 
+    final resultId = await _ensureResultId();
+    if (resultId == null) {
+      setState(() => _saving = false);
+      return;
+    }
+
+    if (_pendingFiles.isNotEmpty) {
+      final upload = await _classService.uploadMockResultFiles(
+        resultId: resultId,
+        files: List<PlatformFile>.from(_pendingFiles),
+      );
+
+      if (upload['success'] != true) {
+        setState(() {
+          _saving = false;
+          _error = upload['message']?.toString() ?? 'Upload failed';
+        });
+        return;
+      }
+
+      _result = upload['result'] as MockResultDetail?;
+      _pendingFiles.clear();
+    }
+
     final verbalPoints = int.tryParse(_verbalController.text.trim());
     final mathPoints = int.tryParse(_mathController.text.trim());
     final analysis = _analysisController.text.trim();
 
-    final response = widget.result == null
-        ? await _classService.createMockResult(
-            assignmentId: widget.assignment.assignmentId,
-            studentId: widget.assignment.studentId,
-            submitted: true,
-            photoFile: _selectedPhotoFile,
-            photoLink: _photoLink,
-            verbalPoints: verbalPoints,
-            mathPoints: mathPoints,
-            weakAreas: analysis.isEmpty ? null : analysis,
-          )
-        : await _classService.updateMockResult(
-            resultId: widget.result!.resultId,
-            submitted: true,
-            photoFile: _selectedPhotoFile,
-            photoLink: _photoLink,
-            verbalPoints: verbalPoints,
-            mathPoints: mathPoints,
-            weakAreas: analysis.isEmpty ? null : analysis,
-          );
+    final response = await _classService.updateMockResult(
+      resultId: resultId,
+      submitted: true,
+      photoLink: _result?.photoLink,
+      verbalPoints: verbalPoints,
+      mathPoints: mathPoints,
+      weakAreas: analysis.isEmpty ? null : analysis,
+    );
 
     if (!mounted) return;
 
@@ -210,8 +299,7 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
 
     setState(() {
       _saving = false;
-      _error =
-          response['message']?.toString() ?? 'Could not submit mock result';
+      _error = response['message']?.toString() ?? 'Could not submit mock result';
     });
   }
 
@@ -235,7 +323,7 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
                     deadline: widget.deadline,
                     sessionType: widget.sessionType,
                     photoRequired: widget.assignment.photoRequired,
-                    hasSubmission: widget.result != null,
+                    hasSubmission: _result?.submitted == true || widget.result?.submitted == true,
                   ),
                 ),
               ),
@@ -253,19 +341,17 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
                       verbalController: _verbalController,
                       mathController: _mathController,
                       analysisController: _analysisController,
-                      photoLink: _photoLink,
-                      selectedFileName: _selectedFileName,
-                      dragging: _dragging,
                       saving: _saving,
                       error: _error,
-                      existingResult: widget.result,
-                      onPickScreenshot: _pickScreenshot,
-                      onOpenPhoto: _photoLink == null
-                          ? null
-                          : () => _openLink(_photoLink!),
+                      bannerError: _bannerError,
+                      canEditFiles: _canEditFiles,
+                      pendingFiles: _pendingFiles,
+                      result: _result,
+                      onPickFiles: _pickFiles,
+                      onRemovePending: _removePendingFile,
+                      onDeleteUploaded: _deleteUploadedFile,
+                      onOpenUrl: _openLink,
                       onSubmit: _submit,
-                      onDragChanged: (v) => setState(() => _dragging = v),
-                      onDropped: _setSelectedPhoto,
                     );
 
                     if (constraints.maxWidth < 860) {
@@ -485,42 +571,44 @@ class _SubmissionCard extends StatelessWidget {
   final TextEditingController verbalController;
   final TextEditingController mathController;
   final TextEditingController analysisController;
-  final String? photoLink;
-  final String? selectedFileName;
-  final bool dragging;
   final bool saving;
   final String? error;
-  final MockResultInfo? existingResult;
-  final VoidCallback onPickScreenshot;
-  final VoidCallback? onOpenPhoto;
+  final String? bannerError;
+  final bool canEditFiles;
+  final List<PlatformFile> pendingFiles;
+  final MockResultDetail? result;
+  final VoidCallback onPickFiles;
+  final ValueChanged<int> onRemovePending;
+  final ValueChanged<HomeworkFile> onDeleteUploaded;
+  final ValueChanged<String> onOpenUrl;
   final VoidCallback onSubmit;
-  final ValueChanged<bool> onDragChanged;
-  final ValueChanged<html.File> onDropped;
 
   const _SubmissionCard({
     required this.formKey,
     required this.verbalController,
     required this.mathController,
     required this.analysisController,
-    required this.photoLink,
-    required this.selectedFileName,
-    required this.dragging,
     required this.saving,
     required this.error,
-    required this.existingResult,
-    required this.onPickScreenshot,
-    required this.onOpenPhoto,
+    required this.bannerError,
+    required this.canEditFiles,
+    required this.pendingFiles,
+    required this.result,
+    required this.onPickFiles,
+    required this.onRemovePending,
+    required this.onDeleteUploaded,
+    required this.onOpenUrl,
     required this.onSubmit,
-    required this.onDragChanged,
-    required this.onDropped,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isUpdate = existingResult != null;
+    final isUpdate = result != null || pendingFiles.isNotEmpty;
+    final showReadOnly = result?.isSubmittedLocked == true;
+
     return _Panel(
-      title: isUpdate ? 'Update Submission' : 'Submit Mock Result',
-      icon: isUpdate ? Icons.edit_note_rounded : Icons.upload_file_rounded,
+      title: showReadOnly ? 'Submitted Mock Result' : (isUpdate ? 'Update Submission' : 'Submit Mock Result'),
+      icon: showReadOnly ? Icons.check_circle_outline_rounded : Icons.upload_file_rounded,
       child: Form(
         key: formKey,
         child: Column(
@@ -534,7 +622,7 @@ class _SubmissionCard extends StatelessWidget {
                     label: 'Verbal Points',
                     icon: Icons.menu_book_rounded,
                     color: _kMock,
-                    enabled: !saving,
+                    enabled: !saving && !showReadOnly,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -544,7 +632,7 @@ class _SubmissionCard extends StatelessWidget {
                     label: 'Math Points',
                     icon: Icons.calculate_rounded,
                     color: _kPrimary,
-                    enabled: !saving,
+                    enabled: !saving && !showReadOnly,
                   ),
                 ),
               ],
@@ -552,7 +640,7 @@ class _SubmissionCard extends StatelessWidget {
             const SizedBox(height: 12),
             TextFormField(
               controller: analysisController,
-              enabled: !saving,
+              enabled: !saving && !showReadOnly,
               minLines: 3,
               maxLines: 5,
               style: const TextStyle(fontSize: 14, color: _kTextDark),
@@ -580,16 +668,39 @@ class _SubmissionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            _ScreenshotDropZone(
-              photoLink: photoLink,
-              selectedFileName: selectedFileName,
-              dragging: dragging,
-              saving: saving,
-              onPick: onPickScreenshot,
-              onOpenPhoto: onOpenPhoto,
-              onDragChanged: onDragChanged,
-              onDropped: onDropped,
-            ),
+            if (bannerError != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _kError.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _kError.withOpacity(0.25)),
+                ),
+                child: Text(
+                  bannerError!,
+                  style: const TextStyle(
+                    color: _kError,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (showReadOnly)
+              _MockSubmittedFilesSection(result: result!, onOpenUrl: onOpenUrl)
+            else
+              _MockFilesEditor(
+                pendingFiles: pendingFiles,
+                uploadedFiles: result?.attachments ?? const [],
+                saving: saving,
+                onPickFiles: onPickFiles,
+                onRemovePending: onRemovePending,
+                onDeleteUploaded: onDeleteUploaded,
+                onOpenUrl: onOpenUrl,
+                legacyPhotoLink: result?.legacyPhoto == true ? result?.photoLink : null,
+              ),
             if (error != null) ...[
               const SizedBox(height: 10),
               Container(
@@ -621,14 +732,168 @@ class _SubmissionCard extends StatelessWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: _SubmitButton(saving: saving, onSubmit: onSubmit),
-            ),
+            if (canEditFiles) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: _SubmitButton(saving: saving, onSubmit: onSubmit),
+              ),
+            ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MockFilesEditor extends StatelessWidget {
+  final List<PlatformFile> pendingFiles;
+  final List<HomeworkFile> uploadedFiles;
+  final bool saving;
+  final VoidCallback onPickFiles;
+  final ValueChanged<int> onRemovePending;
+  final ValueChanged<HomeworkFile> onDeleteUploaded;
+  final ValueChanged<String> onOpenUrl;
+  final String? legacyPhotoLink;
+
+  const _MockFilesEditor({
+    required this.pendingFiles,
+    required this.uploadedFiles,
+    required this.saving,
+    required this.onPickFiles,
+    required this.onRemovePending,
+    required this.onDeleteUploaded,
+    required this.onOpenUrl,
+    this.legacyPhotoLink,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final legacy = (legacyPhotoLink ?? '').trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Proof files (1–10)',
+          style: TextStyle(
+            color: _kTextDark,
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: _kBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _kBorder),
+          ),
+          child: pendingFiles.isEmpty && uploadedFiles.isEmpty && legacy.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'No files selected',
+                    style: TextStyle(color: _kTextLight, fontWeight: FontWeight.w600),
+                  ),
+                )
+              : Column(
+                  children: [
+                    if (legacy.isNotEmpty)
+                      LegacyPhotoListTile(
+                        photoLink: legacy,
+                        onTap: () => onOpenUrl(legacy),
+                      ),
+                    for (final file in uploadedFiles)
+                      SubmittedFileListTile(
+                        file: file,
+                        onTap: () => onOpenUrl(file.url),
+                        onRemove: saving ? null : () => onDeleteUploaded(file),
+                      ),
+                    for (var i = 0; i < pendingFiles.length; i++)
+                      PendingFileListTile(
+                        file: pendingFiles[i],
+                        enabled: !saving,
+                        onRemove: () => onRemovePending(i),
+                      ),
+                  ],
+                ),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: saving ? null : onPickFiles,
+          icon: const Icon(Icons.add_rounded, size: 18),
+          label: const Text('Add files'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: _kPrimary,
+            side: const BorderSide(color: _kBorder),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MockSubmittedFilesSection extends StatelessWidget {
+  final MockResultDetail result;
+  final ValueChanged<String> onOpenUrl;
+
+  const _MockSubmittedFilesSection({
+    required this.result,
+    required this.onOpenUrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final attachments = result.attachments;
+    final legacyLink = (result.photoLink ?? '').trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Submitted files',
+          style: TextStyle(
+            color: _kTextDark,
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: _kBg,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _kBorder),
+          ),
+          child: attachments.isEmpty && legacyLink.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    'No files attached',
+                    style: TextStyle(color: _kTextLight, fontWeight: FontWeight.w600),
+                  ),
+                )
+              : Column(
+                  children: [
+                    if (result.legacyPhoto && legacyLink.isNotEmpty)
+                      LegacyPhotoListTile(
+                        photoLink: legacyLink,
+                        onTap: () => onOpenUrl(legacyLink),
+                      ),
+                    for (final file in attachments)
+                      SubmittedFileListTile(
+                        file: file,
+                        onTap: () => onOpenUrl(file.url),
+                      ),
+                  ],
+                ),
+        ),
+      ],
     );
   }
 }
@@ -755,159 +1020,6 @@ class _SubmitButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ScreenshotDropZone extends StatelessWidget {
-  final String? photoLink;
-  final String? selectedFileName;
-  final bool dragging;
-  final bool saving;
-  final VoidCallback onPick;
-  final VoidCallback? onOpenPhoto;
-  final ValueChanged<bool> onDragChanged;
-  final ValueChanged<html.File> onDropped;
-
-  const _ScreenshotDropZone({
-    required this.photoLink,
-    required this.selectedFileName,
-    required this.dragging,
-    required this.saving,
-    required this.onPick,
-    required this.onOpenPhoto,
-    required this.onDragChanged,
-    required this.onDropped,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DragTarget<html.File>(
-      onWillAcceptWithDetails: (_) {
-        if (!saving) onDragChanged(true);
-        return !saving;
-      },
-      onLeave: (_) => onDragChanged(false),
-      onAcceptWithDetails: (details) {
-        onDragChanged(false);
-        onDropped(details.data);
-      },
-      builder: (context, candidateData, _) {
-        final hasPhoto =
-            (photoLink ?? '').isNotEmpty || (selectedFileName ?? '').isNotEmpty;
-        final hasUploadedPhoto = (photoLink ?? '').isNotEmpty;
-        final active = dragging || candidateData.isNotEmpty;
-
-        return GestureDetector(
-          onTap: saving ? null : onPick,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
-            decoration: BoxDecoration(
-              color: active
-                  ? _kPrimary.withOpacity(0.09)
-                  : hasPhoto
-                  ? _kSuccess.withOpacity(0.06)
-                  : _kBg,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: active
-                    ? _kPrimary
-                    : hasPhoto
-                    ? _kSuccess.withOpacity(0.40)
-                    : _kBorder,
-                width: active ? 2 : 1.5,
-              ),
-            ),
-            child: Column(
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: hasPhoto
-                          ? [
-                              _kSuccess.withOpacity(0.20),
-                              _kSuccess.withOpacity(0.10),
-                            ]
-                          : [
-                              _kPrimary.withOpacity(0.20),
-                              _kPrimary.withOpacity(0.10),
-                            ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    hasPhoto
-                        ? Icons.image_rounded
-                        : active
-                        ? Icons.file_download_rounded
-                        : Icons.cloud_upload_rounded,
-                    color: hasPhoto ? _kSuccess : _kPrimary,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  hasPhoto
-                      ? selectedFileName ?? 'File attached'
-                      : active
-                      ? 'Release to attach'
-                      : 'Drag screenshot or PDF here',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: hasPhoto ? _kSuccess : _kTextDark,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  hasPhoto
-                      ? 'Temporary URL generated - tap to replace'
-                      : 'or tap to choose an image or PDF from your device',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: _kTextMid,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (hasPhoto) ...[
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: hasUploadedPhoto ? onOpenPhoto : null,
-                    icon: const Icon(Icons.open_in_new_rounded, size: 15),
-                    label: Text(
-                      hasUploadedPhoto ? 'Open file' : 'Upload pending',
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _kPrimary,
-                      side: const BorderSide(color: _kBorder, width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

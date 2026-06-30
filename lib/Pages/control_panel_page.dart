@@ -5,6 +5,7 @@ import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
+import 'package:flutter_web/models/mock_result.dart';
 import 'package:flutter_web/screens/admin/class_list_screen.dart';
 import 'package:flutter_web/screens/admin/homework_result_detail_screen.dart';
 import 'package:flutter_web/screens/admin/user_list_screen.dart';
@@ -937,11 +938,16 @@ Future<void> _showMockResultEditDialog({
   final mathIncorrectController = TextEditingController(
     text: result.mathIncorrect?.toString() ?? '',
   );
-  String? photoLink = result.photoLink;
-  String? selectedFileName = (photoLink ?? '').isEmpty
-      ? null
-      : 'Submitted screenshot';
-  html.File? selectedPhotoFile;
+  MockResultDetail? detail;
+  String? filesError;
+
+  try {
+    detail = await classService.fetchMockResult(result.resultId);
+  } catch (e) {
+    filesError = e.toString();
+  }
+
+  if (!context.mounted) return;
 
   await showDialog(
     context: context,
@@ -993,20 +999,58 @@ Future<void> _showMockResultEditDialog({
               ),
               SizedBox(
                 width: 440,
-                child: _PhotoPickerPanel(
-                  photoLink: photoLink,
-                  selectedFileName: selectedFileName,
-                  onPick: () async {
-                    final file = await _pickImageFile();
-                    if (file == null) return;
-                    setDialogState(() {
-                      selectedPhotoFile = file;
-                      selectedFileName = file.name;
-                    });
-                  },
-                  onOpen: (photoLink ?? '').isEmpty
-                      ? null
-                      : () => html.window.open(photoLink!, '_blank'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Attached files',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    if (filesError != null)
+                      Text(filesError!, style: const TextStyle(color: Colors.red))
+                    else if (detail == null)
+                      const Text('Loading files...')
+                    else if (detail!.attachments.isEmpty &&
+                        !(detail!.legacyPhoto && (detail!.photoLink ?? '').isNotEmpty))
+                      const Text('No files attached')
+                    else ...[
+                      if (detail!.legacyPhoto && (detail!.photoLink ?? '').isNotEmpty)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Legacy proof'),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.open_in_new),
+                            onPressed: () => html.window.open(detail!.photoLink!, '_blank'),
+                          ),
+                        ),
+                      for (final file in detail!.attachments)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(file.filename, overflow: TextOverflow.ellipsis),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.open_in_new),
+                                onPressed: () => html.window.open(file.url, '_blank'),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                onPressed: () async {
+                                  final ok = await classService.deleteMockFile(file.id);
+                                  if (!context.mounted) return;
+                                  if (ok) {
+                                    detail = await classService.fetchMockResult(result.resultId);
+                                    setDialogState(() {});
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ],
                 ),
               ),
             ],
@@ -1031,8 +1075,6 @@ Future<void> _showMockResultEditDialog({
                   mathIncorrectController.text.trim(),
                 ),
                 weakAreas: weakAreasController.text.trim(),
-                photoFile: selectedPhotoFile,
-                photoLink: photoLink,
               );
               if (!context.mounted) return;
               Navigator.of(dialogContext).pop();

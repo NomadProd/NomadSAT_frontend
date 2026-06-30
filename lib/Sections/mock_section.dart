@@ -237,50 +237,101 @@ class _MockInlineSection extends StatelessWidget {
                       ),
                     ),
                   ],
-                  // Photo proof link
-                  if ((result.photoLink ?? '').isNotEmpty) ...[
+                  // Proof files
+                  if (result.attachments.isNotEmpty ||
+                      (result.photoLink ?? '').isNotEmpty) ...[
                     const SizedBox(height: 10),
-                    InkWell(
-                      onTap: () => onOpenLink(result.photoLink),
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.25),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.photo_outlined,
-                              color: Colors.white.withOpacity(0.9),
-                              size: 16,
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'View proof',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                    if (result.attachments.isNotEmpty)
+                      for (final file in result.attachments)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: InkWell(
+                            onTap: () => onOpenLink(file.url),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.25),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.attach_file_rounded,
+                                    color: Colors.white.withOpacity(0.9),
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      file.filename,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    Icons.open_in_new_rounded,
+                                    color: Colors.white.withOpacity(0.7),
+                                    size: 14,
+                                  ),
+                                ],
                               ),
                             ),
-                            const Spacer(),
-                            Icon(
-                              Icons.open_in_new_rounded,
-                              color: Colors.white.withOpacity(0.7),
-                              size: 14,
+                          ),
+                        )
+                    else if ((result.photoLink ?? '').isNotEmpty)
+                      InkWell(
+                        onTap: () => onOpenLink(result.photoLink),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.25),
                             ),
-                          ],
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.photo_outlined,
+                                color: Colors.white.withOpacity(0.9),
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'View proof',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const Spacer(),
+                              Icon(
+                                Icons.open_in_new_rounded,
+                                color: Colors.white.withOpacity(0.7),
+                                size: 14,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
                   ],
                 ],
               ),

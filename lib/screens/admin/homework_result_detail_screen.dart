@@ -29,6 +29,7 @@ class HomeworkResultDetailScreen extends StatefulWidget {
 class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen> {
   final _classService = ClassService();
   late Future<HomeworkResultDetailInfo> _future;
+  final Set<String> _removedPublicIds = {};
 
   @override
   void initState() {
@@ -43,6 +44,9 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
   }
 
   Future<void> _deleteFile(HomeworkFileInfo file) async {
+    final publicId = file.publicId;
+    if (publicId == null || publicId.isEmpty) return;
+
     final confirmed = await showConfirmDialog(
       context,
       title: 'Delete file',
@@ -51,10 +55,13 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
     if (!confirmed || !mounted) return;
 
     try {
-      final ok = await _classService.deleteHomeworkFile(file.id);
+      final ok = await _classService.deleteHomeworkAttachment(
+        resultId: widget.resultId,
+        publicId: publicId,
+      );
       if (!mounted) return;
       if (ok) {
-        _reload();
+        setState(() => _removedPublicIds.add(publicId));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('File deleted')),
         );
@@ -121,9 +128,12 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
       return;
     }
 
-    final message = response['error'] == 'ALREADY_RETURNED'
-        ? 'This homework is already pending revision'
-        : response['message']?.toString() ?? 'Failed to return homework. Try again.';
+    final message = switch (response['error']?.toString()) {
+      'ALREADY_RETURNED' => 'This homework is already pending revision',
+      'NOT_SUBMITTED' => 'Homework has not been submitted yet',
+      _ => response['message']?.toString() ??
+          'Failed to return homework. Try again.',
+    };
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
@@ -259,7 +269,15 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
   }
 
   List<HomeworkFileInfo> _visibleFiles(HomeworkResultDetailInfo result) {
-    if (result.attachments.isNotEmpty) return result.attachments;
+    if (result.attachments.isNotEmpty) {
+      return result.attachments
+          .where(
+            (file) =>
+                file.publicId == null ||
+                !_removedPublicIds.contains(file.publicId),
+          )
+          .toList();
+    }
     if (result.legacyPhoto && (result.photoLink ?? '').isNotEmpty) {
       return [
         HomeworkFileInfo(
@@ -372,7 +390,9 @@ class _AttachmentTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (showDelete && file.id > 0)
+              if (showDelete &&
+                  file.publicId != null &&
+                  file.publicId!.isNotEmpty)
                 IconButton(
                   tooltip: 'Delete file',
                   onPressed: onDelete,

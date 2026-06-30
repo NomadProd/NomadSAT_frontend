@@ -47,13 +47,15 @@ class PendingFileListTile extends StatelessWidget {
 }
 
 class SubmittedFileListTile extends StatelessWidget {
-  final HomeworkFile file;
+  final HomeworkAttachment file;
   final VoidCallback? onTap;
+  final VoidCallback? onRemove;
 
   const SubmittedFileListTile({
     super.key,
     required this.file,
     this.onTap,
+    this.onRemove,
   });
 
   @override
@@ -72,7 +74,12 @@ class SubmittedFileListTile extends StatelessWidget {
         '${file.sizeMb.toStringAsFixed(1)} MB',
         style: const TextStyle(color: TuranColors.textMid),
       ),
-      trailing: onTap != null
+      trailing: onRemove != null
+          ? IconButton(
+              icon: const Icon(Icons.close, color: Colors.red),
+              onPressed: onRemove,
+            )
+          : onTap != null
           ? const Icon(Icons.open_in_new_rounded, color: TuranColors.primary)
           : null,
     );
@@ -131,7 +138,7 @@ class LegacyPhotoListTile extends StatelessWidget {
 }
 
 class _SubmittedFileLeading extends StatelessWidget {
-  final HomeworkFile file;
+  final HomeworkAttachment file;
 
   const _SubmittedFileLeading({required this.file});
 

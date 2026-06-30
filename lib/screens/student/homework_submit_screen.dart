@@ -147,23 +147,22 @@ class _HomeworkSubmitScreenState extends State<HomeworkSubmitScreen>
     );
     if (picked == null || picked.files.isEmpty) return;
 
+    final existingCount = _result?.attachments.length ?? 0;
+    if (_pendingFiles.length + existingCount + picked.files.length > _maxFiles) {
+      _showBannerError('Maximum 10 files per submission');
+      return;
+    }
+
     for (final file in picked.files) {
       final ext = (file.extension ?? '').toLowerCase();
       if (!_allowedExtensions.contains(ext)) {
-        _showBannerError(
-          '«${file.name}» is not a supported file type (images and PDF only)',
-        );
+        _showBannerError('«${file.name}» is not a supported file type');
         return;
       }
       if (file.size > _maxFileSizeBytes) {
         _showBannerError('«${file.name}» exceeds the 50 MB limit');
         return;
       }
-    }
-
-    if (_pendingFiles.length + picked.files.length > _maxFiles) {
-      _showBannerError('Maximum 10 files per submission');
-      return;
     }
 
     setState(() {
@@ -535,13 +534,25 @@ class _SubmissionCard extends StatelessWidget {
             ],
             if (showReadOnly)
               _SubmittedFilesSection(result: result!, onOpenUrl: onOpenUrl)
-            else
+            else ...[
+              if (result != null &&
+                  (result!.attachments.isNotEmpty ||
+                      (result!.photoLink ?? '').trim().isNotEmpty))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _SubmittedFilesSection(
+                    result: result!,
+                    onOpenUrl: onOpenUrl,
+                    title: 'Uploaded files',
+                  ),
+                ),
               _PendingFilesSection(
                 pendingFiles: pendingFiles,
                 saving: saving,
                 onPickFiles: onPickFiles,
                 onRemovePending: onRemovePending,
               ),
+            ],
             if (error != null) ...[
               const SizedBox(height: 10),
               Container(
@@ -655,10 +666,12 @@ class _PendingFilesSection extends StatelessWidget {
 class _SubmittedFilesSection extends StatelessWidget {
   final HomeworkResult result;
   final ValueChanged<String> onOpenUrl;
+  final String title;
 
   const _SubmittedFilesSection({
     required this.result,
     required this.onOpenUrl,
+    this.title = 'Submitted files',
   });
 
   @override
@@ -669,9 +682,9 @@ class _SubmittedFilesSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Submitted files',
-          style: TextStyle(
+        Text(
+          title,
+          style: const TextStyle(
             color: _kTextDark,
             fontSize: 14,
             fontWeight: FontWeight.w900,

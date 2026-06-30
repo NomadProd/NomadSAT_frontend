@@ -217,6 +217,7 @@ class HomeworkResultInfo {
 
 class HomeworkFileInfo {
   final int id;
+  final String? publicId;
   final String url;
   final String filename;
   final String contentType;
@@ -225,6 +226,7 @@ class HomeworkFileInfo {
 
   const HomeworkFileInfo({
     required this.id,
+    this.publicId,
     required this.url,
     required this.filename,
     required this.contentType,
@@ -235,6 +237,7 @@ class HomeworkFileInfo {
   factory HomeworkFileInfo.fromJson(Map<String, dynamic> json) {
     return HomeworkFileInfo(
       id: json['id'] ?? 0,
+      publicId: json['public_id']?.toString(),
       url: json['url']?.toString() ?? '',
       filename: json['filename']?.toString() ?? 'file',
       contentType: json['content_type']?.toString() ?? '',
@@ -320,6 +323,8 @@ class MockResultInfo {
   final int? mathIncorrect;
   final String? weakAreas;
   final String? photoLink;
+  final List<HomeworkFileInfo> attachments;
+  final bool legacyPhoto;
 
   MockResultInfo({
     required this.resultId,
@@ -333,9 +338,22 @@ class MockResultInfo {
     required this.mathIncorrect,
     required this.weakAreas,
     required this.photoLink,
+    this.attachments = const [],
+    this.legacyPhoto = false,
   });
 
   factory MockResultInfo.fromJson(Map<String, dynamic> json) {
+    final attachmentsRaw = json['attachments'];
+    final attachments = attachmentsRaw is List
+        ? attachmentsRaw
+              .map(
+                (item) => HomeworkFileInfo.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ),
+              )
+              .toList()
+        : <HomeworkFileInfo>[];
+
     return MockResultInfo(
       resultId: json['result_id'] ?? 0,
       assignmentId: json['assignment_id'] ?? 0,
@@ -348,6 +366,8 @@ class MockResultInfo {
       mathIncorrect: json['math_incorrect'],
       weakAreas: json['weak_areas']?.toString(),
       photoLink: json['photo_link']?.toString(),
+      attachments: attachments,
+      legacyPhoto: json['legacy_photo'] == true,
     );
   }
 }

@@ -9,6 +9,7 @@ import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/api_config.dart';
 import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/models/homework_result.dart';
+import 'package:flutter_web/models/mock_result.dart';
 
 class ClassService {
   final String baseUrl = ApiConfig.baseUrl;
@@ -649,12 +650,26 @@ class ClassService {
         };
       }
 
-      if (response.statusCode == 409 && data['error'] == 'ALREADY_RETURNED') {
-        return {
-          'success': false,
-          'error': 'ALREADY_RETURNED',
-          'message': data['detail'] ?? 'This homework is already pending revision',
-        };
+      if (response.statusCode == 409) {
+        final error = data['error']?.toString();
+        if (error == 'ALREADY_RETURNED') {
+          return {
+            'success': false,
+            'error': 'ALREADY_RETURNED',
+            'message':
+                data['detail']?.toString() ??
+                'This homework is already pending revision',
+          };
+        }
+        if (error == 'NOT_SUBMITTED') {
+          return {
+            'success': false,
+            'error': 'NOT_SUBMITTED',
+            'message':
+                data['detail']?.toString() ??
+                'Homework has not been submitted yet',
+          };
+        }
       }
 
       final detail = data['detail'];
@@ -672,9 +687,15 @@ class ClassService {
     }
   }
 
-  Future<bool> deleteHomeworkFile(int fileId) async {
+  Future<bool> deleteHomeworkAttachment({
+    required int resultId,
+    required String publicId,
+  }) async {
+    final encodedPublicId = Uri.encodeComponent(publicId);
     final response = await _client.delete(
-      Uri.parse('$baseUrl/homework-files/$fileId'),
+      Uri.parse(
+        '$baseUrl/homework-results/$resultId/attachments/$encodedPublicId',
+      ),
       headers: {'Content-Type': 'application/json'},
     );
     return response.statusCode == 204;
@@ -714,7 +735,7 @@ class ClassService {
         }
         request.files.add(
           http.MultipartFile.fromBytes(
-            'files',
+            'files[]',
             bytes,
             filename: file.name,
           ),
@@ -733,12 +754,9 @@ class ClassService {
       }
 
       if (response.statusCode == 422) {
-        final detail = data['detail'];
         return {
           'success': false,
-          'message': detail is String
-              ? detail
-              : detail?.toString() ?? 'Validation failed',
+          'message': _formatHomeworkUploadValidationError(data),
           'status_code': 422,
         };
       }
@@ -763,6 +781,30 @@ class ClassService {
       };
     } catch (e) {
       return {'success': false, 'message': 'Connection failed: $e'};
+    }
+  }
+
+  String _formatHomeworkUploadValidationError(Map<String, dynamic> data) {
+    final error = data['error']?.toString();
+    final filename = data['filename']?.toString();
+
+    switch (error) {
+      case 'INVALID_FILE_TYPE':
+        if (filename != null && filename.isNotEmpty) {
+          return '«$filename» is not a supported file type';
+        }
+        return 'One or more files have an unsupported type';
+      case 'FILE_TOO_LARGE':
+        if (filename != null && filename.isNotEmpty) {
+          return '«$filename» exceeds the 50 MB limit';
+        }
+        return 'One or more files exceed the 50 MB limit';
+      case 'TOO_MANY_FILES':
+        return 'Maximum 10 files per submission';
+      default:
+        final detail = data['detail'];
+        if (detail is String && detail.isNotEmpty) return detail;
+        return 'Validation failed';
     }
   }
 
@@ -851,9 +893,96 @@ class ClassService {
     return data.map((e) => MockResultInfo.fromJson(e)).toList();
   }
 
-  Future<List<MockResultInfo>> fetchMockResultsByClass(int classId) async {
+  Future<MockResultDetail> fetchMockResult(int resultId) async {
     final response = await _client.get(
-      Uri.parse('$baseUrl/classes/$classId/mock-results'),
+      Uri.parse('$baseUrl/mock-results/$resultId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode != 200) {
+      final data = decodeJsonResponse(response);
+      throw Exception(data['detail'] ?? 'Failed to load mock result');
+    }
+
+    return MockResultDetail.fromJson(decodeJsonResponse(response));
+  }
+
+  Future<bool> deleteMockFile(int fileId) async {
+    final response = await _client.delete(
+      Uri.parse('$baseUrl/mock-files/$fileId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    return response.statusCode == 204;
+  }
+
+  Future<Map<String, dynamic>> uploadMockResultFiles({
+    required int resultId,
+    required List<PlatformFile> files,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/mock-results/$resultId/upload'),
+      );
+
+      for (final file in files) {
+        final bytes = file.bytes;
+        if (bytes == null) {
+          return {
+            'success': false,
+            'message': 'Could not read ${file.name}. Try selecting the file again.',
+          };
+        }
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'files',
+            bytes,
+            filename: file.name,
+          ),
+        );
+      }
+
+      final streamed = await _client.send(request);
+      final response = await http.Response.fromStream(streamed);
+      final data = decodeJsonResponse(response);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'result': MockResultDetail.fromJson(data),
+        };
+      }
+
+      if (response.statusCode == 422) {
+        final detail = data['detail'];
+        return {
+          'success': false,
+          'message': detail is String
+              ? detail
+              : detail?.toString() ?? 'Validation failed',
+          'status_code': 422,
+        };
+      }
+
+      final detailMessage = data['detail'] == null
+          ? null
+          : data['detail'] is String
+          ? data['detail']
+          : jsonEncode(data['detail']);
+
+      return {
+        'success': false,
+        'message': detailMessage ?? 'Upload failed. Please try again.',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Connection failed: $e'};
+    }
+  }
+
+  Future<List<MockResultInfo>> fetchMockResultsByClass(int classId) async {
+    final url = '$baseUrl/classes/$classId/mock-results';
+    final response = await _client.get(
+      Uri.parse(url),
       headers: {'Content-Type': 'application/json'},
     );
 
@@ -904,7 +1033,6 @@ class ClassService {
     required int assignmentId,
     required int studentId,
     required bool submitted,
-    html.File? photoFile,
     String? photoLink,
     int? verbalPoints,
     int? mathPoints,
@@ -918,7 +1046,6 @@ class ClassService {
         Uri.parse('$baseUrl/assignments/$assignmentId/mock-results'),
         studentId: studentId,
         submitted: submitted,
-        photoFile: photoFile,
         photoLink: photoLink,
         verbalPoints: verbalPoints,
         mathPoints: mathPoints,
@@ -948,7 +1075,6 @@ class ClassService {
   Future<Map<String, dynamic>> updateMockResult({
     required int resultId,
     bool? submitted,
-    html.File? photoFile,
     String? photoLink,
     int? verbalPoints,
     int? mathPoints,
@@ -961,7 +1087,6 @@ class ClassService {
         'PATCH',
         Uri.parse('$baseUrl/mock-results/$resultId'),
         submitted: submitted,
-        photoFile: photoFile,
         photoLink: photoLink,
         verbalPoints: verbalPoints,
         mathPoints: mathPoints,
@@ -993,7 +1118,6 @@ class ClassService {
     Uri uri, {
     int? studentId,
     bool? submitted,
-    html.File? photoFile,
     String? photoLink,
     int? verbalPoints,
     int? mathPoints,
@@ -1001,57 +1125,27 @@ class ClassService {
     int? mathIncorrect,
     String? weakAreas,
   }) async {
-    if (photoFile == null) {
-      final body = <String, dynamic>{
-        'student_id': studentId,
-        'submitted': submitted,
-        'photo_link': photoLink,
-        'verbal_points': verbalPoints,
-        'math_points': mathPoints,
-        'verbal_incorrect': verbalIncorrect,
-        'math_incorrect': mathIncorrect,
-        'weak_areas': weakAreas,
-      };
-      return method == 'POST'
-          ? _client.post(
-              uri,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(body),
-            )
-          : _client.patch(
-              uri,
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(body),
-            );
-    }
-
-    final request = http.MultipartRequest(method, uri);
-    if (studentId != null) request.fields['student_id'] = studentId.toString();
-    if (submitted != null) request.fields['submitted'] = submitted.toString();
-    if ((photoLink ?? '').isNotEmpty) request.fields['photo_link'] = photoLink!;
-    if (verbalPoints != null) {
-      request.fields['verbal_points'] = verbalPoints.toString();
-    }
-    if (mathPoints != null) {
-      request.fields['math_points'] = mathPoints.toString();
-    }
-    if (verbalIncorrect != null) {
-      request.fields['verbal_incorrect'] = verbalIncorrect.toString();
-    }
-    if (mathIncorrect != null) {
-      request.fields['math_incorrect'] = mathIncorrect.toString();
-    }
-    if ((weakAreas ?? '').isNotEmpty) request.fields['weak_areas'] = weakAreas!;
-    request.files.add(
-      http.MultipartFile.fromBytes(
-        'photo',
-        await _readFileBytes(photoFile),
-        filename: photoFile.name,
-      ),
-    );
-
-    final streamed = await _client.send(request);
-    return http.Response.fromStream(streamed);
+    final body = <String, dynamic>{
+      'student_id': studentId,
+      'submitted': submitted,
+      'photo_link': photoLink,
+      'verbal_points': verbalPoints,
+      'math_points': mathPoints,
+      'verbal_incorrect': verbalIncorrect,
+      'math_incorrect': mathIncorrect,
+      'weak_areas': weakAreas,
+    };
+    return method == 'POST'
+        ? _client.post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          )
+        : _client.patch(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          );
   }
 
   Future<List<UserInfo>> fetchTeachers() async {
