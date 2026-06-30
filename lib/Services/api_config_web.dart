@@ -30,9 +30,8 @@ String? localDevApiBaseUrl() {
   final host = html.window.location.hostname;
   if (host == null || host.isEmpty) return null;
   if (_isLocalDevHost(host)) {
-    // 0.0.0.0 is the bind address, not a routable API host — use localhost.
-    final apiHost = host == '0.0.0.0' ? 'localhost' : host;
-    return 'http://$apiHost:8000';
+    // Keep the same hostname as the page so auth cookies are same-site.
+    return 'http://$host:8000';
   }
   return null;
 }
