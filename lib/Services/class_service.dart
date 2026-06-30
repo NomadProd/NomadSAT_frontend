@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'dart:html' as html;
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/browser_client.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/api_config.dart';
 import 'package:flutter_web/Services/api_json.dart';
+import 'package:flutter_web/models/homework_result.dart';
 
 class ClassService {
   final String baseUrl = ApiConfig.baseUrl;
@@ -65,7 +67,7 @@ class ClassService {
 
   Future<List<ClassInfo>> fetchClasses() async {
     final response = await _client.get(
-      Uri.parse('$baseUrl/classes/'),
+      Uri.parse('$baseUrl/classes'),
       headers: {'Content-Type': 'application/json'},
     );
 
@@ -254,13 +256,52 @@ class ClassService {
         headers: {'Content-Type': 'application/json'},
       );
 
+      if (response.statusCode == 204) {
+        return {'success': true};
+      }
+
       final data = decodeJsonResponse(response);
+      if (response.statusCode == 403 && data['error'] == 'SELF_DELETE_FORBIDDEN') {
+        return {
+          'success': false,
+          'error': 'SELF_DELETE_FORBIDDEN',
+          'message': data['detail'] ?? 'You cannot delete your own account',
+        };
+      }
+
       return {
-        'success': response.statusCode == 200,
-        'message': data['message'] ?? data['detail'] ?? 'Failed to delete user',
+        'success': false,
+        'message': data['detail']?.toString() ?? 'Failed to delete user. Try again.',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {
+        'success': false,
+        'message': 'Failed to delete user. Try again.',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteClass({required int classId}) async {
+    try {
+      final response = await _client.delete(
+        Uri.parse('$baseUrl/classes/$classId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 204) {
+        return {'success': true};
+      }
+
+      final data = decodeJsonResponse(response);
+      return {
+        'success': false,
+        'message': data['detail']?.toString() ?? 'Failed to delete class. Try again.',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Failed to delete class. Try again.',
+      };
     }
   }
 
@@ -569,6 +610,156 @@ class ClassService {
         'message':
             data['message'] ?? detailMessage ?? 'Failed to update homework',
         'result_id': data['result_id'],
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Connection failed: $e'};
+    }
+  }
+
+  Future<HomeworkResultDetailInfo> fetchHomeworkResultDetail(int resultId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/homework-results/$resultId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode != 200) {
+      final data = decodeJsonResponse(response);
+      throw Exception(data['detail'] ?? 'Failed to load homework result');
+    }
+
+    return HomeworkResultDetailInfo.fromJson(decodeJsonResponse(response));
+  }
+
+  Future<Map<String, dynamic>> returnHomeworkForRevision({
+    required int resultId,
+    String? reason,
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/homework-results/$resultId/return'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'reason': reason}),
+      );
+      final data = decodeJsonResponse(response);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'result': HomeworkResultDetailInfo.fromJson(data),
+        };
+      }
+
+      if (response.statusCode == 409 && data['error'] == 'ALREADY_RETURNED') {
+        return {
+          'success': false,
+          'error': 'ALREADY_RETURNED',
+          'message': data['detail'] ?? 'This homework is already pending revision',
+        };
+      }
+
+      final detail = data['detail'];
+      return {
+        'success': false,
+        'message': detail is String
+            ? detail
+            : detail?.toString() ?? 'Failed to return homework. Try again.',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Failed to return homework. Try again.',
+      };
+    }
+  }
+
+  Future<bool> deleteHomeworkFile(int fileId) async {
+    final response = await _client.delete(
+      Uri.parse('$baseUrl/homework-files/$fileId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    return response.statusCode == 204;
+  }
+
+  Future<HomeworkResult> fetchHomeworkResult(int resultId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/homework-results/$resultId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode != 200) {
+      final data = decodeJsonResponse(response);
+      throw Exception(data['detail'] ?? 'Failed to load homework result');
+    }
+
+    return HomeworkResult.fromJson(decodeJsonResponse(response));
+  }
+
+  Future<Map<String, dynamic>> uploadHomeworkResultFiles({
+    required int resultId,
+    required List<PlatformFile> files,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/homework-results/$resultId/upload'),
+      );
+
+      for (final file in files) {
+        final bytes = file.bytes;
+        if (bytes == null) {
+          return {
+            'success': false,
+            'message': 'Could not read ${file.name}. Try selecting the file again.',
+          };
+        }
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'files',
+            bytes,
+            filename: file.name,
+          ),
+        );
+      }
+
+      final streamed = await _client.send(request);
+      final response = await http.Response.fromStream(streamed);
+      final data = decodeJsonResponse(response);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'result': HomeworkResult.fromJson(data),
+        };
+      }
+
+      if (response.statusCode == 422) {
+        final detail = data['detail'];
+        return {
+          'success': false,
+          'message': detail is String
+              ? detail
+              : detail?.toString() ?? 'Validation failed',
+          'status_code': 422,
+        };
+      }
+
+      if (response.statusCode == 500) {
+        return {
+          'success': false,
+          'message': 'Upload failed. Please try again.',
+          'status_code': 500,
+        };
+      }
+
+      final detailMessage = data['detail'] == null
+          ? null
+          : data['detail'] is String
+          ? data['detail']
+          : jsonEncode(data['detail']);
+
+      return {
+        'success': false,
+        'message': detailMessage ?? 'Upload failed. Please try again.',
       };
     } catch (e) {
       return {'success': false, 'message': 'Connection failed: $e'};
@@ -979,14 +1170,21 @@ class ClassService {
         headers: {'Content-Type': 'application/json'},
       );
 
+      if (response.statusCode == 204) {
+        return {'success': true};
+      }
+
       final data = decodeJsonResponse(response);
       return {
-        'success': response.statusCode == 200,
+        'success': false,
         'message':
-            data['message'] ?? data['detail'] ?? 'Failed to remove student',
+            data['detail']?.toString() ?? 'Failed to remove student. Try again.',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {
+        'success': false,
+        'message': 'Failed to remove student. Try again.',
+      };
     }
   }
 }

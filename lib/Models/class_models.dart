@@ -201,7 +201,7 @@ class HomeworkResultInfo {
 
   factory HomeworkResultInfo.fromJson(Map<String, dynamic> json) {
     return HomeworkResultInfo(
-      resultId: json['result_id'] ?? 0,
+      resultId: json['result_id'] ?? json['id'] ?? 0,
       assignmentId: json['assignment_id'] ?? 0,
       studentId: json['student_id'] ?? 0,
       submitted: json['submitted'] ?? false,
@@ -211,6 +211,99 @@ class HomeworkResultInfo {
       incorrectTotal: json['incorrect_total'],
       analysis: json['analysis']?.toString(),
       accuracy: (json['accuracy'] as num?)?.toDouble(),
+    );
+  }
+}
+
+class HomeworkFileInfo {
+  final int id;
+  final String url;
+  final String filename;
+  final String contentType;
+  final int sizeBytes;
+  final String? uploadedAt;
+
+  const HomeworkFileInfo({
+    required this.id,
+    required this.url,
+    required this.filename,
+    required this.contentType,
+    required this.sizeBytes,
+    required this.uploadedAt,
+  });
+
+  factory HomeworkFileInfo.fromJson(Map<String, dynamic> json) {
+    return HomeworkFileInfo(
+      id: json['id'] ?? 0,
+      url: json['url']?.toString() ?? '',
+      filename: json['filename']?.toString() ?? 'file',
+      contentType: json['content_type']?.toString() ?? '',
+      sizeBytes: json['size_bytes'] ?? 0,
+      uploadedAt: json['uploaded_at']?.toString(),
+    );
+  }
+
+  bool get isImage => contentType.startsWith('image/');
+  bool get isPdf => contentType == 'application/pdf';
+}
+
+class HomeworkResultDetailInfo {
+  final int id;
+  final int assignmentId;
+  final bool submitted;
+  final String? submittedAt;
+  final String? photoLink;
+  final int? correctTotal;
+  final int? incorrectTotal;
+  final String? analysis;
+  final String? returnedAt;
+  final String? returnReason;
+  final List<HomeworkFileInfo> attachments;
+  final bool legacyPhoto;
+
+  const HomeworkResultDetailInfo({
+    required this.id,
+    required this.assignmentId,
+    required this.submitted,
+    required this.submittedAt,
+    required this.photoLink,
+    required this.correctTotal,
+    required this.incorrectTotal,
+    required this.analysis,
+    required this.returnedAt,
+    required this.returnReason,
+    required this.attachments,
+    required this.legacyPhoto,
+  });
+
+  bool get isReturnedForRevision =>
+      !submitted && (returnedAt ?? '').isNotEmpty;
+
+  factory HomeworkResultDetailInfo.fromJson(Map<String, dynamic> json) {
+    final attachmentsRaw = json['attachments'];
+    final attachments = attachmentsRaw is List
+        ? attachmentsRaw
+              .map(
+                (item) => HomeworkFileInfo.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ),
+              )
+              .toList()
+        : <HomeworkFileInfo>[];
+
+    return HomeworkResultDetailInfo(
+      id: json['id'] ?? json['result_id'] ?? 0,
+      assignmentId: json['assignment_id'] ?? 0,
+      submitted: json['submitted'] ?? false,
+      submittedAt: json['submitted_at']?.toString(),
+      photoLink: json['photo_link']?.toString(),
+      correctTotal: json['correct_total'],
+      incorrectTotal: json['incorrect_total'],
+      analysis: json['analysis']?.toString(),
+      returnedAt: json['returned_at']?.toString(),
+      returnReason: json['return_reason']?.toString(),
+      attachments: attachments,
+      legacyPhoto: json['legacy_photo'] == true,
     );
   }
 }

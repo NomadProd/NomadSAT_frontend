@@ -5,6 +5,10 @@ import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
+import 'package:flutter_web/screens/admin/class_list_screen.dart';
+import 'package:flutter_web/screens/admin/homework_result_detail_screen.dart';
+import 'package:flutter_web/screens/admin/user_list_screen.dart';
+import 'package:flutter_web/widgets/confirm_dialog.dart';
 
 const _kPrimary = Color(0xFF1A4AF0);
 const _kBg = Color(0xFFF0F4FF);
@@ -159,6 +163,19 @@ class _ControlPanelContent extends StatelessWidget {
           title: 'Classes',
           subtitle:
               'Grouped class records with connected students, sessions, and workload.',
+          action: data.user.role.toLowerCase() == 'admin'
+              ? TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const ClassListScreen(),
+                      ),
+                    ).then((_) => onChanged());
+                  },
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: const Text('Manage classes'),
+                )
+              : null,
         ),
         const SizedBox(height: 12),
         if (data.classes.isEmpty)
@@ -174,6 +191,7 @@ class _ControlPanelContent extends StatelessWidget {
                     .toList(),
                 users: data.users,
                 classService: classService,
+                currentUserRole: data.user.role,
                 onChanged: onChanged,
               ),
             ),
@@ -183,18 +201,30 @@ class _ControlPanelContent extends StatelessWidget {
           icon: Icons.people_alt_rounded,
           title: 'Users',
           subtitle: 'Users grouped separately by role.',
-          action: TextButton.icon(
-            onPressed: () => _showUserToolsDialog(
-              context: context,
-              initialRole: 'student',
-              currentUserRole: data.user.role,
-              users: data.users,
-              classService: classService,
-              onChanged: onChanged,
-            ),
-            icon: const Icon(Icons.edit_rounded, size: 16),
-            label: const Text('Edit users'),
-          ),
+          action: data.user.role.toLowerCase() == 'admin'
+              ? TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const UserListScreen(),
+                      ),
+                    ).then((_) => onChanged());
+                  },
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: const Text('Manage users'),
+                )
+              : TextButton.icon(
+                  onPressed: () => _showUserToolsDialog(
+                    context: context,
+                    initialRole: 'student',
+                    currentUserRole: data.user.role,
+                    users: data.users,
+                    classService: classService,
+                    onChanged: onChanged,
+                  ),
+                  icon: const Icon(Icons.edit_rounded, size: 16),
+                  label: const Text('Edit users'),
+                ),
         ),
         const SizedBox(height: 12),
         if (data.users.isEmpty)
@@ -343,6 +373,7 @@ class _ClassDatabaseCard extends StatelessWidget {
   final List<UserInfo> teachers;
   final List<UserInfo> users;
   final ClassService classService;
+  final String currentUserRole;
   final VoidCallback onChanged;
 
   const _ClassDatabaseCard({
@@ -350,6 +381,7 @@ class _ClassDatabaseCard extends StatelessWidget {
     required this.teachers,
     required this.users,
     required this.classService,
+    required this.currentUserRole,
     required this.onChanged,
   });
 
@@ -411,6 +443,7 @@ class _ClassDatabaseCard extends StatelessWidget {
                   detail: detail,
                   users: users,
                   classService: classService,
+                  currentUserRole: currentUserRole,
                   onChanged: onChanged,
                   category: _ClassTableCategory.homeworkResults,
                 ),
@@ -423,6 +456,7 @@ class _ClassDatabaseCard extends StatelessWidget {
                   detail: detail,
                   users: users,
                   classService: classService,
+                  currentUserRole: currentUserRole,
                   onChanged: onChanged,
                   category: _ClassTableCategory.mockResults,
                 ),
@@ -533,14 +567,8 @@ Future<void> _showUserToolsDialog({
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final isAdmin = currentUserRole.toLowerCase() == 'admin';
-  final isMentor = currentUserRole.toLowerCase() == 'mentor';
-  final canDeleteUsers = isAdmin || isMentor;
-  final deleteUsers = isMentor
-      ? users.where((user) {
-          final role = user.role.toLowerCase();
-          return role == 'student' || role == 'teacher';
-        }).toList()
-      : users;
+  final canDeleteUsers = isAdmin;
+  final deleteUsers = users;
   final roleOptions = isAdmin
       ? ['student', 'teacher', 'mentor', 'admin']
       : ['student', 'teacher'];
@@ -726,9 +754,11 @@ Future<void> _showUserToolsDialog({
                           onPressed: deleteTarget == null
                               ? null
                               : () async {
-                                  final confirmed = await _confirmDeleteUser(
+                                  final confirmed = await showConfirmDialog(
                                     context,
-                                    deleteTarget!,
+                                    title: 'Delete user',
+                                    body:
+                                        'Delete «${deleteTarget!.name} ${deleteTarget!.surname}» (${deleteTarget!.email ?? 'no email'})? This cannot be undone.',
                                   );
                                   if (!confirmed) return;
 
@@ -737,12 +767,23 @@ Future<void> _showUserToolsDialog({
                                   );
 
                                   if (!context.mounted) return;
-                                  _showResultSnack(context, result);
-
                                   if (result['success'] == true) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('User deleted')),
+                                    );
                                     Navigator.of(dialogContext).pop();
                                     onChanged();
+                                    return;
                                   }
+
+                                  final message =
+                                      result['error'] == 'SELF_DELETE_FORBIDDEN'
+                                      ? 'You cannot delete your own account'
+                                      : result['message']?.toString() ??
+                                            'Failed to delete user. Try again.';
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(message)),
+                                  );
                                 },
                           icon: const Icon(Icons.delete_rounded, size: 18),
                           label: const Text('Delete'),
@@ -764,30 +805,6 @@ Future<void> _showUserToolsDialog({
       },
     ),
   );
-}
-
-Future<bool> _confirmDeleteUser(BuildContext context, UserInfo user) async {
-  final result = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Delete user'),
-      content: Text('Delete ${user.fullName}? This removes the user record.'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFFC62828),
-          ),
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Delete'),
-        ),
-      ],
-    ),
-  );
-  return result == true;
 }
 
 Future<void> _showHomeworkResultEditDialog({
@@ -1035,6 +1052,7 @@ void _showClassTableDialog({
   required ClassFullDetailInfo detail,
   required List<UserInfo> users,
   required ClassService classService,
+  required String currentUserRole,
   required VoidCallback onChanged,
   required _ClassTableCategory category,
 }) {
@@ -1080,6 +1098,7 @@ void _showClassTableDialog({
                       mockResults: [],
                     ),
                     classService: classService,
+                    currentUserRole: currentUserRole,
                     onChanged: onChanged,
                     category: category,
                   )
@@ -1110,6 +1129,7 @@ void _showClassTableDialog({
                         users: users,
                         results: snap.data!,
                         classService: classService,
+                        currentUserRole: currentUserRole,
                         onChanged: onChanged,
                         category: category,
                       );
@@ -1134,9 +1154,11 @@ Widget _classCategoryTable({
   required List<UserInfo> users,
   required _ClassResultBundle results,
   required ClassService classService,
+  required String currentUserRole,
   required VoidCallback onChanged,
   required _ClassTableCategory category,
 }) {
+  final isAdmin = currentUserRole.toLowerCase() == 'admin';
   switch (category) {
     case _ClassTableCategory.students:
       return DataTable(
@@ -1222,7 +1244,7 @@ Widget _classCategoryTable({
           DataColumn(label: Text('Correct')),
           DataColumn(label: Text('Incorrect')),
           DataColumn(label: Text('Accuracy')),
-          DataColumn(label: Text('Edit')),
+          DataColumn(label: Text('Actions')),
         ],
         rows: results.homeworkResults
             .map(
@@ -1243,15 +1265,43 @@ Widget _classCategoryTable({
                     ),
                   ),
                   DataCell(
-                    IconButton(
-                      tooltip: 'Edit homework result',
-                      icon: const Icon(Icons.edit_rounded, size: 18),
-                      onPressed: () => _showHomeworkResultEditDialog(
-                        context: context,
-                        result: result,
-                        classService: classService,
-                        onChanged: onChanged,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'View attachments',
+                          icon: const Icon(Icons.folder_open_rounded, size: 18),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => HomeworkResultDetailScreen(
+                                  resultId: result.resultId,
+                                  studentName: _studentName(
+                                    detail,
+                                    users,
+                                    result.studentId,
+                                  ),
+                                  sessionLabel: _resultAssignmentDate(
+                                    detail,
+                                    result.assignmentId,
+                                  ),
+                                  isAdmin: isAdmin,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        IconButton(
+                          tooltip: 'Edit homework result',
+                          icon: const Icon(Icons.edit_rounded, size: 18),
+                          onPressed: () => _showHomeworkResultEditDialog(
+                            context: context,
+                            result: result,
+                            classService: classService,
+                            onChanged: onChanged,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
