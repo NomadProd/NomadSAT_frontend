@@ -1128,57 +1128,66 @@ void _showClassTableDialog({
     builder: (context) => AlertDialog(
       title: Text(title),
       content: SizedBox(
-        width: 860,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        width: 920,
+        height: 480,
+        child: Scrollbar(
+          thumbVisibility: true,
           child: SingleChildScrollView(
-            child: resultFuture == null
-                ? _classCategoryTable(
-                    context: context,
-                    detail: detail,
-                    users: users,
-                    results: const _ClassResultBundle(
-                      homeworkResults: [],
-                      mockResults: [],
-                    ),
-                    classService: classService,
-                    currentUserRole: currentUserRole,
-                    onChanged: onChanged,
-                    category: category,
-                  )
-                : FutureBuilder<_ClassResultBundle>(
-                    future: resultFuture,
-                    builder: (context, snap) {
-                      if (snap.connectionState == ConnectionState.waiting) {
-                        return const SizedBox(
-                          width: 320,
-                          height: 160,
-                          child: Center(
-                            child: CircularProgressIndicator(color: _kPrimary),
-                          ),
-                        );
-                      }
-                      if (snap.hasError) {
-                        return SizedBox(
-                          width: 420,
-                          child: _EmptyPanel(
-                            message:
-                                'Could not load ${_categoryTitle(category).toLowerCase()}: ${snap.error}',
-                          ),
-                        );
-                      }
-                      return _classCategoryTable(
+            scrollDirection: Axis.horizontal,
+            child: Scrollbar(
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                child: resultFuture == null
+                    ? _classCategoryTable(
                         context: context,
                         detail: detail,
                         users: users,
-                        results: snap.data!,
+                        results: const _ClassResultBundle(
+                          homeworkResults: [],
+                          mockResults: [],
+                        ),
                         classService: classService,
                         currentUserRole: currentUserRole,
                         onChanged: onChanged,
                         category: category,
-                      );
-                    },
-                  ),
+                      )
+                    : FutureBuilder<_ClassResultBundle>(
+                        future: resultFuture,
+                        builder: (context, snap) {
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const SizedBox(
+                              width: 320,
+                              height: 160,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: _kPrimary,
+                                ),
+                              ),
+                            );
+                          }
+                          if (snap.hasError) {
+                            return SizedBox(
+                              width: 420,
+                              child: _EmptyPanel(
+                                message:
+                                    'Could not load ${_categoryTitle(category).toLowerCase()}: ${snap.error}',
+                              ),
+                            );
+                          }
+                          return _classCategoryTable(
+                            context: context,
+                            detail: detail,
+                            users: users,
+                            results: snap.data!,
+                            classService: classService,
+                            currentUserRole: currentUserRole,
+                            onChanged: onChanged,
+                            category: category,
+                          );
+                        },
+                      ),
+              ),
+            ),
           ),
         ),
       ),
@@ -1281,7 +1290,9 @@ Widget _classCategoryTable({
       );
     case _ClassTableCategory.homeworkResults:
       return DataTable(
+        columnSpacing: 20,
         columns: const [
+          DataColumn(label: Text('Actions')),
           DataColumn(label: Text('Session date')),
           DataColumn(label: Text('Student')),
           DataColumn(label: Text('Version')),
@@ -1289,36 +1300,41 @@ Widget _classCategoryTable({
           DataColumn(label: Text('Correct')),
           DataColumn(label: Text('Incorrect')),
           DataColumn(label: Text('Accuracy')),
-          DataColumn(label: Text('Actions')),
         ],
         rows: results.homeworkResults
             .map(
               (result) => DataRow(
                 cells: [
                   DataCell(
-                    Text(_resultAssignmentDate(detail, result.assignmentId)),
-                  ),
-                  DataCell(Text(_studentName(detail, users, result.studentId))),
-                  DataCell(
-                    Text(result.isHistorical ? 'Previous' : 'Current'),
-                  ),
-                  DataCell(Text(result.submitted ? 'Yes' : 'No')),
-                  DataCell(Text(result.correctTotal?.toString() ?? '-')),
-                  DataCell(Text(result.incorrectTotal?.toString() ?? '-')),
-                  DataCell(
-                    Text(
-                      result.accuracy == null
-                          ? '-'
-                          : '${result.accuracy!.toStringAsFixed(1)}%',
-                    ),
-                  ),
-                  DataCell(
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
                       children: [
-                        IconButton(
-                          tooltip: 'View attachments',
-                          icon: const Icon(Icons.folder_open_rounded, size: 18),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _kPrimary,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            minimumSize: const Size(0, 32),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            side: BorderSide(
+                              color: _kPrimary.withOpacity(0.45),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.folder_open_rounded,
+                            size: 16,
+                            color: _kPrimary,
+                          ),
+                          label: const Text(
+                            'Files',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                           onPressed: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
@@ -1341,9 +1357,31 @@ Widget _classCategoryTable({
                           },
                         ),
                         if (!result.isHistorical)
-                          IconButton(
-                            tooltip: 'Edit homework result',
-                            icon: const Icon(Icons.edit_rounded, size: 18),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _kPrimary,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              minimumSize: const Size(0, 32),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              side: BorderSide(
+                                color: _kPrimary.withOpacity(0.45),
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.edit_rounded,
+                              size: 16,
+                              color: _kPrimary,
+                            ),
+                            label: const Text(
+                              'Edit',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                             onPressed: () => _showHomeworkResultEditDialog(
                               context: context,
                               result: result,
@@ -1352,6 +1390,23 @@ Widget _classCategoryTable({
                             ),
                           ),
                       ],
+                    ),
+                  ),
+                  DataCell(
+                    Text(_resultAssignmentDate(detail, result.assignmentId)),
+                  ),
+                  DataCell(Text(_studentName(detail, users, result.studentId))),
+                  DataCell(
+                    Text(result.isHistorical ? 'Previous' : 'Current'),
+                  ),
+                  DataCell(Text(result.submitted ? 'Yes' : 'No')),
+                  DataCell(Text(result.correctTotal?.toString() ?? '-')),
+                  DataCell(Text(result.incorrectTotal?.toString() ?? '-')),
+                  DataCell(
+                    Text(
+                      result.accuracy == null
+                          ? '-'
+                          : '${result.accuracy!.toStringAsFixed(1)}%',
                     ),
                   ),
                 ],

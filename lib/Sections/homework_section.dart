@@ -357,13 +357,21 @@ class _HomeworkCard extends StatelessWidget {
                 children: [
                   FilledButton.icon(
                     onPressed: () => onAssignHomework(slotIndex, cur),
-                    icon: const Icon(Icons.edit_rounded, size: 16),
+                    icon: const Icon(
+                      Icons.edit_rounded,
+                      size: 16,
+                      color: Colors.white,
+                    ),
                     label: const Text('Edit'),
                   ),
                   if (onCopyHomeworkToClass != null)
                     OutlinedButton.icon(
                       onPressed: () => onCopyHomeworkToClass!(cur),
-                      icon: const Icon(Icons.copy_all_rounded, size: 16),
+                      icon: const Icon(
+                        Icons.copy_all_rounded,
+                        size: 16,
+                        color: _kPrimary,
+                      ),
                       label: const Text('Copy to class'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: _kPrimary,
@@ -373,7 +381,11 @@ class _HomeworkCard extends StatelessWidget {
                   if (onDeleteHomework != null)
                     OutlinedButton.icon(
                       onPressed: () => onDeleteHomework!(cur),
-                      icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 16,
+                        color: _kError,
+                      ),
                       label: const Text('Delete'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: _kError,
