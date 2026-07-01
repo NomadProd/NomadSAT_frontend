@@ -1128,57 +1128,66 @@ void _showClassTableDialog({
     builder: (context) => AlertDialog(
       title: Text(title),
       content: SizedBox(
-        width: 860,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+        width: 920,
+        height: 480,
+        child: Scrollbar(
+          thumbVisibility: true,
           child: SingleChildScrollView(
-            child: resultFuture == null
-                ? _classCategoryTable(
-                    context: context,
-                    detail: detail,
-                    users: users,
-                    results: const _ClassResultBundle(
-                      homeworkResults: [],
-                      mockResults: [],
-                    ),
-                    classService: classService,
-                    currentUserRole: currentUserRole,
-                    onChanged: onChanged,
-                    category: category,
-                  )
-                : FutureBuilder<_ClassResultBundle>(
-                    future: resultFuture,
-                    builder: (context, snap) {
-                      if (snap.connectionState == ConnectionState.waiting) {
-                        return const SizedBox(
-                          width: 320,
-                          height: 160,
-                          child: Center(
-                            child: CircularProgressIndicator(color: _kPrimary),
-                          ),
-                        );
-                      }
-                      if (snap.hasError) {
-                        return SizedBox(
-                          width: 420,
-                          child: _EmptyPanel(
-                            message:
-                                'Could not load ${_categoryTitle(category).toLowerCase()}: ${snap.error}',
-                          ),
-                        );
-                      }
-                      return _classCategoryTable(
+            scrollDirection: Axis.horizontal,
+            child: Scrollbar(
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                child: resultFuture == null
+                    ? _classCategoryTable(
                         context: context,
                         detail: detail,
                         users: users,
-                        results: snap.data!,
+                        results: const _ClassResultBundle(
+                          homeworkResults: [],
+                          mockResults: [],
+                        ),
                         classService: classService,
                         currentUserRole: currentUserRole,
                         onChanged: onChanged,
                         category: category,
-                      );
-                    },
-                  ),
+                      )
+                    : FutureBuilder<_ClassResultBundle>(
+                        future: resultFuture,
+                        builder: (context, snap) {
+                          if (snap.connectionState == ConnectionState.waiting) {
+                            return const SizedBox(
+                              width: 320,
+                              height: 160,
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  color: _kPrimary,
+                                ),
+                              ),
+                            );
+                          }
+                          if (snap.hasError) {
+                            return SizedBox(
+                              width: 420,
+                              child: _EmptyPanel(
+                                message:
+                                    'Could not load ${_categoryTitle(category).toLowerCase()}: ${snap.error}',
+                              ),
+                            );
+                          }
+                          return _classCategoryTable(
+                            context: context,
+                            detail: detail,
+                            users: users,
+                            results: snap.data!,
+                            classService: classService,
+                            currentUserRole: currentUserRole,
+                            onChanged: onChanged,
+                            category: category,
+                          );
+                        },
+                      ),
+              ),
+            ),
           ),
         ),
       ),
@@ -1190,6 +1199,52 @@ void _showClassTableDialog({
       ],
     ),
   );
+}
+
+class _RoundLabeledAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _RoundLabeledAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: _kPrimary.withOpacity(0.45)),
+              ),
+              child: Icon(icon, size: 16, color: _kPrimary),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: _kPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 Widget _classCategoryTable({
@@ -1281,7 +1336,9 @@ Widget _classCategoryTable({
       );
     case _ClassTableCategory.homeworkResults:
       return DataTable(
+        columnSpacing: 20,
         columns: const [
+          DataColumn(label: Text('Actions')),
           DataColumn(label: Text('Session date')),
           DataColumn(label: Text('Student')),
           DataColumn(label: Text('Version')),
@@ -1289,36 +1346,18 @@ Widget _classCategoryTable({
           DataColumn(label: Text('Correct')),
           DataColumn(label: Text('Incorrect')),
           DataColumn(label: Text('Accuracy')),
-          DataColumn(label: Text('Actions')),
         ],
         rows: results.homeworkResults
             .map(
               (result) => DataRow(
                 cells: [
                   DataCell(
-                    Text(_resultAssignmentDate(detail, result.assignmentId)),
-                  ),
-                  DataCell(Text(_studentName(detail, users, result.studentId))),
-                  DataCell(
-                    Text(result.isHistorical ? 'Previous' : 'Current'),
-                  ),
-                  DataCell(Text(result.submitted ? 'Yes' : 'No')),
-                  DataCell(Text(result.correctTotal?.toString() ?? '-')),
-                  DataCell(Text(result.incorrectTotal?.toString() ?? '-')),
-                  DataCell(
-                    Text(
-                      result.accuracy == null
-                          ? '-'
-                          : '${result.accuracy!.toStringAsFixed(1)}%',
-                    ),
-                  ),
-                  DataCell(
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(
-                          tooltip: 'View attachments',
-                          icon: const Icon(Icons.folder_open_rounded, size: 18),
+                        _RoundLabeledAction(
+                          icon: Icons.folder_open_rounded,
+                          label: 'Files',
                           onPressed: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
@@ -1340,10 +1379,11 @@ Widget _classCategoryTable({
                             );
                           },
                         ),
-                        if (!result.isHistorical)
-                          IconButton(
-                            tooltip: 'Edit homework result',
-                            icon: const Icon(Icons.edit_rounded, size: 18),
+                        if (!result.isHistorical) ...[
+                          const SizedBox(width: 10),
+                          _RoundLabeledAction(
+                            icon: Icons.edit_rounded,
+                            label: 'Edit',
                             onPressed: () => _showHomeworkResultEditDialog(
                               context: context,
                               result: result,
@@ -1351,7 +1391,25 @@ Widget _classCategoryTable({
                               onChanged: onChanged,
                             ),
                           ),
+                        ],
                       ],
+                    ),
+                  ),
+                  DataCell(
+                    Text(_resultAssignmentDate(detail, result.assignmentId)),
+                  ),
+                  DataCell(Text(_studentName(detail, users, result.studentId))),
+                  DataCell(
+                    Text(result.isHistorical ? 'Previous' : 'Current'),
+                  ),
+                  DataCell(Text(result.submitted ? 'Yes' : 'No')),
+                  DataCell(Text(result.correctTotal?.toString() ?? '-')),
+                  DataCell(Text(result.incorrectTotal?.toString() ?? '-')),
+                  DataCell(
+                    Text(
+                      result.accuracy == null
+                          ? '-'
+                          : '${result.accuracy!.toStringAsFixed(1)}%',
                     ),
                   ),
                 ],

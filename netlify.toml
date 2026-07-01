@@ -10,7 +10,7 @@
     flutter --version
     flutter config --enable-web
     flutter pub get
-    flutter build web --release --dart-define=API_BASE_URL=https://api.turansat.com
+    flutter build web --release --no-tree-shake-icons --dart-define=API_BASE_URL=https://api.turansat.com
   """
   publish = "build/web"
 
