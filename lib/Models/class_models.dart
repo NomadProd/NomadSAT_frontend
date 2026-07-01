@@ -37,6 +37,7 @@ class ClassInfo {
   final String? verbalTeacherSurname;
   final String? mathTeacherName;
   final String? mathTeacherSurname;
+  final bool archived;
 
   ClassInfo({
     required this.classId,
@@ -47,6 +48,7 @@ class ClassInfo {
     this.verbalTeacherSurname,
     this.mathTeacherName,
     this.mathTeacherSurname,
+    this.archived = false,
   });
 
   factory ClassInfo.fromJson(Map<String, dynamic> json) {
@@ -59,6 +61,7 @@ class ClassInfo {
       verbalTeacherSurname: json['verbal_teacher_surname'],
       mathTeacherName: json['math_teacher_name'],
       mathTeacherSurname: json['math_teacher_surname'],
+      archived: json['archived'] == true,
     );
   }
 }
@@ -176,6 +179,8 @@ class AttendanceInfo {
 
 class HomeworkResultInfo {
   final int resultId;
+  final int? historyId;
+  final bool isHistorical;
   final int assignmentId;
   final int studentId;
   final bool submitted;
@@ -188,6 +193,8 @@ class HomeworkResultInfo {
 
   HomeworkResultInfo({
     required this.resultId,
+    this.historyId,
+    this.isHistorical = false,
     required this.assignmentId,
     required this.studentId,
     required this.submitted,
@@ -202,6 +209,8 @@ class HomeworkResultInfo {
   factory HomeworkResultInfo.fromJson(Map<String, dynamic> json) {
     return HomeworkResultInfo(
       resultId: json['result_id'] ?? json['id'] ?? 0,
+      historyId: json['history_id'] as int?,
+      isHistorical: json['is_historical'] == true,
       assignmentId: json['assignment_id'] ?? 0,
       studentId: json['student_id'] ?? 0,
       submitted: json['submitted'] ?? false,
@@ -252,6 +261,8 @@ class HomeworkFileInfo {
 
 class HomeworkResultDetailInfo {
   final int id;
+  final int? historyId;
+  final bool isHistorical;
   final int assignmentId;
   final bool submitted;
   final String? submittedAt;
@@ -262,10 +273,13 @@ class HomeworkResultDetailInfo {
   final String? returnedAt;
   final String? returnReason;
   final List<HomeworkFileInfo> attachments;
+  final List<HomeworkFileInfo> originalAttachments;
   final bool legacyPhoto;
 
   const HomeworkResultDetailInfo({
     required this.id,
+    this.historyId,
+    this.isHistorical = false,
     required this.assignmentId,
     required this.submitted,
     required this.submittedAt,
@@ -276,11 +290,12 @@ class HomeworkResultDetailInfo {
     required this.returnedAt,
     required this.returnReason,
     required this.attachments,
+    required this.originalAttachments,
     required this.legacyPhoto,
   });
 
   bool get isReturnedForRevision =>
-      !submitted && (returnedAt ?? '').isNotEmpty;
+      !isHistorical && !submitted && (returnedAt ?? '').isNotEmpty;
 
   factory HomeworkResultDetailInfo.fromJson(Map<String, dynamic> json) {
     final attachmentsRaw = json['attachments'];
@@ -293,9 +308,21 @@ class HomeworkResultDetailInfo {
               )
               .toList()
         : <HomeworkFileInfo>[];
+    final originalRaw = json['original_attachments'];
+    final originalAttachments = originalRaw is List
+        ? originalRaw
+              .map(
+                (item) => HomeworkFileInfo.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ),
+              )
+              .toList()
+        : <HomeworkFileInfo>[];
 
     return HomeworkResultDetailInfo(
       id: json['id'] ?? json['result_id'] ?? 0,
+      historyId: json['history_id'] as int?,
+      isHistorical: json['is_historical'] == true,
       assignmentId: json['assignment_id'] ?? 0,
       submitted: json['submitted'] ?? false,
       submittedAt: json['submitted_at']?.toString(),
@@ -306,6 +333,7 @@ class HomeworkResultDetailInfo {
       returnedAt: json['returned_at']?.toString(),
       returnReason: json['return_reason']?.toString(),
       attachments: attachments,
+      originalAttachments: originalAttachments,
       legacyPhoto: json['legacy_photo'] == true,
     );
   }
@@ -421,6 +449,7 @@ class StudentMockHistoryInfo {
 class ClassDetailInfo {
   final int classId;
   final String className;
+  final bool archived;
   final UserInfo? verbalTeacher;
   final UserInfo? mathTeacher;
   final List<UserInfo> students;
@@ -429,6 +458,7 @@ class ClassDetailInfo {
   ClassDetailInfo({
     required this.classId,
     required this.className,
+    this.archived = false,
     required this.verbalTeacher,
     required this.mathTeacher,
     required this.students,
@@ -441,6 +471,7 @@ class ClassDetailInfo {
     return ClassDetailInfo(
       classId: json['class_id'] ?? json['class']?['class_id'] ?? 0,
       className: json['class_name'] ?? json['class']?['name'] ?? '',
+      archived: json['archived'] == true,
       verbalTeacher: json['verbal_teacher'] != null
           ? UserInfo.fromJson({...json['verbal_teacher'], 'role': 'teacher'})
           : null,

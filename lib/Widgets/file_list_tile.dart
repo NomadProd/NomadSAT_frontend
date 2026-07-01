@@ -74,14 +74,23 @@ class SubmittedFileListTile extends StatelessWidget {
         '${file.sizeMb.toStringAsFixed(1)} MB',
         style: const TextStyle(color: TuranColors.textMid),
       ),
-      trailing: onRemove != null
-          ? IconButton(
-              icon: const Icon(Icons.close, color: Colors.red),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onTap != null)
+            IconButton(
+              icon: const Icon(Icons.open_in_new_rounded, color: TuranColors.primary),
+              tooltip: 'Open',
+              onPressed: onTap,
+            ),
+          if (onRemove != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+              tooltip: 'Delete',
               onPressed: onRemove,
-            )
-          : onTap != null
-          ? const Icon(Icons.open_in_new_rounded, color: TuranColors.primary)
-          : null,
+            ),
+        ],
+      ),
     );
   }
 }

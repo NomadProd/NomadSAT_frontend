@@ -72,12 +72,8 @@ class AuthService {
   }
 
   Future<UserInfo> fetchMe() async {
-    final cachedUser = _cachedUser;
-    if (cachedUser != null) return cachedUser;
-
     final inFlightUser = _inFlightUser;
     if (inFlightUser != null) return inFlightUser;
-
     _inFlightUser = _fetchMeFromServer();
     try {
       final user = await _inFlightUser!;
@@ -95,7 +91,8 @@ class AuthService {
     );
 
     if (response.statusCode == 200) {
-      return UserInfo.fromJson(decodeJsonResponse(response));
+      final user = UserInfo.fromJson(decodeJsonResponse(response));
+      return user;
     }
 
     final data = decodeJsonResponse(response);

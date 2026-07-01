@@ -9,6 +9,7 @@ import 'package:flutter_web/widgets/confirm_dialog.dart';
 
 class HomeworkResultDetailScreen extends StatefulWidget {
   final int resultId;
+  final int? historyId;
   final String studentName;
   final String sessionLabel;
   final bool isAdmin;
@@ -16,6 +17,7 @@ class HomeworkResultDetailScreen extends StatefulWidget {
   const HomeworkResultDetailScreen({
     super.key,
     required this.resultId,
+    this.historyId,
     required this.studentName,
     required this.sessionLabel,
     required this.isAdmin,
@@ -34,12 +36,18 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
   @override
   void initState() {
     super.initState();
-    _future = _classService.fetchHomeworkResultDetail(widget.resultId);
+    _future = _classService.fetchHomeworkResultDetail(
+      widget.resultId,
+      historyId: widget.historyId,
+    );
   }
 
   void _reload() {
     setState(() {
-      _future = _classService.fetchHomeworkResultDetail(widget.resultId);
+      _future = _classService.fetchHomeworkResultDetail(
+        widget.resultId,
+        historyId: widget.historyId,
+      );
     });
   }
 
@@ -55,10 +63,16 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
     if (!confirmed || !mounted) return;
 
     try {
-      final ok = await _classService.deleteHomeworkAttachment(
-        resultId: widget.resultId,
-        publicId: publicId,
-      );
+      final ok = widget.historyId != null
+          ? await _classService.deleteHomeworkHistoryAttachment(
+              resultId: widget.resultId,
+              historyId: widget.historyId!,
+              publicId: publicId,
+            )
+          : await _classService.deleteHomeworkAttachment(
+              resultId: widget.resultId,
+              publicId: publicId,
+            );
       if (!mounted) return;
       if (ok) {
         setState(() => _removedPublicIds.add(publicId));
@@ -147,7 +161,9 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
       body: Column(
         children: [
           TuranHeader(
-            title: 'Homework result',
+            title: widget.historyId != null
+                ? 'Previous submission'
+                : 'Homework result',
             subtitle: '${widget.studentName} · ${widget.sessionLabel}',
             pageLabel: 'Admin',
             onBack: () => Navigator.of(context).pop(),
@@ -177,7 +193,9 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
                   padding: const EdgeInsets.fromLTRB(22, 22, 22, 34),
                   children: [
                     _SummaryCard(result: result),
-                    if (widget.isAdmin && result.submitted) ...[
+                    if (widget.isAdmin &&
+                        result.submitted &&
+                        !result.isHistorical) ...[
                       const SizedBox(height: 14),
                       SizedBox(
                         width: double.infinity,
@@ -228,7 +246,11 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
                     ],
                     const SizedBox(height: 16),
                     Text(
-                      'Attachments',
+                      result.isHistorical
+                          ? 'Submission files'
+                          : result.isReturnedForRevision
+                              ? 'Original submission files'
+                              : 'Attachments',
                       style: TuranTextStyles.title.copyWith(fontSize: 18),
                     ),
                     const SizedBox(height: 10),
@@ -252,7 +274,9 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
                           padding: const EdgeInsets.only(bottom: 10),
                           child: _AttachmentTile(
                             file: file,
-                            showDelete: widget.isAdmin,
+                            showDelete: widget.isAdmin &&
+                                (result.isHistorical ||
+                                    !result.isReturnedForRevision),
                             onOpen: () => html.window.open(file.url, '_blank'),
                             onDelete: () => _deleteFile(file),
                           ),
@@ -269,8 +293,15 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
   }
 
   List<HomeworkFileInfo> _visibleFiles(HomeworkResultDetailInfo result) {
-    if (result.attachments.isNotEmpty) {
-      return result.attachments
+    final source = result.isHistorical
+        ? result.attachments
+        : result.isReturnedForRevision &&
+                result.originalAttachments.isNotEmpty
+            ? result.originalAttachments
+            : result.attachments;
+
+    if (source.isNotEmpty) {
+      return source
           .where(
             (file) =>
                 file.publicId == null ||

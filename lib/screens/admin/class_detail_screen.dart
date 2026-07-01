@@ -62,6 +62,46 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     );
   }
 
+  Future<void> _setClassArchived(
+    ClassDetailInfo detail, {
+    required bool archived,
+  }) async {
+    final confirmed = await showConfirmDialog(
+      context,
+      title: archived ? 'Archive class' : 'Restore class',
+      body: archived
+          ? 'Archive «${detail.className}»? Teachers and students will no longer see it.'
+          : 'Restore «${detail.className}» to active classes?',
+      confirmLabel: archived ? 'Archive' : 'Restore',
+      confirmColor: archived ? TuranColors.warning : TuranColors.primary,
+    );
+    if (!confirmed || !mounted) return;
+
+    final result = await _classService.updateClass(
+      classId: detail.classId,
+      archived: archived,
+    );
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(archived ? 'Class archived' : 'Class restored'),
+        ),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['message']?.toString() ?? 'Failed to update class. Try again.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _removeStudent(ClassDetailInfo detail, UserInfo student) async {
     final confirmed = await showConfirmDialog(
       context,
@@ -106,10 +146,24 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             children: [
               TuranHeader(
                 title: snap.data?.className ?? 'Class',
-                subtitle: 'Students and sessions',
+                subtitle: snap.data?.archived == true
+                    ? 'Archived class'
+                    : 'Students and sessions',
                 pageLabel: 'Admin',
                 onBack: () => Navigator.of(context).pop(),
                 actions: [
+                  if (widget.isAdmin && snap.hasData && !snap.data!.archived)
+                    TuranHeaderAction(
+                      icon: Icons.archive_outlined,
+                      label: 'Archive',
+                      onTap: () => _setClassArchived(snap.data!, archived: true),
+                    ),
+                  if (widget.isAdmin && snap.hasData && snap.data!.archived)
+                    TuranHeaderAction(
+                      icon: Icons.unarchive_rounded,
+                      label: 'Restore',
+                      onTap: () => _setClassArchived(snap.data!, archived: false),
+                    ),
                   if (widget.isAdmin && snap.hasData)
                     TuranHeaderAction(
                       icon: Icons.delete_outline_rounded,

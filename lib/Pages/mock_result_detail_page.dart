@@ -184,8 +184,13 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
 
   Future<void> _deleteUploadedFile(HomeworkFile file) async {
     if (_saving) return;
+    final fileId = file.id;
+    if (fileId == null) {
+      setState(() => _error = 'Could not delete file');
+      return;
+    }
     setState(() => _saving = true);
-    final ok = await _classService.deleteMockFile(file.id);
+    final ok = await _classService.deleteMockFile(fileId);
     if (!mounted) return;
     if (ok && _result != null) {
       await _reloadResult(_result!.id);

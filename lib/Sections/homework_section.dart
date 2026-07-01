@@ -20,6 +20,7 @@ class _HomeworkPerStudentSection extends StatelessWidget {
   final void Function(int slotIndex, AssignmentInfo? assignment)
   onAssignHomework;
   final void Function(AssignmentInfo assignment)? onDeleteHomework;
+  final void Function(AssignmentInfo assignment)? onCopyHomeworkToClass;
 
   const _HomeworkPerStudentSection({
     required this.student,
@@ -28,6 +29,7 @@ class _HomeworkPerStudentSection extends StatelessWidget {
     required this.onOpenLink,
     required this.onAssignHomework,
     required this.onDeleteHomework,
+    this.onCopyHomeworkToClass,
   });
 
   @override
@@ -74,6 +76,7 @@ class _HomeworkPerStudentSection extends StatelessWidget {
           onOpenLink: onOpenLink,
           onAssignHomework: onAssignHomework,
           onDeleteHomework: onDeleteHomework,
+          onCopyHomeworkToClass: onCopyHomeworkToClass,
         ),
       );
     }
@@ -177,6 +180,7 @@ class _HomeworkCard extends StatelessWidget {
   final void Function(int slotIndex, AssignmentInfo? assignment)
   onAssignHomework;
   final void Function(AssignmentInfo assignment)? onDeleteHomework;
+  final void Function(AssignmentInfo assignment)? onCopyHomeworkToClass;
 
   const _HomeworkCard({
     required this.title,
@@ -186,6 +190,7 @@ class _HomeworkCard extends StatelessWidget {
     required this.onOpenLink,
     required this.onAssignHomework,
     required this.onDeleteHomework,
+    this.onCopyHomeworkToClass,
   });
 
   _HwStatus get _status {
@@ -345,16 +350,27 @@ class _HomeworkCard extends StatelessWidget {
 
             // ── Actions ─────────────────────────────────────────
             if (!deadlinePassed) ...[
-              // Active: Edit + Delete
-              Row(
+              // Active: Edit + Delete + Copy to class
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   FilledButton.icon(
                     onPressed: () => onAssignHomework(slotIndex, cur),
                     icon: const Icon(Icons.edit_rounded, size: 16),
                     label: const Text('Edit'),
                   ),
-                  if (onDeleteHomework != null) ...[
-                    const SizedBox(width: 8),
+                  if (onCopyHomeworkToClass != null)
+                    OutlinedButton.icon(
+                      onPressed: () => onCopyHomeworkToClass!(cur),
+                      icon: const Icon(Icons.copy_all_rounded, size: 16),
+                      label: const Text('Copy to class'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _kPrimary,
+                        side: BorderSide(color: _kPrimary.withOpacity(0.45)),
+                      ),
+                    ),
+                  if (onDeleteHomework != null)
                     OutlinedButton.icon(
                       onPressed: () => onDeleteHomework!(cur),
                       icon: const Icon(Icons.delete_outline_rounded, size: 16),
@@ -364,7 +380,6 @@ class _HomeworkCard extends StatelessWidget {
                         side: BorderSide(color: _kError.withOpacity(0.5)),
                       ),
                     ),
-                  ],
                 ],
               ),
             ] else ...[

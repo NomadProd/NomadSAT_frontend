@@ -41,7 +41,7 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
 
   Future<_ControlPanelData> _load() async {
     final user = await _authService.fetchMe();
-    final classes = await _classService.fetchClasses();
+    final classes = await _classService.fetchClasses(archived: false);
     final details = await Future.wait(
       classes.map((classInfo) {
         return _classService.fetchClassFullDetail(classInfo.classId);
@@ -1038,7 +1038,9 @@ Future<void> _showMockResultEditDialog({
                               IconButton(
                                 icon: const Icon(Icons.delete_outline, color: Colors.red),
                                 onPressed: () async {
-                                  final ok = await classService.deleteMockFile(file.id);
+                                  final fileId = file.id;
+                                  if (fileId == null) return;
+                                  final ok = await classService.deleteMockFile(fileId);
                                   if (!context.mounted) return;
                                   if (ok) {
                                     detail = await classService.fetchMockResult(result.resultId);
@@ -1282,6 +1284,7 @@ Widget _classCategoryTable({
         columns: const [
           DataColumn(label: Text('Session date')),
           DataColumn(label: Text('Student')),
+          DataColumn(label: Text('Version')),
           DataColumn(label: Text('Submitted')),
           DataColumn(label: Text('Correct')),
           DataColumn(label: Text('Incorrect')),
@@ -1296,6 +1299,9 @@ Widget _classCategoryTable({
                     Text(_resultAssignmentDate(detail, result.assignmentId)),
                   ),
                   DataCell(Text(_studentName(detail, users, result.studentId))),
+                  DataCell(
+                    Text(result.isHistorical ? 'Previous' : 'Current'),
+                  ),
                   DataCell(Text(result.submitted ? 'Yes' : 'No')),
                   DataCell(Text(result.correctTotal?.toString() ?? '-')),
                   DataCell(Text(result.incorrectTotal?.toString() ?? '-')),
@@ -1318,6 +1324,7 @@ Widget _classCategoryTable({
                               MaterialPageRoute(
                                 builder: (_) => HomeworkResultDetailScreen(
                                   resultId: result.resultId,
+                                  historyId: result.historyId,
                                   studentName: _studentName(
                                     detail,
                                     users,
@@ -1333,16 +1340,17 @@ Widget _classCategoryTable({
                             );
                           },
                         ),
-                        IconButton(
-                          tooltip: 'Edit homework result',
-                          icon: const Icon(Icons.edit_rounded, size: 18),
-                          onPressed: () => _showHomeworkResultEditDialog(
-                            context: context,
-                            result: result,
-                            classService: classService,
-                            onChanged: onChanged,
+                        if (!result.isHistorical)
+                          IconButton(
+                            tooltip: 'Edit homework result',
+                            icon: const Icon(Icons.edit_rounded, size: 18),
+                            onPressed: () => _showHomeworkResultEditDialog(
+                              context: context,
+                              result: result,
+                              classService: classService,
+                              onChanged: onChanged,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),

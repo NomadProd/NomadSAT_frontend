@@ -26,12 +26,17 @@ bool _isLocalDevHost(String host) {
   return false;
 }
 
+/// Routable hostname for API calls (0.0.0.0 is bind-only — browsers use localhost).
+String _localApiHost(String host) {
+  if (host == '0.0.0.0') return 'localhost';
+  return host;
+}
+
 String? localDevApiBaseUrl() {
   final host = html.window.location.hostname;
   if (host == null || host.isEmpty) return null;
   if (_isLocalDevHost(host)) {
-    // Keep the same hostname as the page so auth cookies are same-site.
-    return 'http://$host:8000';
+    return 'http://${_localApiHost(host)}:8000';
   }
   return null;
 }

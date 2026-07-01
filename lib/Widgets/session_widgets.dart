@@ -478,6 +478,7 @@ class _StudentSessionRow extends StatelessWidget {
   final void Function(int slotIndex, AssignmentInfo? assignment)
   onAssignHomework;
   final void Function(AssignmentInfo assignment)? onDeleteHomework;
+  final void Function(AssignmentInfo assignment)? onCopyHomeworkToClass;
   final void Function(String? url) onOpenLink;
   final VoidCallback onToggleAttendance;
 
@@ -492,6 +493,7 @@ class _StudentSessionRow extends StatelessWidget {
     required this.onOpenStudent,
     required this.onAssignHomework,
     required this.onDeleteHomework,
+    this.onCopyHomeworkToClass,
     required this.onOpenLink,
     required this.onToggleAttendance,
   });
@@ -592,6 +594,7 @@ class _StudentSessionRow extends StatelessWidget {
                       onOpenLink: onOpenLink,
                       onAssignHomework: onAssignHomework,
                       onDeleteHomework: onDeleteHomework,
+                      onCopyHomeworkToClass: onCopyHomeworkToClass,
                     ),
                 ],
               ),

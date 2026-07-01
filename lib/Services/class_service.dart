@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/browser_client.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/api_config.dart';
 import 'package:flutter_web/Services/api_json.dart';
@@ -66,9 +67,14 @@ class ClassService {
     }
   }
 
-  Future<List<ClassInfo>> fetchClasses() async {
+  Future<List<ClassInfo>> fetchClasses({bool? archived}) async {
+    final uri = archived == null
+        ? Uri.parse('$baseUrl/classes')
+        : Uri.parse('$baseUrl/classes').replace(
+            queryParameters: {'archived': archived.toString()},
+          );
     final response = await _client.get(
-      Uri.parse('$baseUrl/classes'),
+      uri,
       headers: {'Content-Type': 'application/json'},
     );
 
@@ -128,6 +134,7 @@ class ClassService {
     String? name,
     int? verbalTeacherId,
     int? mathTeacherId,
+    bool? archived,
   }) async {
     try {
       final payload = <String, dynamic>{};
@@ -136,6 +143,7 @@ class ClassService {
         payload['verbal_teacher_id'] = verbalTeacherId;
       }
       if (mathTeacherId != null) payload['math_teacher_id'] = mathTeacherId;
+      if (archived != null) payload['archived'] = archived;
 
       final response = await _client.patch(
         Uri.parse('$baseUrl/classes/$classId'),
@@ -479,6 +487,55 @@ class ClassService {
     }
   }
 
+  Future<Map<String, dynamic>> copyAssignment({
+    required int sourceAssignmentId,
+    List<int>? targetStudentIds,
+    bool allStudents = false,
+    int? targetSlotIndex,
+    int? sessionId,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'all_students': allStudents,
+        if (sessionId != null) 'session_id': sessionId,
+        if (targetSlotIndex != null) 'target_slot_index': targetSlotIndex,
+        if (!allStudents && targetStudentIds != null)
+          'target_student_ids': targetStudentIds,
+      };
+
+      final response = await _client.post(
+        Uri.parse('$baseUrl/assignments/$sourceAssignmentId/copy'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(body),
+      );
+
+      final data = decodeJsonResponse(response);
+      final detailMessage = data['detail'] == null
+          ? null
+          : data['detail'] is String
+          ? data['detail']
+          : jsonEncode(data['detail']);
+
+      if (response.statusCode == 200) {
+        final created = data['created'];
+        final skipped = data['skipped'];
+        return {
+          'success': true,
+          'message': data['message']?.toString() ?? 'Homework copied',
+          'created': created is List ? created : <dynamic>[],
+          'skipped': skipped is List ? skipped : <dynamic>[],
+        };
+      }
+
+      return {
+        'success': false,
+        'message': detailMessage ?? 'Failed to copy assignment',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Connection failed: $e'};
+    }
+  }
+
   Future<Map<String, dynamic>> deleteAssignment({
     required int assignmentId,
   }) async {
@@ -617,9 +674,17 @@ class ClassService {
     }
   }
 
-  Future<HomeworkResultDetailInfo> fetchHomeworkResultDetail(int resultId) async {
+  Future<HomeworkResultDetailInfo> fetchHomeworkResultDetail(
+    int resultId, {
+    int? historyId,
+  }) async {
+    final uri = historyId == null
+        ? Uri.parse('$baseUrl/homework-results/$resultId')
+        : Uri.parse(
+            '$baseUrl/homework-results/$resultId',
+          ).replace(queryParameters: {'history_id': historyId.toString()});
     final response = await _client.get(
-      Uri.parse('$baseUrl/homework-results/$resultId'),
+      uri,
       headers: {'Content-Type': 'application/json'},
     );
 
@@ -701,6 +766,21 @@ class ClassService {
     return response.statusCode == 204;
   }
 
+  Future<bool> deleteHomeworkHistoryAttachment({
+    required int resultId,
+    required int historyId,
+    required String publicId,
+  }) async {
+    final encodedPublicId = Uri.encodeComponent(publicId);
+    final response = await _client.delete(
+      Uri.parse(
+        '$baseUrl/homework-results/$resultId/history/$historyId/attachments/$encodedPublicId',
+      ),
+      headers: {'Content-Type': 'application/json'},
+    );
+    return response.statusCode == 204;
+  }
+
   Future<HomeworkResult> fetchHomeworkResult(int resultId) async {
     final response = await _client.get(
       Uri.parse('$baseUrl/homework-results/$resultId'),
@@ -713,6 +793,29 @@ class ClassService {
     }
 
     return HomeworkResult.fromJson(decodeJsonResponse(response));
+  }
+
+  MediaType _mimeTypeForFilename(String filename) {
+    final ext = filename.contains('.')
+        ? filename.split('.').last.toLowerCase()
+        : '';
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return MediaType('image', 'jpeg');
+      case 'png':
+        return MediaType('image', 'png');
+      case 'gif':
+        return MediaType('image', 'gif');
+      case 'webp':
+        return MediaType('image', 'webp');
+      case 'heic':
+        return MediaType('image', 'heic');
+      case 'pdf':
+        return MediaType('application', 'pdf');
+      default:
+        return MediaType('application', 'octet-stream');
+    }
   }
 
   Future<Map<String, dynamic>> uploadHomeworkResultFiles({
@@ -735,9 +838,10 @@ class ClassService {
         }
         request.files.add(
           http.MultipartFile.fromBytes(
-            'files[]',
+            'files',
             bytes,
             filename: file.name,
+            contentType: _mimeTypeForFilename(file.name),
           ),
         );
       }
@@ -938,6 +1042,7 @@ class ClassService {
             'files',
             bytes,
             filename: file.name,
+            contentType: _mimeTypeForFilename(file.name),
           ),
         );
       }

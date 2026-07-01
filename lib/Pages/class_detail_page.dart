@@ -534,6 +534,15 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     );
     final selectedStudents = <UserInfo>[student];
     int? selectedStudentId;
+    int? copySourceAssignmentId;
+    bool copyingFromStudent = false;
+    String? copyFromStudentError;
+    final copySources = assignment == null
+        ? _assignmentCopySources(
+            session: session,
+            excludeStudentId: student.userId,
+          )
+        : <({int assignmentId, String label})>[];
 
     int? nextHomeworkSlotFor(UserInfo s) {
       final usedSlots =
@@ -611,6 +620,110 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                       controller: link,
                       decoration: _fieldDeco('Task link', hint: 'https://...'),
                     ),
+                    if (assignment == null && copySources.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      const _DlgLabel('Copy from another student'),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<int>(
+                        key: ValueKey(copySources.length),
+                        initialValue: copySourceAssignmentId,
+                        decoration: _fieldDeco('Source homework'),
+                        hint: const Text('Choose a student homework'),
+                        items: copySources
+                            .map(
+                              (source) => DropdownMenuItem<int>(
+                                value: source.assignmentId,
+                                child: Text(source.label),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: copyingFromStudent
+                            ? null
+                            : (value) => setDlg(() {
+                                copySourceAssignmentId = value;
+                                copyFromStudentError = null;
+                              }),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: copyingFromStudent ||
+                                  copySourceAssignmentId == null
+                              ? null
+                              : () async {
+                                  final targetSlot =
+                                      displayedHomeworkSlotFor(student);
+                                  if (targetSlot == null) {
+                                    setDlg(
+                                      () => copyFromStudentError =
+                                          'No free homework slot for this student',
+                                    );
+                                    return;
+                                  }
+                                  setDlg(() {
+                                    copyingFromStudent = true;
+                                    copyFromStudentError = null;
+                                  });
+                                  final copyResult =
+                                      await classService.copyAssignment(
+                                    sourceAssignmentId:
+                                        copySourceAssignmentId!,
+                                    targetStudentIds: [student.userId],
+                                    targetSlotIndex: targetSlot,
+                                    sessionId: session.sessionId,
+                                  );
+                                  if (!ctx.mounted) return;
+                                  if (copyResult['success'] == true) {
+                                    Navigator.of(ctx).pop();
+                                    if (mounted) {
+                                      await _reload();
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            _formatCopyAssignmentMessage(
+                                              copyResult,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return;
+                                  }
+                                  setDlg(() {
+                                    copyingFromStudent = false;
+                                    copyFromStudentError =
+                                        copyResult['message']?.toString() ??
+                                            'Failed to copy homework';
+                                  });
+                                },
+                          icon: copyingFromStudent
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.content_copy_rounded, size: 18),
+                          label: Text(
+                            'Copy to ${student.fullName} (Homework ${displayedHomeworkSlotFor(student) ?? slotIndex + 1})',
+                          ),
+                        ),
+                      ),
+                      if (copyFromStudentError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          copyFromStudentError!,
+                          style: const TextStyle(
+                            color: _kError,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ],
                     const SizedBox(height: 20),
                     const _DlgLabel('Students'),
                     const SizedBox(height: 10),
@@ -863,6 +976,79 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     } finally {
       if (mounted) setState(() => _savingAssignment = false);
     }
+  }
+
+  String _formatCopyAssignmentMessage(Map<String, dynamic> result) {
+    final created = result['created'];
+    final skipped = result['skipped'];
+    final createdCount = created is List ? created.length : 0;
+    final skippedCount = skipped is List ? skipped.length : 0;
+    if (createdCount == 0 && skippedCount > 0) {
+      return 'No students received a copy ($skippedCount skipped — no free slot).';
+    }
+    if (skippedCount > 0) {
+      return 'Copied to $createdCount student(s). $skippedCount skipped (no free slot).';
+    }
+    return result['message']?.toString() ?? 'Homework copied';
+  }
+
+  Future<void> _copyHomeworkToClass({
+    required AssignmentInfo assignment,
+  }) async {
+    final role = _pageData?.user.role.toLowerCase();
+    if (role != 'admin' && role != 'teacher') return;
+
+    final slotLabel = assignment.slotIndex?.toString() ?? '?';
+    final ok = await _confirmDialog(
+      context,
+      icon: Icons.copy_all_rounded,
+      title: 'Copy to all students?',
+      body:
+          'Copy "${assignment.title ?? 'Homework $slotLabel'}" to every student in the class who has a free homework slot. The source student is excluded.',
+      confirmLabel: 'Copy',
+    );
+    if (!ok) return;
+
+    setState(() => _savingAssignment = true);
+    try {
+      final result = await classService.copyAssignment(
+        sourceAssignmentId: assignment.assignmentId,
+        allStudents: true,
+        sessionId: assignment.sessionId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_formatCopyAssignmentMessage(result))),
+      );
+      if (result['success'] == true) await _reload();
+    } finally {
+      if (mounted) setState(() => _savingAssignment = false);
+    }
+  }
+
+  List<({int assignmentId, String label})> _assignmentCopySources({
+    required SessionInfo session,
+    required int excludeStudentId,
+  }) {
+    final students = _pageData?.detail.students ?? [];
+    final items = <({int assignmentId, String label})>[];
+    for (final s in students) {
+      if (s.userId == excludeStudentId) continue;
+      final assignments = _studentAssignmentsForSession(
+        sessionId: session.sessionId,
+        studentId: s.userId,
+      );
+      for (final a in assignments) {
+        final slot = a.slotIndex;
+        items.add((
+          assignmentId: a.assignmentId,
+          label:
+              '${s.fullName} — Homework ${slot != null && slot > 0 ? slot : '?'}',
+        ));
+      }
+    }
+    items.sort((a, b) => a.label.compareTo(b.label));
+    return items;
   }
 
   // в”Ђв”Ђв”Ђ Delete assignment в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
@@ -1790,6 +1976,10 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                     onDeleteHomework: canDeleteHomework
                         ? (assignment) =>
                               _deleteAssignment(assignment: assignment)
+                        : null,
+                    onCopyHomeworkToClass: canDeleteHomework
+                        ? (assignment) =>
+                              _copyHomeworkToClass(assignment: assignment)
                         : null,
                     onOpenLink: _openLink,
                     onToggleAttendance: () => _toggleAttendance(

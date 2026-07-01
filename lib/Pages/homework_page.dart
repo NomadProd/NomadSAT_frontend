@@ -107,7 +107,7 @@ class _HomeworkPageState extends State<HomeworkPage>
             assignment.assignmentId,
           );
           homeworkResult = results
-              .where((r) => r.studentId == user.userId && r.submitted)
+              .where((r) => r.studentId == user.userId)
               .firstOrNull;
         }
 

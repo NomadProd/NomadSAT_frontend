@@ -88,7 +88,36 @@ class _HomeworkSubmitScreenState extends State<HomeworkSubmitScreen>
       if (initial.resultId > 0) {
         _reloadResult(initial.resultId);
       }
+    } else {
+      _loadExistingResultIfAny();
     }
+  }
+
+  Future<void> _loadExistingResultIfAny() async {
+    try {
+      final results = await _classService.fetchHomeworkResultsByAssignment(
+        widget.assignment.assignmentId,
+      );
+      if (results.isEmpty) return;
+
+      final existing = results.first;
+      if (existing.resultId <= 0) return;
+      if (!mounted) return;
+
+      _correctController.text = existing.correctTotal?.toString() ?? '';
+      _incorrectController.text = existing.incorrectTotal?.toString() ?? '';
+      _analysisController.text = existing.analysis ?? '';
+      await _reloadResult(existing.resultId);
+    } catch (_) {}
+  }
+
+  Future<int?> _resolveExistingResultId() async {
+    final results = await _classService.fetchHomeworkResultsByAssignment(
+      widget.assignment.assignmentId,
+    );
+    if (results.isEmpty) return null;
+    final id = results.first.resultId;
+    return id > 0 ? id : null;
   }
 
   @override
@@ -168,6 +197,36 @@ class _HomeworkSubmitScreenState extends State<HomeworkSubmitScreen>
     setState(() {
       _pendingFiles.addAll(picked.files);
       _error = null;
+      _saving = true;
+    });
+
+    final resultId = await _ensureResultId();
+    if (resultId == null) {
+      if (mounted) setState(() => _saving = false);
+      return;
+    }
+
+    final filesToUpload = List<PlatformFile>.from(_pendingFiles);
+    final upload = await _classService.uploadHomeworkResultFiles(
+      resultId: resultId,
+      files: filesToUpload,
+    );
+
+    if (!mounted) return;
+
+    if (upload['success'] == true) {
+      setState(() {
+        _result = upload['result'] as HomeworkResult?;
+        _pendingFiles.clear();
+        _saving = false;
+        _error = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _saving = false;
+      _error = upload['message']?.toString() ?? 'Upload failed';
     });
   }
 
@@ -175,9 +234,44 @@ class _HomeworkSubmitScreenState extends State<HomeworkSubmitScreen>
     setState(() => _pendingFiles.removeAt(index));
   }
 
+  Future<void> _deleteUploadedFile(HomeworkAttachment file) async {
+    if (_saving || !_canEditFiles) return;
+    final resultId = _result?.id;
+    final publicId = file.publicId.trim();
+    if (resultId == null || publicId.isEmpty) {
+      setState(() => _error = 'Could not delete file');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    final ok = await _classService.deleteHomeworkAttachment(
+      resultId: resultId,
+      publicId: publicId,
+    );
+
+    if (!mounted) return;
+
+    if (ok) {
+      await _reloadResult(resultId);
+      if (mounted) setState(() => _saving = false);
+      return;
+    }
+
+    setState(() {
+      _saving = false;
+      _error = 'Could not delete file';
+    });
+  }
+
   Future<int?> _ensureResultId() async {
     final existing = _result;
-    if (existing != null && existing.id > 0) return existing.id;
+    if (existing != null && existing.id > 0) {
+      return existing.id;
+    }
 
     final initial = widget.result;
     if (initial != null && initial.resultId > 0) return initial.resultId;
@@ -195,7 +289,15 @@ class _HomeworkSubmitScreenState extends State<HomeworkSubmitScreen>
     );
 
     if (created['success'] != true) {
-      setState(() => _error = created['message']?.toString() ?? 'Could not create result');
+      final msg = created['message']?.toString() ?? 'Could not create result';
+      if (msg.toLowerCase().contains('already exists')) {
+        final resultId = await _resolveExistingResultId();
+        if (resultId != null) {
+          await _reloadResult(resultId);
+          return resultId;
+        }
+      }
+      setState(() => _error = msg);
       return null;
     }
 
@@ -343,6 +445,7 @@ class _HomeworkSubmitScreenState extends State<HomeworkSubmitScreen>
                       onPickFiles: _pickFiles,
                       onRemovePending: _removePendingFile,
                       onOpenUrl: _openLink,
+                      onDeleteUploaded: _deleteUploadedFile,
                       onSubmit: _submit,
                     );
 
@@ -428,6 +531,7 @@ class _SubmissionCard extends StatelessWidget {
   final VoidCallback onPickFiles;
   final ValueChanged<int> onRemovePending;
   final ValueChanged<String> onOpenUrl;
+  final ValueChanged<HomeworkAttachment> onDeleteUploaded;
   final VoidCallback onSubmit;
 
   const _SubmissionCard({
@@ -444,6 +548,7 @@ class _SubmissionCard extends StatelessWidget {
     required this.onPickFiles,
     required this.onRemovePending,
     required this.onOpenUrl,
+    required this.onDeleteUploaded,
     required this.onSubmit,
   });
 
@@ -543,6 +648,8 @@ class _SubmissionCard extends StatelessWidget {
                   child: _SubmittedFilesSection(
                     result: result!,
                     onOpenUrl: onOpenUrl,
+                    onDeleteUploaded: canEditFiles ? onDeleteUploaded : null,
+                    saving: saving,
                     title: 'Uploaded files',
                   ),
                 ),
@@ -666,11 +773,15 @@ class _PendingFilesSection extends StatelessWidget {
 class _SubmittedFilesSection extends StatelessWidget {
   final HomeworkResult result;
   final ValueChanged<String> onOpenUrl;
+  final ValueChanged<HomeworkAttachment>? onDeleteUploaded;
+  final bool saving;
   final String title;
 
   const _SubmittedFilesSection({
     required this.result,
     required this.onOpenUrl,
+    this.onDeleteUploaded,
+    this.saving = false,
     this.title = 'Submitted files',
   });
 
@@ -706,6 +817,9 @@ class _SubmittedFilesSection extends StatelessWidget {
                       SubmittedFileListTile(
                         file: file,
                         onTap: () => onOpenUrl(file.url),
+                        onRemove: onDeleteUploaded == null || saving
+                            ? null
+                            : () => onDeleteUploaded!(file),
                       ),
                   ],
                 )
