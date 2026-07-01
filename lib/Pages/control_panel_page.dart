@@ -5,11 +5,11 @@ import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
-import 'package:flutter_web/models/mock_result.dart';
+import 'package:flutter_web/Models/mock_result.dart';
 import 'package:flutter_web/screens/admin/class_list_screen.dart';
 import 'package:flutter_web/screens/admin/homework_result_detail_screen.dart';
 import 'package:flutter_web/screens/admin/user_list_screen.dart';
-import 'package:flutter_web/widgets/confirm_dialog.dart';
+import 'package:flutter_web/Widgets/confirm_dialog.dart';
 
 const _kPrimary = Color(0xFF1A4AF0);
 const _kBg = Color(0xFFF0F4FF);

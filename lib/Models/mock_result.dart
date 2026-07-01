@@ -1,4 +1,4 @@
-import 'package:flutter_web/models/homework_result.dart';
+import 'package:flutter_web/Models/homework_result.dart';
 
 class MockResultDetail {
   final int id;

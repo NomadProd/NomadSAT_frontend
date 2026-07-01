@@ -5,7 +5,7 @@ import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/screens/admin/class_detail_screen.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
-import 'package:flutter_web/widgets/confirm_dialog.dart';
+import 'package:flutter_web/Widgets/confirm_dialog.dart';
 
 class ClassListScreen extends StatefulWidget {
   const ClassListScreen({super.key});

@@ -9,8 +9,8 @@ import 'package:http_parser/http_parser.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/api_config.dart';
 import 'package:flutter_web/Services/api_json.dart';
-import 'package:flutter_web/models/homework_result.dart';
-import 'package:flutter_web/models/mock_result.dart';
+import 'package:flutter_web/Models/homework_result.dart';
+import 'package:flutter_web/Models/mock_result.dart';
 
 class ClassService {
   final String baseUrl = ApiConfig.baseUrl;

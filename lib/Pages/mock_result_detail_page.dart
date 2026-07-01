@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
-import 'package:flutter_web/models/homework_result.dart';
-import 'package:flutter_web/models/mock_result.dart';
-import 'package:flutter_web/widgets/file_list_tile.dart';
+import 'package:flutter_web/Models/homework_result.dart';
+import 'package:flutter_web/Models/mock_result.dart';
+import 'package:flutter_web/Widgets/file_list_tile.dart';
 
 const _kPrimary = Color(0xFF1A4AF0);
 const _kBg = Color(0xFFF2F6FF);

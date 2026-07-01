@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
-import 'package:flutter_web/models/homework_result.dart';
+import 'package:flutter_web/Models/homework_result.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
-import 'package:flutter_web/widgets/file_list_tile.dart';
+import 'package:flutter_web/Widgets/file_list_tile.dart';
 
 const _kPrimary = TuranColors.primary;
 const _kBg = TuranColors.bgAlt;
