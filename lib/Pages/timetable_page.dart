@@ -98,41 +98,49 @@ class _TimetablePageState extends State<TimetablePage> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final compact = constraints.maxWidth < 600;
-                  return Column(
-                    children: [
-                      _MonthSwitcher(
-                        monthLabel: _monthYearLabel(selectedMonth),
-                        compact: compact,
-                        canGoPrevious: hasPrevious,
-                        canGoNext: hasNext,
-                        onPrevious: hasPrevious
-                            ? () => setState(() => _selectedMonthIndex--)
-                            : null,
-                        onNext: hasNext
-                            ? () => setState(() => _selectedMonthIndex++)
-                            : null,
+                  return Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: compact ? double.infinity : 920,
                       ),
-                      const SizedBox(height: 16),
-                      _MonthCalendar(
-                        month: selectedMonth,
-                        today: today,
-                        sessionsByDate: sessionsByDate,
-                        verbalTeacher: widget.verbalTeacher,
-                        mathTeacher: widget.mathTeacher,
-                        teachers: widget.teachers,
-                        compact: compact,
+                      child: Column(
+                        children: [
+                          _CalendarHeader(
+                            monthLabel: _monthYearLabel(selectedMonth),
+                            compact: compact,
+                            canGoPrevious: hasPrevious,
+                            canGoNext: hasNext,
+                            onPrevious: hasPrevious
+                                ? () => setState(() => _selectedMonthIndex--)
+                                : null,
+                            onNext: hasNext
+                                ? () => setState(() => _selectedMonthIndex++)
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          _MonthCalendar(
+                            month: selectedMonth,
+                            today: today,
+                            sessionsByDate: sessionsByDate,
+                            verbalTeacher: widget.verbalTeacher,
+                            mathTeacher: widget.mathTeacher,
+                            teachers: widget.teachers,
+                            compact: compact,
+                          ),
+                          if (compact) ...[
+                            const SizedBox(height: 16),
+                            _MonthAgendaList(
+                              month: selectedMonth,
+                              sessionsByDate: sessionsByDate,
+                              verbalTeacher: widget.verbalTeacher,
+                              mathTeacher: widget.mathTeacher,
+                              teachers: widget.teachers,
+                            ),
+                          ],
+                        ],
                       ),
-                      if (compact) ...[
-                        const SizedBox(height: 16),
-                        _MonthAgendaList(
-                          month: selectedMonth,
-                          sessionsByDate: sessionsByDate,
-                          verbalTeacher: widget.verbalTeacher,
-                          mathTeacher: widget.mathTeacher,
-                          teachers: widget.teachers,
-                        ),
-                      ],
-                    ],
+                    ),
                   );
                 },
               ),
@@ -180,13 +188,13 @@ class _TimetableHeader extends StatelessWidget {
   );
 }
 
-class _MonthSwitcher extends StatelessWidget {
+class _CalendarHeader extends StatelessWidget {
   final String monthLabel;
   final bool compact;
   final bool canGoPrevious, canGoNext;
   final VoidCallback? onPrevious, onNext;
 
-  const _MonthSwitcher({
+  const _CalendarHeader({
     required this.monthLabel,
     required this.compact,
     required this.canGoPrevious,
@@ -288,6 +296,231 @@ class _CalendarNavButton extends StatelessWidget {
   }
 }
 
+const _kWeekdayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+const _kWeekdaySemantics = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+double _calendarColumnGap(bool compact) => compact ? 6 : 8;
+
+double _calendarRowGap(bool compact) => compact ? 6 : 10;
+
+double _calendarCellAspectRatio(bool compact) => compact ? 1.1 : 1.2;
+
+void _agentLogTimetable(
+  String location,
+  String message,
+  Map<String, dynamic> data,
+  String hypothesisId,
+) {
+  // #region agent log
+  http
+      .post(
+        Uri.parse(
+          'http://127.0.0.1:7698/ingest/65637874-c5bf-45fd-a1a7-6e90b8027bca',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Debug-Session-Id': '9ed305',
+        },
+        body: jsonEncode({
+          'sessionId': '9ed305',
+          'location': location,
+          'message': message,
+          'data': data,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'hypothesisId': hypothesisId,
+        }),
+      )
+      .catchError((_) => http.Response('', 500));
+  // #endregion
+}
+
+class _CalendarSevenColumnRow extends StatelessWidget {
+  final double horizontalGap;
+  final List<Widget> children;
+
+  const _CalendarSevenColumnRow({
+    required this.horizontalGap,
+    required this.children,
+  }) : assert(children.length == 7);
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < 7; i++) ...[
+          if (i > 0) SizedBox(width: horizontalGap),
+          Expanded(child: children[i]),
+        ],
+      ],
+    );
+  }
+}
+
+class _CalendarWeekdayRow extends StatelessWidget {
+  final bool compact;
+
+  const _CalendarWeekdayRow({required this.compact});
+
+  @override
+  Widget build(BuildContext context) {
+    final fontSize = compact ? 10.0 : 12.0;
+    final gap = _calendarColumnGap(compact);
+
+    return _CalendarSevenColumnRow(
+      horizontalGap: gap,
+      children: [
+        for (var i = 0; i < 7; i++)
+          Semantics(
+            label: _kWeekdaySemantics[i],
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  _kWeekdayLabels[i],
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: _kTextLight,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _CalendarDateGrid extends StatelessWidget {
+  final List<DateTime?> cells;
+  final DateTime today;
+  final Map<String, List<SessionInfo>> sessionsByDate;
+  final UserInfo? verbalTeacher, mathTeacher;
+  final List<UserInfo> teachers;
+  final bool compact;
+
+  const _CalendarDateGrid({
+    required this.cells,
+    required this.today,
+    required this.sessionsByDate,
+    required this.verbalTeacher,
+    required this.mathTeacher,
+    required this.teachers,
+    required this.compact,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final columnGap = _calendarColumnGap(compact);
+    final rowGap = _calendarRowGap(compact);
+    final aspectRatio = _calendarCellAspectRatio(compact);
+    final weekCount = cells.length ~/ 7;
+
+    return Column(
+      children: [
+        for (var week = 0; week < weekCount; week++) ...[
+          if (week > 0) SizedBox(height: rowGap),
+          _CalendarSevenColumnRow(
+            horizontalGap: columnGap,
+            children: [
+              for (var col = 0; col < 7; col++)
+                _CalendarDateGridCell(
+                  day: cells[week * 7 + col],
+                  today: today,
+                  sessionsByDate: sessionsByDate,
+                  verbalTeacher: verbalTeacher,
+                  mathTeacher: mathTeacher,
+                  teachers: teachers,
+                  compact: compact,
+                  aspectRatio: aspectRatio,
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _CalendarDateGridCell extends StatelessWidget {
+  final DateTime? day;
+  final DateTime today;
+  final Map<String, List<SessionInfo>> sessionsByDate;
+  final UserInfo? verbalTeacher, mathTeacher;
+  final List<UserInfo> teachers;
+  final bool compact;
+  final double aspectRatio;
+
+  const _CalendarDateGridCell({
+    required this.day,
+    required this.today,
+    required this.sessionsByDate,
+    required this.verbalTeacher,
+    required this.mathTeacher,
+    required this.teachers,
+    required this.compact,
+    required this.aspectRatio,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final height = width / aspectRatio;
+
+        if (day == null) {
+          return SizedBox(height: height);
+        }
+
+        final key = _formatDateForApi(day!);
+        final daySessions = sessionsByDate[key] ?? const <SessionInfo>[];
+
+        // #region agent log
+        _agentLogTimetable(
+          'timetable_page.dart:_CalendarDateGridCell',
+          'cell constraints',
+          {
+            'cellWidth': width,
+            'cellHeight': height,
+            'compact': compact,
+            'aspectRatio': aspectRatio,
+            'sessionCount': daySessions.length,
+            'hasTopic': daySessions.any(
+              (s) => (s.topic ?? '').trim().isNotEmpty,
+            ),
+          },
+          'H1',
+        );
+        // #endregion
+
+        return SizedBox(
+          height: height,
+          child: _CalendarDayCell(
+            day: day!,
+            isToday: _normalizeDate(day!) == today,
+            sessions: daySessions,
+            verbalTeacher: verbalTeacher,
+            mathTeacher: mathTeacher,
+            teachers: teachers,
+            compact: compact,
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _MonthCalendar extends StatelessWidget {
   final DateTime month;
   final DateTime today;
@@ -323,9 +556,6 @@ class _MonthCalendar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cells = _cells;
-    final rows = (cells.length / 7).ceil();
-
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -334,53 +564,18 @@ class _MonthCalendar extends StatelessWidget {
         border: Border.all(color: _kBorder),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!compact)
-            Row(
-              children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-                  .map(
-                    (d) => Expanded(
-                      child: Center(
-                        child: Text(
-                          d,
-                          style: const TextStyle(
-                            color: _kTextLight,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-          if (!compact) const SizedBox(height: 8),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: rows * 7,
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              crossAxisSpacing: compact ? 6 : 8,
-              mainAxisSpacing: compact ? 6 : 10,
-              childAspectRatio: compact ? 1.1 : 1.45,
-            ),
-            itemBuilder: (context, index) {
-              final day = cells[index];
-              if (day == null) return const SizedBox.shrink();
-              final key = _formatDateForApi(day);
-              final daySessions = sessionsByDate[key] ?? const <SessionInfo>[];
-              return _MonthDayCell(
-                day: day,
-                isToday: _normalizeDate(day) == today,
-                sessions: daySessions,
-                verbalTeacher: verbalTeacher,
-                mathTeacher: mathTeacher,
-                teachers: teachers,
-                compact: compact,
-              );
-            },
+          _CalendarWeekdayRow(compact: compact),
+          SizedBox(height: compact ? 6 : 8),
+          _CalendarDateGrid(
+            cells: _cells,
+            today: today,
+            sessionsByDate: sessionsByDate,
+            verbalTeacher: verbalTeacher,
+            mathTeacher: mathTeacher,
+            teachers: teachers,
+            compact: compact,
           ),
         ],
       ),
@@ -551,7 +746,7 @@ class _AgendaSessionTile extends StatelessWidget {
   }
 }
 
-class _MonthDayCell extends StatelessWidget {
+class _CalendarDayCell extends StatelessWidget {
   final DateTime day;
   final bool isToday;
   final List<SessionInfo> sessions;
@@ -559,7 +754,7 @@ class _MonthDayCell extends StatelessWidget {
   final List<UserInfo> teachers;
   final bool compact;
 
-  const _MonthDayCell({
+  const _CalendarDayCell({
     required this.day,
     required this.isToday,
     required this.sessions,
@@ -625,7 +820,7 @@ class _MonthDayCell extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 5),
       decoration: BoxDecoration(
         color: isToday
             ? _kPrimary.withOpacity(0.08)
@@ -667,22 +862,35 @@ class _MonthDayCell extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 3),
           if (hasSessions)
-            Wrap(
-              spacing: 5,
-              runSpacing: 5,
-              children: [
-                for (final session in sessions.take(2))
-                  _CompactSessionChip(
-                    session: session,
-                    verbalTeacher: verbalTeacher,
-                    mathTeacher: mathTeacher,
-                    teachers: teachers,
-                  ),
-                if (sessions.length > 2)
-                  _MoreSessionsBadge(count: sessions.length - 2),
-              ],
+            Expanded(
+              child: Builder(
+                builder: (context) {
+                  final visibleSessions = sessions.take(2).toList();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var i = 0; i < visibleSessions.length; i++)
+                        Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                              bottom: i < visibleSessions.length - 1 ? 4 : 0,
+                            ),
+                            child: _CompactSessionChip(
+                              session: visibleSessions[i],
+                              verbalTeacher: verbalTeacher,
+                              mathTeacher: mathTeacher,
+                              teachers: teachers,
+                            ),
+                          ),
+                        ),
+                      if (sessions.length > 2)
+                        _MoreSessionsBadge(count: sessions.length - 2),
+                    ],
+                  );
+                },
+              ),
             )
           else
             Expanded(
@@ -722,53 +930,96 @@ class _CompactSessionChip extends StatelessWidget {
       teachers,
     );
     final time = _formatTimeRange(session.startTime, session.endTime);
+    final topic = (session.topic ?? '').trim();
+    final typeLabel = _capitalize(session.sessionType);
+    final tutorLabel = _compactTeacherName(teacher);
+
+    // #region agent log
+    _agentLogTimetable(
+      'timetable_page.dart:_CompactSessionChip',
+      'chip content',
+      {
+        'typeLabel': typeLabel,
+        'time': _compactTime(session.startTime),
+        'tutorLabel': tutorLabel,
+        'sessionType': session.sessionType,
+      },
+      'H2',
+    );
+    // #endregion
 
     return Tooltip(
       message: [
-        _capitalize(session.sessionType),
-        if (session.topic?.trim().isNotEmpty ?? false) session.topic!.trim(),
+        typeLabel,
+        if (topic.isNotEmpty) topic,
         time,
-        if (teacher.trim().isNotEmpty) teacher,
+        if (teacher.trim().isNotEmpty && teacher != '-') teacher,
       ].join('\n'),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(7),
-          border: Border(left: BorderSide(color: color, width: 3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${_compactTime(session.startTime)} ${_capitalize(session.sessionType)}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // #region agent log
+          _agentLogTimetable(
+            'timetable_page.dart:_CompactSessionChip',
+            'chip constraints',
+            {
+              'maxWidth': constraints.maxWidth,
+              'maxHeight': constraints.maxHeight,
+            },
+            'H1',
+          );
+          // #endregion
+
+          return Container(
+            width: double.infinity,
+            height: constraints.maxHeight,
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+              border: Border(left: BorderSide(color: color, width: 4)),
             ),
-            if ((session.topic ?? '').trim().isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  session.topic!.trim(),
-                  maxLines: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  typeLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _compactTime(session.startTime),
+                  maxLines: 1,
+                  style: const TextStyle(
+                    color: _kTextMid,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    height: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  tutorLabel,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: _kTextDark,
                     fontSize: 10,
-                    height: 1.15,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
+                    height: 1.1,
                   ),
                 ),
-              ),
-          ],
-        ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

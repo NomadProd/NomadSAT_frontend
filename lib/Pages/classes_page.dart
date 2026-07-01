@@ -1,10 +1,52 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Pages/class_detail_page.dart';
 import 'package:flutter_web/Pages/control_panel_page.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
+
+void _agentLog(
+  String location,
+  String message,
+  Map<String, dynamic> data,
+  String hypothesisId,
+) {
+  // #region agent log
+  http
+      .post(
+        Uri.parse(
+          'http://127.0.0.1:7698/ingest/65637874-c5bf-45fd-a1a7-6e90b8027bca',
+        ),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Debug-Session-Id': '9ed305',
+        },
+        body: jsonEncode({
+          'sessionId': '9ed305',
+          'location': location,
+          'message': message,
+          'data': data,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'hypothesisId': hypothesisId,
+        }),
+      )
+      .catchError((_) => http.Response('', 500));
+  // #endregion
+}
+
+List<ClassInfo> _activeClasses(List<ClassInfo> all) {
+  return all.where((c) => !c.archived).toList()
+    ..sort((a, b) => a.className.compareTo(b.className));
+}
+
+List<ClassInfo> _archivedClasses(List<ClassInfo> all) {
+  return all.where((c) => c.archived).toList()
+    ..sort((a, b) => a.className.compareTo(b.className));
+}
 
 class ClassesPage extends StatefulWidget {
   const ClassesPage({super.key});
@@ -27,6 +69,19 @@ class _ClassesPageState extends State<ClassesPage> {
   Future<_PageData> _loadAll() async {
     final classes = await classService.fetchClasses();
     final user = await authService.fetchMe();
+    // #region agent log
+    _agentLog(
+      'classes_page.dart:_loadAll',
+      'classes fetched',
+      {
+        'total': classes.length,
+        'active': classes.where((c) => !c.archived).length,
+        'archived': classes.where((c) => c.archived).length,
+        'role': user.role,
+      },
+      'H1',
+    );
+    // #endregion
     return _PageData(classes: classes, user: user);
   }
 
@@ -79,6 +134,7 @@ class _ClassesPageState extends State<ClassesPage> {
           final data = snap.data!;
           final role = data.user.role.toLowerCase();
           final isAdmin = role == 'admin' || role == 'mentor';
+          final showArchivedSections = role == 'admin';
 
           return Column(
             children: [
@@ -86,6 +142,7 @@ class _ClassesPageState extends State<ClassesPage> {
               Expanded(
                 child: _ClassesContent(
                   classes: data.classes,
+                  showArchivedSections: showArchivedSections,
                   canCreateClass: isAdmin,
                   onCreateClass: _showCreateClassDialog,
                   canOpenControlPanel: isAdmin,
@@ -131,6 +188,7 @@ class _Header extends StatelessWidget {
 
 class _ClassesContent extends StatelessWidget {
   final List<ClassInfo> classes;
+  final bool showArchivedSections;
   final bool canCreateClass;
   final VoidCallback onCreateClass;
   final bool canOpenControlPanel;
@@ -138,6 +196,7 @@ class _ClassesContent extends StatelessWidget {
 
   const _ClassesContent({
     required this.classes,
+    required this.showArchivedSections,
     required this.canCreateClass,
     required this.onCreateClass,
     required this.canOpenControlPanel,
@@ -216,10 +275,121 @@ class _ClassesContent extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Expanded(
-            child: classes.isEmpty
-                ? const _EmptyState()
-                : _ClassGrid(classes: classes),
+            child: _ClassesBody(
+              classes: classes,
+              showArchivedSections: showArchivedSections,
+            ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClassesSectionHeader extends StatelessWidget {
+  final String title;
+
+  const _ClassesSectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Colors.blue.shade900,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Divider(color: Colors.blue.shade100, height: 1),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionEmptyState extends StatelessWidget {
+  final String message;
+
+  const _SectionEmptyState({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Text(
+        message,
+        style: TextStyle(
+          fontSize: 14,
+          color: Colors.blue.shade300,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+}
+
+class _ClassesBody extends StatelessWidget {
+  final List<ClassInfo> classes;
+  final bool showArchivedSections;
+
+  const _ClassesBody({
+    required this.classes,
+    required this.showArchivedSections,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // #region agent log
+    _agentLog(
+      'classes_page.dart:_ClassesBody.build',
+      'render branch',
+      {
+        'showArchivedSections': showArchivedSections,
+        'total': classes.length,
+        'active': classes.where((c) => !c.archived).length,
+        'archived': classes.where((c) => c.archived).length,
+      },
+      'H2',
+    );
+    // #endregion
+
+    if (classes.isEmpty) {
+      return const _EmptyState();
+    }
+
+    if (!showArchivedSections) {
+      final sorted = [...classes]
+        ..sort((a, b) => a.className.compareTo(b.className));
+      return _ClassGrid(classes: sorted);
+    }
+
+    final active = _activeClasses(classes);
+    final archived = _archivedClasses(classes);
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ClassesSectionHeader(title: 'Active Classes (${active.length})'),
+          if (active.isEmpty)
+            const _SectionEmptyState(message: 'No active classes')
+          else
+            _ClassGrid(classes: active, shrinkWrap: true),
+          if (archived.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _ClassesSectionHeader(
+              title: 'Archived Classes (${archived.length})',
+            ),
+            _ClassGrid(classes: archived, shrinkWrap: true),
+          ],
         ],
       ),
     );
@@ -245,12 +415,15 @@ class _ClassesTitle extends StatelessWidget {
 
 class _ClassGrid extends StatelessWidget {
   final List<ClassInfo> classes;
+  final bool shrinkWrap;
 
-  const _ClassGrid({required this.classes});
+  const _ClassGrid({required this.classes, this.shrinkWrap = false});
 
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
+      shrinkWrap: shrinkWrap,
+      physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 260,
         mainAxisSpacing: 16,
@@ -839,6 +1012,11 @@ class _ClassTileState extends State<_ClassTile>
 
   @override
   Widget build(BuildContext context) {
+    final isArchived = widget.info.archived;
+    final cardColor = isArchived
+        ? const Color(0xFF8B95A8)
+        : const Color(0xFF1A4AF0);
+
     final verbalTeacher = _buildTeacherName(
       widget.info.verbalTeacherName,
       widget.info.verbalTeacherSurname,
@@ -870,18 +1048,44 @@ class _ClassTileState extends State<_ClassTile>
         },
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1A4AF0),
+            color: cardColor,
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF1A4AF0).withOpacity(0.32),
-                blurRadius: 16,
-                offset: const Offset(0, 8),
+                color: cardColor.withOpacity(isArchived ? 0.18 : 0.32),
+                blurRadius: isArchived ? 10 : 16,
+                offset: Offset(0, isArchived ? 4 : 8),
               ),
             ],
           ),
           child: Stack(
             children: [
+              if (isArchived)
+                Positioned(
+                  top: 14,
+                  right: 14,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.22),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.35),
+                      ),
+                    ),
+                    child: const Text(
+                      'Archived',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
               Positioned(
                 top: -18,
                 right: -18,

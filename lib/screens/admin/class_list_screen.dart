@@ -17,7 +17,6 @@ class ClassListScreen extends StatefulWidget {
 class _ClassListScreenState extends State<ClassListScreen> {
   final _classService = ClassService();
   final _authService = AuthService();
-  bool _showArchived = false;
 
   late Future<_ClassListData> _future;
 
@@ -29,24 +28,12 @@ class _ClassListScreenState extends State<ClassListScreen> {
 
   Future<_ClassListData> _load() async {
     final user = await _authService.fetchMe();
-    final isAdmin = user.role.toLowerCase() == 'admin';
-    final classes = await _classService.fetchClasses(
-      archived: isAdmin ? _showArchived : null,
-    );
-    classes.sort((a, b) => a.className.compareTo(b.className));
+    final classes = await _classService.fetchClasses();
     return _ClassListData(user: user, classes: classes);
   }
 
   void _reload() {
     setState(() => _future = _load());
-  }
-
-  void _setArchivedTab(bool archived) {
-    if (_showArchived == archived) return;
-    setState(() {
-      _showArchived = archived;
-      _future = _load();
-    });
   }
 
   Future<void> _deleteClass(ClassInfo classInfo) async {
@@ -131,7 +118,7 @@ class _ClassListScreenState extends State<ClassListScreen> {
                 user: user,
                 title: 'Classes',
                 subtitle: isAdmin
-                    ? (_showArchived ? 'Archived classes' : 'Active classes')
+                    ? 'Active and archived classes'
                     : 'Admin class management',
                 pageLabel: 'Admin',
                 onBack: () => Navigator.of(context).pop(),
@@ -143,28 +130,6 @@ class _ClassListScreenState extends State<ClassListScreen> {
                   ),
                 ],
               ),
-              if (isAdmin)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
-                  child: SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(
-                        value: false,
-                        label: Text('Active'),
-                        icon: Icon(Icons.play_circle_outline_rounded, size: 18),
-                      ),
-                      ButtonSegment(
-                        value: true,
-                        label: Text('Archived'),
-                        icon: Icon(Icons.inventory_2_outlined, size: 18),
-                      ),
-                    ],
-                    selected: {_showArchived},
-                    onSelectionChanged: (selection) {
-                      _setArchivedTab(selection.first);
-                    },
-                  ),
-                ),
               Expanded(
                 child: snap.connectionState == ConnectionState.waiting
                     ? const Center(
@@ -175,7 +140,6 @@ class _ClassListScreenState extends State<ClassListScreen> {
                     : _ClassListBody(
                         classes: snap.data!.classes,
                         isAdmin: isAdmin,
-                        showArchived: _showArchived,
                         onOpen: (classInfo) async {
                           final deleted = await Navigator.of(context).push<bool>(
                             MaterialPageRoute(
@@ -190,11 +154,11 @@ class _ClassListScreenState extends State<ClassListScreen> {
                           }
                         },
                         onDelete: isAdmin ? _deleteClass : null,
-                        onArchive: isAdmin && !_showArchived
+                        onArchive: isAdmin
                             ? (classInfo) =>
                                   _setClassArchived(classInfo, archived: true)
                             : null,
-                        onRestore: isAdmin && _showArchived
+                        onRestore: isAdmin
                             ? (classInfo) =>
                                   _setClassArchived(classInfo, archived: false)
                             : null,
@@ -215,10 +179,44 @@ class _ClassListData {
   const _ClassListData({required this.user, required this.classes});
 }
 
+// Apply future client filters to `all` first, then partition into these groups.
+List<ClassInfo> activeClasses(List<ClassInfo> all) {
+  return all.where((c) => !c.archived).toList()
+    ..sort((a, b) => a.className.compareTo(b.className));
+}
+
+List<ClassInfo> archivedClasses(List<ClassInfo> all) {
+  return all.where((c) => c.archived).toList()
+    ..sort((a, b) => a.className.compareTo(b.className));
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TuranTextStyles.title.copyWith(fontSize: 17),
+          ),
+          const SizedBox(height: 8),
+          const Divider(color: TuranColors.border, height: 1),
+        ],
+      ),
+    );
+  }
+}
+
 class _ClassListBody extends StatelessWidget {
   final List<ClassInfo> classes;
   final bool isAdmin;
-  final bool showArchived;
   final ValueChanged<ClassInfo> onOpen;
   final ValueChanged<ClassInfo>? onDelete;
   final ValueChanged<ClassInfo>? onArchive;
@@ -227,7 +225,6 @@ class _ClassListBody extends StatelessWidget {
   const _ClassListBody({
     required this.classes,
     required this.isAdmin,
-    required this.showArchived,
     required this.onOpen,
     this.onDelete,
     this.onArchive,
@@ -236,86 +233,224 @@ class _ClassListBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (classes.isEmpty) {
-      return Center(
-        child: Text(
-          showArchived ? 'No archived classes' : 'No active classes found',
-        ),
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(22, 22, 22, 34),
-      itemCount: classes.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final classInfo = classes[index];
-        return Material(
-          color: TuranColors.surface,
-          borderRadius: BorderRadius.circular(TuranRadius.lg),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(TuranRadius.lg),
-            onTap: () => onOpen(classInfo),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  Icon(
-                    showArchived
-                        ? Icons.inventory_2_outlined
-                        : Icons.class_rounded,
-                    color: showArchived
-                        ? TuranColors.textMid
-                        : TuranColors.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          classInfo.className,
-                          style: TuranTextStyles.title.copyWith(fontSize: 16),
-                        ),
-                        if (showArchived)
-                          Text(
-                            'Archived',
-                            style: TuranTextStyles.subtitle.copyWith(
-                              color: TuranColors.warning,
-                              fontSize: 12,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (isAdmin && onRestore != null)
-                    IconButton(
-                      tooltip: 'Restore class',
-                      icon: const Icon(Icons.unarchive_rounded),
-                      color: TuranColors.primary,
-                      onPressed: () => onRestore!(classInfo),
-                    ),
-                  if (isAdmin && onArchive != null)
-                    IconButton(
-                      tooltip: 'Archive class',
-                      icon: const Icon(Icons.archive_outlined),
-                      color: TuranColors.warning,
-                      onPressed: () => onArchive!(classInfo),
-                    ),
-                  if (isAdmin && onDelete != null)
-                    IconButton(
-                      tooltip: 'Delete class',
-                      icon: const Icon(Icons.delete_outline_rounded),
-                      color: TuranColors.error,
-                      onPressed: () => onDelete!(classInfo),
-                    ),
-                  const Icon(Icons.chevron_right_rounded, color: TuranColors.textLight),
-                ],
-              ),
-            ),
-          ),
+        if (!isAdmin) {
+          final sorted = [...classes]
+            ..sort((a, b) => a.className.compareTo(b.className));
+          return _buildScrollableContent(
+            compact: compact,
+            children: _buildFlatList(sorted),
+          );
+        }
+
+        final active = activeClasses(classes);
+        final archived = archivedClasses(classes);
+
+        return _buildScrollableContent(
+          compact: compact,
+          children: [
+            _SectionHeader(title: 'Active Classes (${active.length})'),
+            if (active.isEmpty)
+              const _SectionEmptyState(message: 'No active classes')
+            else
+              ..._buildClassCards(active, archived: false),
+            if (archived.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              _SectionHeader(title: 'Archived Classes (${archived.length})'),
+              ..._buildClassCards(archived, archived: true),
+            ],
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildScrollableContent({
+    required bool compact,
+    required List<Widget> children,
+  }) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: compact ? double.infinity : 960),
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(compact ? 16 : 22, 22, compact ? 16 : 22, 34),
+          children: children,
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildFlatList(List<ClassInfo> items) {
+    if (items.isEmpty) {
+      return const [
+        _SectionEmptyState(message: 'No classes found'),
+      ];
+    }
+
+    return [
+      for (var i = 0; i < items.length; i++) ...[
+        if (i > 0) const SizedBox(height: 10),
+        _ClassCard(
+          classInfo: items[i],
+          isAdmin: isAdmin,
+          onOpen: onOpen,
+          onDelete: onDelete,
+          onArchive: onArchive,
+          onRestore: onRestore,
+        ),
+      ],
+    ];
+  }
+
+  List<Widget> _buildClassCards(List<ClassInfo> items, {required bool archived}) {
+    return [
+      for (var i = 0; i < items.length; i++) ...[
+        if (i > 0) const SizedBox(height: 10),
+        _ClassCard(
+          classInfo: items[i],
+          isAdmin: isAdmin,
+          onOpen: onOpen,
+          onDelete: onDelete,
+          onArchive: archived ? null : onArchive,
+          onRestore: archived ? onRestore : null,
+        ),
+      ],
+    ];
+  }
+}
+
+class _SectionEmptyState extends StatelessWidget {
+  final String message;
+
+  const _SectionEmptyState({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        message,
+        style: TuranTextStyles.subtitle.copyWith(color: TuranColors.textMid),
+      ),
+    );
+  }
+}
+
+class _ClassCard extends StatelessWidget {
+  final ClassInfo classInfo;
+  final bool isAdmin;
+  final ValueChanged<ClassInfo> onOpen;
+  final ValueChanged<ClassInfo>? onDelete;
+  final ValueChanged<ClassInfo>? onArchive;
+  final ValueChanged<ClassInfo>? onRestore;
+
+  const _ClassCard({
+    required this.classInfo,
+    required this.isAdmin,
+    required this.onOpen,
+    this.onDelete,
+    this.onArchive,
+    this.onRestore,
+  });
+
+  bool get _isArchived => classInfo.archived;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: _isArchived ? TuranColors.panelBg : TuranColors.surface,
+      borderRadius: BorderRadius.circular(TuranRadius.lg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(TuranRadius.lg),
+        onTap: () => onOpen(classInfo),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(TuranRadius.lg),
+            border: Border.all(
+              color: _isArchived
+                  ? TuranColors.border.withValues(alpha: 0.7)
+                  : TuranColors.border,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(
+                _isArchived ? Icons.inventory_2_outlined : Icons.class_rounded,
+                color: _isArchived ? TuranColors.textMid : TuranColors.primary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      classInfo.className,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TuranTextStyles.title.copyWith(
+                        fontSize: 16,
+                        color: _isArchived
+                            ? TuranColors.textMid
+                            : TuranColors.textDark,
+                      ),
+                    ),
+                    if (_isArchived) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: TuranColors.warning.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: TuranColors.warning.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Text(
+                          'Archived',
+                          style: TuranTextStyles.caption.copyWith(
+                            color: TuranColors.warning,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (isAdmin && onRestore != null)
+                IconButton(
+                  tooltip: 'Restore class',
+                  icon: const Icon(Icons.unarchive_rounded),
+                  color: TuranColors.primary,
+                  onPressed: () => onRestore!(classInfo),
+                ),
+              if (isAdmin && onArchive != null)
+                IconButton(
+                  tooltip: 'Archive class',
+                  icon: const Icon(Icons.archive_outlined),
+                  color: TuranColors.warning,
+                  onPressed: () => onArchive!(classInfo),
+                ),
+              if (isAdmin && onDelete != null)
+                IconButton(
+                  tooltip: 'Delete class',
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  color: TuranColors.error,
+                  onPressed: () => onDelete!(classInfo),
+                ),
+              const Icon(Icons.chevron_right_rounded, color: TuranColors.textLight),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

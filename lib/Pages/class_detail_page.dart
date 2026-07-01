@@ -1,8 +1,10 @@
 library class_detail;
 
+import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
@@ -253,6 +255,17 @@ String _teacherLabel(
       if (verbal != null) return '${verbal.name} ${verbal.surname}'.trim();
   }
   return '-';
+}
+
+String _compactTeacherName(String full) {
+  final trimmed = full.trim();
+  if (trimmed.isEmpty || trimmed == '-') return '—';
+  final parts = trimmed.split(RegExp(r'\s+'));
+  if (parts.length == 1) return parts.first;
+  final first = parts.first;
+  final last = parts.last;
+  if (last.isEmpty || last == first) return first;
+  return '$first ${last[0]}.';
 }
 
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
