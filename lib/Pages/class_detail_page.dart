@@ -530,6 +530,38 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     );
   }
 
+  bool _assignmentIsEmpty(AssignmentInfo assignment) {
+    final hasInstruction = (assignment.instruction ?? '').trim().isNotEmpty;
+    final hasLink = (assignment.taskLink ?? '').trim().isNotEmpty;
+    final hasDue = (assignment.dueDate ?? '').trim().isNotEmpty;
+    return !hasInstruction && !hasLink && !hasDue;
+  }
+
+  bool _canReceiveHomeworkCopy({
+    required int sessionId,
+    required int studentId,
+  }) {
+    final items = _studentAssignmentsForSession(
+      sessionId: sessionId,
+      studentId: studentId,
+    );
+    final bySlot = <int, AssignmentInfo>{};
+    for (final a in items) {
+      final slot = a.slotIndex;
+      if (slot != null && slot >= 1 && slot <= _kMaxHomeworkSlots) {
+        bySlot.putIfAbsent(slot, () => a);
+      }
+    }
+    for (var slot = 1; slot <= _kMaxHomeworkSlots; slot++) {
+      final atSlot = bySlot[slot];
+      if (atSlot == null || _assignmentIsEmpty(atSlot)) return true;
+    }
+    for (final a in items) {
+      if (a.slotIndex == null && _assignmentIsEmpty(a)) return true;
+    }
+    return false;
+  }
+
   // в”Ђв”Ђв”Ђ Assignment dialogs в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
   Future<void> _openAssignmentDialog({
     required SessionInfo session,
@@ -548,7 +580,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     int? copySourceAssignmentId;
     bool copyingFromStudent = false;
     String? copyFromStudentError;
-    final copySources = assignment == null
+    final canCopyInto = assignment == null ||
+        (assignment != null && _assignmentIsEmpty(assignment));
+    final copySources = canCopyInto
         ? _assignmentCopySources(
             session: session,
             excludeStudentId: student.userId,
@@ -576,7 +610,10 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       final available =
           (_pageData?.detail.students ?? [])
               .where((s) => !selectedIds.contains(s.userId))
-              .where((s) => nextHomeworkSlotFor(s) != null)
+              .where((s) => _canReceiveHomeworkCopy(
+                    sessionId: session.sessionId,
+                    studentId: s.userId,
+                  ))
               .toList()
             ..sort((a, b) {
               final byName = a.fullName.toLowerCase().compareTo(
@@ -631,7 +668,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                       controller: link,
                       decoration: _fieldDeco('Task link', hint: 'https://...'),
                     ),
-                    if (assignment == null && copySources.isNotEmpty) ...[
+                    if (canCopyInto && copySources.isNotEmpty) ...[
                       const SizedBox(height: 20),
                       const _DlgLabel('Copy from another student'),
                       const SizedBox(height: 10),
@@ -663,7 +700,10 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                                   copySourceAssignmentId == null
                               ? null
                               : () async {
-                                  if (nextHomeworkSlotFor(student) == null) {
+                                  if (!_canReceiveHomeworkCopy(
+                                    sessionId: session.sessionId,
+                                    studentId: student.userId,
+                                  )) {
                                     setDlg(
                                       () => copyFromStudentError =
                                           'No free homework slot for this student',
@@ -674,12 +714,19 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                                     copyingFromStudent = true;
                                     copyFromStudentError = null;
                                   });
+                                  final targetSlot =
+                                      assignment != null &&
+                                              _assignmentIsEmpty(assignment)
+                                          ? (assignment.slotIndex ??
+                                              slotIndex + 1)
+                                          : null;
                                   final copyResult =
                                       await classService.copyAssignment(
                                     sourceAssignmentId:
                                         copySourceAssignmentId!,
                                     targetStudentIds: [student.userId],
                                     sessionId: session.sessionId,
+                                    targetSlotIndex: targetSlot,
                                   );
                                   if (!ctx.mounted) return;
                                   final created = copyResult['created'];
@@ -725,7 +772,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                                 )
                               : const Icon(Icons.content_copy_rounded, size: 18),
                           label: Text(
-                            'Copy to ${student.fullName} (next free slot)',
+                            assignment != null && _assignmentIsEmpty(assignment)
+                                ? 'Copy to ${student.fullName} (this slot)'
+                                : 'Copy to ${student.fullName} (next free slot)',
                           ),
                         ),
                       ),
@@ -1063,6 +1112,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
         studentId: s.userId,
       );
       for (final a in assignments) {
+        if (_assignmentIsEmpty(a)) continue;
         final slot = a.slotIndex;
         items.add((
           assignmentId: a.assignmentId,
