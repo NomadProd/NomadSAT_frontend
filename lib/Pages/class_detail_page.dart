@@ -663,9 +663,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                                   copySourceAssignmentId == null
                               ? null
                               : () async {
-                                  final targetSlot =
-                                      displayedHomeworkSlotFor(student);
-                                  if (targetSlot == null) {
+                                  if (nextHomeworkSlotFor(student) == null) {
                                     setDlg(
                                       () => copyFromStudentError =
                                           'No free homework slot for this student',
@@ -681,11 +679,14 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                                     sourceAssignmentId:
                                         copySourceAssignmentId!,
                                     targetStudentIds: [student.userId],
-                                    targetSlotIndex: targetSlot,
                                     sessionId: session.sessionId,
                                   );
                                   if (!ctx.mounted) return;
-                                  if (copyResult['success'] == true) {
+                                  final created = copyResult['created'];
+                                  final createdCount =
+                                      created is List ? created.length : 0;
+                                  if (copyResult['success'] == true &&
+                                      createdCount > 0) {
                                     Navigator.of(ctx).pop();
                                     if (mounted) {
                                       await _reload();
@@ -705,8 +706,13 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                                   setDlg(() {
                                     copyingFromStudent = false;
                                     copyFromStudentError =
-                                        copyResult['message']?.toString() ??
-                                            'Failed to copy homework';
+                                        copyResult['success'] == true
+                                            ? _formatCopyAssignmentMessage(
+                                                copyResult,
+                                              )
+                                            : copyResult['message']
+                                                      ?.toString() ??
+                                                  'Failed to copy homework';
                                   });
                                 },
                           icon: copyingFromStudent
@@ -719,7 +725,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                                 )
                               : const Icon(Icons.content_copy_rounded, size: 18),
                           label: Text(
-                            'Copy to ${student.fullName} (Homework ${displayedHomeworkSlotFor(student) ?? slotIndex + 1})',
+                            'Copy to ${student.fullName} (next free slot)',
                           ),
                         ),
                       ),
@@ -996,6 +1002,13 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final skippedCount = skipped is List ? skipped.length : 0;
     if (createdCount == 0 && skippedCount > 0) {
       return 'No students received a copy ($skippedCount skipped — no free slot).';
+    }
+    if (createdCount == 1) {
+      final first = (created as List).first;
+      if (first is Map && first['slot_index'] != null) {
+        return 'Homework copied to slot ${first['slot_index']}.';
+      }
+      return 'Homework copied.';
     }
     if (skippedCount > 0) {
       return 'Copied to $createdCount student(s). $skippedCount skipped (no free slot).';
