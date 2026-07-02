@@ -1,12 +1,18 @@
 part of class_detail;
 
 class TimetablePage extends StatefulWidget {
+  final int classId;
+  final ClassService classService;
+  final bool canEditSchedule;
   final String className;
   final List<SessionInfo> sessions;
   final UserInfo? verbalTeacher, mathTeacher;
   final List<UserInfo> teachers;
 
   const TimetablePage({
+    required this.classId,
+    required this.classService,
+    required this.canEditSchedule,
     required this.className,
     required this.sessions,
     required this.verbalTeacher,
@@ -20,11 +26,51 @@ class TimetablePage extends StatefulWidget {
 
 class _TimetablePageState extends State<TimetablePage> {
   late int _selectedMonthIndex;
+  late List<SessionInfo> _sessions;
+  bool _scheduleChanged = false;
 
   @override
   void initState() {
     super.initState();
+    _sessions = List<SessionInfo>.from(widget.sessions);
     _selectedMonthIndex = _initialMonthIndex();
+  }
+
+  Future<void> _reloadSessions() async {
+    final updated = await widget.classService.fetchClassSessions(widget.classId);
+    if (!mounted) return;
+    setState(() => _sessions = updated);
+  }
+
+  (DateTime, DateTime) _defaultDateRange() {
+    if (_sessions.isEmpty) {
+      final now = DateTime.now();
+      return (_normalizeDate(now), _normalizeDate(now.add(const Duration(days: 27))));
+    }
+    final dates = _sessions.map((s) => _parseDate(s.date)).toList()..sort();
+    return (_normalizeDate(dates.first), _normalizeDate(dates.last));
+  }
+
+  Future<void> _openEditScheduleDialog() async {
+    final (initialFrom, initialTo) = _defaultDateRange();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _EditClassScheduleDialog(
+        classService: widget.classService,
+        classId: widget.classId,
+        sessions: _sessions,
+        initialFrom: initialFrom,
+        initialTo: initialTo,
+      ),
+    );
+    if (saved == true) {
+      _scheduleChanged = true;
+      await _reloadSessions();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Schedule updated')),
+      );
+    }
   }
 
   int _initialMonthIndex() {
@@ -38,10 +84,10 @@ class _TimetablePageState extends State<TimetablePage> {
   }
 
   List<DateTime> get _visibleMonths {
-    if (widget.sessions.isEmpty)
+    if (_sessions.isEmpty)
       return [DateTime(DateTime.now().year, DateTime.now().month)];
 
-    final dates = widget.sessions.map((s) => _parseDate(s.date)).toList()
+    final dates = _sessions.map((s) => _parseDate(s.date)).toList()
       ..sort((a, b) => a.compareTo(b));
     final first = DateTime(dates.first.year, dates.first.month);
     final last = DateTime(dates.last.year, dates.last.month);
@@ -57,7 +103,7 @@ class _TimetablePageState extends State<TimetablePage> {
 
   Map<String, List<SessionInfo>> get _sessionsByDate {
     final map = <String, List<SessionInfo>>{};
-    for (final session in widget.sessions) {
+    for (final session in _sessions) {
       map.putIfAbsent(session.date, () => []).add(session);
     }
     for (final daySessions in map.values) {
@@ -88,8 +134,10 @@ class _TimetablePageState extends State<TimetablePage> {
           SliverToBoxAdapter(
             child: _TimetableHeader(
               className: widget.className,
-              sessionCount: widget.sessions.length,
-              onBack: () => Navigator.of(context).pop(),
+              sessionCount: _sessions.length,
+              canEditSchedule: widget.canEditSchedule,
+              onEditSchedule: _openEditScheduleDialog,
+              onBack: () => Navigator.of(context).pop(_scheduleChanged),
             ),
           ),
           SliverPadding(
@@ -155,11 +203,15 @@ class _TimetablePageState extends State<TimetablePage> {
 class _TimetableHeader extends StatelessWidget {
   final String className;
   final int sessionCount;
+  final bool canEditSchedule;
+  final VoidCallback onEditSchedule;
   final VoidCallback onBack;
 
   const _TimetableHeader({
     required this.className,
     required this.sessionCount,
+    required this.canEditSchedule,
+    required this.onEditSchedule,
     required this.onBack,
   });
 
@@ -169,6 +221,15 @@ class _TimetableHeader extends StatelessWidget {
     subtitle: className,
     pageLabel: 'Schedule',
     onBack: onBack,
+    actions: canEditSchedule
+        ? [
+            TuranHeaderAction(
+              icon: Icons.edit_calendar_rounded,
+              label: 'Edit',
+              onTap: onEditSchedule,
+            ),
+          ]
+        : const [],
     bottom: Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
       decoration: BoxDecoration(
@@ -993,4 +1054,356 @@ String _monthYearLabel(DateTime d) {
     'December',
   ];
   return '${months[d.month - 1]} ${d.year}';
+}
+
+class _EditClassScheduleDialog extends StatefulWidget {
+  final ClassService classService;
+  final int classId;
+  final List<SessionInfo> sessions;
+  final DateTime initialFrom;
+  final DateTime initialTo;
+
+  const _EditClassScheduleDialog({
+    required this.classService,
+    required this.classId,
+    required this.sessions,
+    required this.initialFrom,
+    required this.initialTo,
+  });
+
+  @override
+  State<_EditClassScheduleDialog> createState() =>
+      _EditClassScheduleDialogState();
+}
+
+class _EditClassScheduleDialogState extends State<_EditClassScheduleDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _fromDateController;
+  late final TextEditingController _toDateController;
+  late final List<DayScheduleEntry> _verbalSchedule;
+  late final List<DayScheduleEntry> _mathSchedule;
+  late final List<DayScheduleEntry> _mockSchedule;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fromDateController = TextEditingController(
+      text: _formatDateForApi(widget.initialFrom),
+    );
+    _toDateController = TextEditingController(
+      text: _formatDateForApi(widget.initialTo),
+    );
+    _verbalSchedule = WeeklyScheduleForm.createEntries();
+    _mathSchedule = WeeklyScheduleForm.createEntries();
+    _mockSchedule = WeeklyScheduleForm.createEntries(
+      defaultTime: WeeklyScheduleForm.defaultMockTime,
+    );
+    _applyInferredSchedule();
+  }
+
+  @override
+  void dispose() {
+    _fromDateController.dispose();
+    _toDateController.dispose();
+    WeeklyScheduleForm.disposeEntries(_verbalSchedule);
+    WeeklyScheduleForm.disposeEntries(_mathSchedule);
+    WeeklyScheduleForm.disposeEntries(_mockSchedule);
+    super.dispose();
+  }
+
+  void _applyInferredSchedule() {
+    final from = DateTime.tryParse(_fromDateController.text.trim());
+    final to = DateTime.tryParse(_toDateController.text.trim());
+    if (from == null || to == null) return;
+    WeeklyScheduleForm.inferFromSessions(
+      sessions: widget.sessions,
+      from: _normalizeDate(from),
+      to: _normalizeDate(to),
+      verbal: _verbalSchedule,
+      math: _mathSchedule,
+      mock: _mockSchedule,
+    );
+  }
+
+  Future<void> _pickDate({
+    required TextEditingController controller,
+    required DateTime initial,
+  }) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      controller.text = _formatDateForApi(picked);
+      _applyInferredSchedule();
+    });
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final scheduleError = WeeklyScheduleForm.validate(
+      verbal: _verbalSchedule,
+      math: _mathSchedule,
+      mock: _mockSchedule,
+    );
+    if (scheduleError != null) {
+      setState(() => _error = scheduleError);
+      return;
+    }
+
+    final from = _fromDateController.text.trim();
+    final to = _toDateController.text.trim();
+    if (DateTime.parse(from).isAfter(DateTime.parse(to))) {
+      setState(() => _error = 'From date must be on or before to date');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => _DialogShell(
+            icon: Icons.warning_amber_rounded,
+            title: 'Update schedule?',
+            width: 420,
+            content: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+              child: Text(
+                'Apply the new weekly pattern from $from to $to?\n\n'
+                'Lessons that no longer match may be removed, including '
+                'linked homework and attendance.',
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: _kTextMid,
+                  height: 1.5,
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Yes, update'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed || !mounted) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    final result = await widget.classService.updateClassSchedule(
+      classId: widget.classId,
+      fromDate: from,
+      toDate: to,
+      verbalSchedule: WeeklyScheduleForm.buildPayload(_verbalSchedule),
+      mathSchedule: WeeklyScheduleForm.buildPayload(_mathSchedule),
+      mockSchedule: WeeklyScheduleForm.buildPayload(_mockSchedule),
+    );
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+
+    setState(() {
+      _saving = false;
+      _error = result['message']?.toString() ?? 'Failed to update schedule';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 0),
+      contentPadding: const EdgeInsets.fromLTRB(24, 18, 36, 10),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+      title: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: _kPrimary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.edit_calendar_rounded, color: _kPrimary),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Edit schedule',
+              style: TextStyle(
+                color: _kPrimary,
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: 620,
+        child: Scrollbar(
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(right: 14),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Choose the date range to update. Lessons outside the weekly pattern will be removed inside this range.',
+                    style: TextStyle(color: _kTextMid, fontSize: 12, height: 1.35),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _fromDateController,
+                          enabled: !_saving,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'From date',
+                            prefixIcon: Icon(Icons.event_rounded),
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Required';
+                            }
+                            return null;
+                          },
+                          onTap: _saving
+                              ? null
+                              : () => _pickDate(
+                                    controller: _fromDateController,
+                                    initial: DateTime.tryParse(
+                                          _fromDateController.text,
+                                        ) ??
+                                        widget.initialFrom,
+                                  ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _toDateController,
+                          enabled: !_saving,
+                          readOnly: true,
+                          decoration: const InputDecoration(
+                            labelText: 'To date',
+                            prefixIcon: Icon(Icons.event_rounded),
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Required';
+                            }
+                            return null;
+                          },
+                          onTap: _saving
+                              ? null
+                              : () => _pickDate(
+                                    controller: _toDateController,
+                                    initial: DateTime.tryParse(
+                                          _toDateController.text,
+                                        ) ??
+                                        widget.initialTo,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  WeeklyLessonSchedulePicker(
+                    title: 'Verbal lessons',
+                    icon: Icons.menu_book_rounded,
+                    weekdayLabels: WeeklyScheduleLabels.full,
+                    days: _verbalSchedule,
+                    enabled: !_saving,
+                    onChanged: () => setState(() {}),
+                  ),
+                  const SizedBox(height: 16),
+                  WeeklyLessonSchedulePicker(
+                    title: 'Math lessons',
+                    icon: Icons.calculate_rounded,
+                    weekdayLabels: WeeklyScheduleLabels.full,
+                    days: _mathSchedule,
+                    enabled: !_saving,
+                    onChanged: () => setState(() {}),
+                  ),
+                  const SizedBox(height: 16),
+                  WeeklyLessonSchedulePicker(
+                    title: 'Mock tests',
+                    icon: Icons.quiz_rounded,
+                    weekdayLabels: WeeklyScheduleLabels.full,
+                    days: _mockSchedule,
+                    enabled: !_saving,
+                    timeHint: WeeklyScheduleForm.defaultMockTime,
+                    helperText:
+                        'Each mock block lasts 7.5 hours from the start time.',
+                    onChanged: () => setState(() {}),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      _error!,
+                      style: const TextStyle(color: _kError, fontSize: 13),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton.icon(
+          onPressed: _saving ? null : _save,
+          icon: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Icon(Icons.check_rounded, size: 18),
+          label: Text(_saving ? 'Saving...' : 'Apply'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _kPrimary,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }

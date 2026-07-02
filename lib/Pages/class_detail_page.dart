@@ -9,6 +9,7 @@ import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Pages/academic_plan_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
+import 'package:flutter_web/Widgets/weekly_schedule_picker.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
 part '../Widgets/shared_widgets.dart';
@@ -510,9 +511,13 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
   void _openTimetablePage() {
     final d = _pageData;
     if (d == null) return;
-    Navigator.of(context).push(
+    final role = d.user.role.toLowerCase();
+    Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => TimetablePage(
+          classId: widget.classId,
+          classService: classService,
+          canEditSchedule: role == 'admin' || role == 'mentor',
           className: widget.className,
           sessions: d.sessions,
           verbalTeacher: d.detail.verbalTeacher,
@@ -520,7 +525,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
           teachers: d.teachers,
         ),
       ),
-    );
+    ).then((changed) {
+      if (changed == true && mounted) _reload();
+    });
   }
 
   void _openAcademicPlanPage() {
@@ -1600,7 +1607,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     if (pageData == null) return;
     final role = pageData.user.role.toLowerCase();
     if (role != 'admin' && role != 'mentor') return;
-    final canRemove = _isStaffAdmin(role);
+    final canRemove = _isStaffAdmin(role!);
     await showDialog(
       context: context,
       builder: (ctx) => Dialog(

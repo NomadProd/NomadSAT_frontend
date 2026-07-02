@@ -75,6 +75,48 @@ class ClassService {
     }
   }
 
+  Future<Map<String, dynamic>> updateClassSchedule({
+    required int classId,
+    required String fromDate,
+    required String toDate,
+    required List<Map<String, dynamic>> verbalSchedule,
+    required List<Map<String, dynamic>> mathSchedule,
+    required List<Map<String, dynamic>> mockSchedule,
+  }) async {
+    try {
+      final response = await _client.put(
+        Uri.parse('$baseUrl/classes/$classId/schedule'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'from_date': fromDate,
+          'to_date': toDate,
+          'verbal_schedule': verbalSchedule,
+          'math_schedule': mathSchedule,
+          'mock_schedule': mockSchedule,
+        }),
+      );
+
+      final data = decodeJsonResponse(response);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['message']?.toString() ?? 'Schedule updated',
+          'created': data['created'],
+          'updated': data['updated'],
+          'deleted': data['deleted'],
+        };
+      }
+
+      return {
+        'success': false,
+        'message': data['detail']?.toString() ?? 'Failed to update schedule',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Connection failed: $e'};
+    }
+  }
+
   Future<List<ClassInfo>> fetchClasses({bool? archived}) async {
     final uri = archived == null
         ? Uri.parse('$baseUrl/classes')

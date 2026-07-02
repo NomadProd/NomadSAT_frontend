@@ -362,6 +362,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
                           ),
                           const SizedBox(height: 14),
                           _QuickNav(
+                            classService: _classService,
                             academicPlanClass: data.academicPlanClass,
                             timetableClass: data.timetableClass,
                           ),
@@ -1267,10 +1268,12 @@ class _ProgressStatCard extends StatelessWidget {
 
 // РІвЂќР‚РІвЂќР‚РІвЂќР‚ Quick nav РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
 class _QuickNav extends StatelessWidget {
+  final ClassService classService;
   final ClassInfo? academicPlanClass;
   final _StudentClassHome? timetableClass;
 
   const _QuickNav({
+    required this.classService,
     required this.academicPlanClass,
     required this.timetableClass,
   });
@@ -1318,6 +1321,9 @@ class _QuickNav extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TimetablePage(
+          classId: classHome.classInfo.classId,
+          classService: classService,
+          canEditSchedule: false,
           className: classHome.classInfo.className,
           sessions: classHome.sessions,
           verbalTeacher: classHome.detail.verbalTeacher,
