@@ -164,7 +164,7 @@ class _ControlPanelContent extends StatelessWidget {
           title: 'Classes',
           subtitle:
               'Grouped class records with connected students, sessions, and workload.',
-          action: data.user.role.toLowerCase() == 'admin'
+          action: _isStaffRole(data.user.role)
               ? TextButton.icon(
                   onPressed: () {
                     Navigator.of(context).push(
@@ -992,7 +992,7 @@ Widget _classCategoryTable({
   required VoidCallback onChanged,
   required _ClassTableCategory category,
 }) {
-  final isAdmin = currentUserRole.toLowerCase() == 'admin';
+  final isStaff = _isStaffRole(currentUserRole);
   switch (category) {
     case _ClassTableCategory.students:
       return DataTable(
@@ -1108,7 +1108,7 @@ Widget _classCategoryTable({
                                     detail,
                                     result.assignmentId,
                                   ),
-                                  isAdmin: isAdmin,
+                                  isAdmin: isStaff,
                                 ),
                               ),
                             );
@@ -1731,6 +1731,11 @@ String _nameOf(UserInfo? user) {
 }
 
 bool _canManageUsers(String role) {
+  final normalized = role.toLowerCase();
+  return normalized == 'admin' || normalized == 'mentor';
+}
+
+bool _isStaffRole(String role) {
   final normalized = role.toLowerCase();
   return normalized == 'admin' || normalized == 'mentor';
 }

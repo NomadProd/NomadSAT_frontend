@@ -200,7 +200,9 @@ class ClassService {
 
     if (response.statusCode != 200) {
       final data = decodeJsonResponse(response);
-      throw Exception(data['detail'] ?? 'Failed to load users');
+      throw Exception(
+        data['detail']?.toString() ?? 'Failed to load users (${response.statusCode})',
+      );
     }
 
     final List data = decodeJsonResponse(response);
