@@ -23,6 +23,10 @@ class ClassService {
     int? mathTeacherId,
     String? scheduleTemplate,
     String? startDate,
+    int? scheduleWeeks,
+    List<Map<String, dynamic>>? verbalSchedule,
+    List<Map<String, dynamic>>? mathSchedule,
+    List<Map<String, dynamic>>? mockSchedule,
   }) async {
     final resolvedVerbalTeacherId = verbalTeacherId ?? teacherId;
     final resolvedMathTeacherId = mathTeacherId ?? teacherId;
@@ -42,8 +46,12 @@ class ClassService {
           'name': name,
           'verbal_teacher_id': resolvedVerbalTeacherId,
           'math_teacher_id': resolvedMathTeacherId,
-          'schedule_template': scheduleTemplate,
-          'start_date': startDate,
+          if (scheduleTemplate != null) 'schedule_template': scheduleTemplate,
+          if (startDate != null) 'start_date': startDate,
+          if (scheduleWeeks != null) 'schedule_weeks': scheduleWeeks,
+          if (verbalSchedule != null) 'verbal_schedule': verbalSchedule,
+          if (mathSchedule != null) 'math_schedule': mathSchedule,
+          if (mockSchedule != null) 'mock_schedule': mockSchedule,
         }),
       );
 

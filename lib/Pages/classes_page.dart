@@ -387,13 +387,29 @@ class _CreateClassDialog extends StatefulWidget {
 }
 
 class _CreateClassDialogState extends State<_CreateClassDialog> {
+  static const _kWeekdayLabels = [
+    'Mon',
+    'Tue',
+    'Wed',
+    'Thu',
+    'Fri',
+    'Sat',
+    'Sun',
+  ];
+  static const _kDefaultLessonTime = '18:30';
+  static const _kDefaultMockTime = '09:00';
+  static final _kTimePattern = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _startDateController = TextEditingController();
+  final _weeksController = TextEditingController(text: '4');
+  late final List<_DayScheduleEntry> _verbalSchedule;
+  late final List<_DayScheduleEntry> _mathSchedule;
+  late final List<_DayScheduleEntry> _mockSchedule;
   late Future<List<UserInfo>> _teachersFuture;
   int? _verbalTeacherId;
   int? _mathTeacherId;
-  String _scheduleTemplate = 'intensive';
   bool _saving = false;
   String? _error;
 
@@ -404,6 +420,25 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
   @override
   void initState() {
     super.initState();
+    _verbalSchedule = List.generate(
+      7,
+      (_) => _DayScheduleEntry(time: _kDefaultLessonTime),
+    );
+    _mathSchedule = List.generate(
+      7,
+      (_) => _DayScheduleEntry(time: _kDefaultLessonTime),
+    );
+    _mockSchedule = List.generate(
+      7,
+      (_) => _DayScheduleEntry(time: _kDefaultMockTime),
+    );
+    _verbalSchedule[0].enabled = true;
+    _verbalSchedule[2].enabled = true;
+    _verbalSchedule[4].enabled = true;
+    _mathSchedule[1].enabled = true;
+    _mathSchedule[3].enabled = true;
+    _mockSchedule[5].enabled = true;
+    _mockSchedule[6].enabled = true;
     _teachersFuture = widget.classService.fetchTeachers();
   }
 
@@ -411,11 +446,86 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
   void dispose() {
     _nameController.dispose();
     _startDateController.dispose();
+    _weeksController.dispose();
+    for (final day in _verbalSchedule) {
+      day.dispose();
+    }
+    for (final day in _mathSchedule) {
+      day.dispose();
+    }
+    for (final day in _mockSchedule) {
+      day.dispose();
+    }
     super.dispose();
+  }
+
+  List<Map<String, dynamic>> _buildSchedulePayload(
+    List<_DayScheduleEntry> days,
+  ) {
+    final result = <Map<String, dynamic>>[];
+    for (var i = 0; i < days.length; i++) {
+      final day = days[i];
+      if (!day.enabled) continue;
+      result.add({
+        'day_of_week': i,
+        'start_time': day.timeController.text.trim(),
+      });
+    }
+    return result;
+  }
+
+  String? _validateWeeklySchedule() {
+    final hasVerbal = _verbalSchedule.any((day) => day.enabled);
+    final hasMath = _mathSchedule.any((day) => day.enabled);
+    final hasMock = _mockSchedule.any((day) => day.enabled);
+    if (!hasVerbal && !hasMath && !hasMock) {
+      return 'Enable at least one verbal, math, or mock day';
+    }
+
+    for (var i = 0; i < _verbalSchedule.length; i++) {
+      final day = _verbalSchedule[i];
+      if (!day.enabled) continue;
+      final time = day.timeController.text.trim();
+      if (!_kTimePattern.hasMatch(time)) {
+        return 'Verbal ${_kWeekdayLabels[i]}: use HH:MM (e.g. 18:30)';
+      }
+    }
+
+    for (var i = 0; i < _mathSchedule.length; i++) {
+      final day = _mathSchedule[i];
+      if (!day.enabled) continue;
+      final time = day.timeController.text.trim();
+      if (!_kTimePattern.hasMatch(time)) {
+        return 'Math ${_kWeekdayLabels[i]}: use HH:MM (e.g. 18:30)';
+      }
+    }
+
+    for (var i = 0; i < _mockSchedule.length; i++) {
+      final day = _mockSchedule[i];
+      if (!day.enabled) continue;
+      final time = day.timeController.text.trim();
+      if (!_kTimePattern.hasMatch(time)) {
+        return 'Mock ${_kWeekdayLabels[i]}: use HH:MM (e.g. 09:00)';
+      }
+    }
+
+    return null;
   }
 
   Future<void> _createClass() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final scheduleError = _validateWeeklySchedule();
+    if (scheduleError != null) {
+      setState(() => _error = scheduleError);
+      return;
+    }
+
+    final weeks = int.tryParse(_weeksController.text.trim());
+    if (weeks == null || weeks < 1 || weeks > 52) {
+      setState(() => _error = 'Course length must be between 1 and 52 weeks');
+      return;
+    }
 
     setState(() {
       _saving = true;
@@ -426,8 +536,11 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
       name: _nameController.text.trim(),
       verbalTeacherId: _verbalTeacherId,
       mathTeacherId: _mathTeacherId,
-      scheduleTemplate: _scheduleTemplate,
       startDate: _startDateController.text.trim(),
+      scheduleWeeks: weeks,
+      verbalSchedule: _buildSchedulePayload(_verbalSchedule),
+      mathSchedule: _buildSchedulePayload(_mathSchedule),
+      mockSchedule: _buildSchedulePayload(_mockSchedule),
     );
 
     if (!mounted) return;
@@ -455,7 +568,7 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       titlePadding: const EdgeInsets.fromLTRB(24, 22, 24, 0),
-      contentPadding: const EdgeInsets.fromLTRB(24, 18, 24, 10),
+      contentPadding: const EdgeInsets.fromLTRB(24, 18, 36, 10),
       actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
       title: Row(
         children: [
@@ -482,7 +595,7 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
         ],
       ),
       content: SizedBox(
-        width: 480,
+        width: 620,
         child: FutureBuilder<List<UserInfo>>(
           future: _teachersFuture,
           builder: (context, snap) {
@@ -512,8 +625,11 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
               );
             }
 
-            return SingleChildScrollView(
-              child: Form(
+            return Scrollbar(
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(right: 14),
+                child: Form(
                 key: _formKey,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -557,31 +673,6 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
                       },
                     ),
                     const SizedBox(height: 14),
-                    DropdownButtonFormField<String>(
-                      value: _scheduleTemplate,
-                      decoration: const InputDecoration(
-                        labelText: 'Schedule template',
-                        prefixIcon: Icon(Icons.view_week_rounded),
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'intensive',
-                          child: Text('Intensive course'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'standard',
-                          child: Text('Standard course'),
-                        ),
-                      ],
-                      onChanged: _saving
-                          ? null
-                          : (value) {
-                              if (value == null) return;
-                              setState(() => _scheduleTemplate = value);
-                            },
-                    ),
-                    const SizedBox(height: 14),
                     TextFormField(
                       controller: _startDateController,
                       enabled: !_saving,
@@ -621,8 +712,58 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
                               }
                             },
                     ),
-                    const SizedBox(height: 10),
-                    _TemplateSummary(template: _scheduleTemplate),
+                    const SizedBox(height: 14),
+                    TextFormField(
+                      controller: _weeksController,
+                      enabled: !_saving,
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Course length (weeks)',
+                        prefixIcon: Icon(Icons.date_range_rounded),
+                        border: OutlineInputBorder(),
+                        helperText: 'Schedule repeats weekly from the starting date',
+                      ),
+                      validator: (value) {
+                        final weeks = int.tryParse(value?.trim() ?? '');
+                        if (weeks == null || weeks < 1 || weeks > 52) {
+                          return 'Enter a number from 1 to 52';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 18),
+                    _WeeklyLessonSchedulePicker(
+                      title: 'Verbal lessons',
+                      icon: Icons.menu_book_rounded,
+                      weekdayLabels: _kWeekdayLabels,
+                      days: _verbalSchedule,
+                      enabled: !_saving,
+                      timeHint: _kDefaultLessonTime,
+                      onChanged: () => setState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    _WeeklyLessonSchedulePicker(
+                      title: 'Math lessons',
+                      icon: Icons.calculate_rounded,
+                      weekdayLabels: _kWeekdayLabels,
+                      days: _mathSchedule,
+                      enabled: !_saving,
+                      timeHint: _kDefaultLessonTime,
+                      onChanged: () => setState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    _WeeklyLessonSchedulePicker(
+                      title: 'Mock tests',
+                      icon: Icons.quiz_rounded,
+                      weekdayLabels: _kWeekdayLabels,
+                      days: _mockSchedule,
+                      enabled: !_saving,
+                      timeHint: _kDefaultMockTime,
+                      helperText:
+                          'Each mock block lasts 7.5 hours from the start time.',
+                      onChanged: () => setState(() {}),
+                    ),
                     if (_error != null) ...[
                       const SizedBox(height: 14),
                       Text(
@@ -636,6 +777,7 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
                   ],
                 ),
               ),
+            ),
             );
           },
         ),
@@ -691,72 +833,199 @@ class _CreateClassOutcome {
   });
 }
 
-class _TemplateSummary extends StatelessWidget {
-  final String template;
+class _DayScheduleEntry {
+  bool enabled;
+  final TextEditingController timeController;
 
-  const _TemplateSummary({required this.template});
+  _DayScheduleEntry({this.enabled = false, String time = '18:30'})
+      : timeController = TextEditingController(text: time);
+
+  void dispose() => timeController.dispose();
+}
+
+class _WeeklyLessonSchedulePicker extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final List<String> weekdayLabels;
+  final List<_DayScheduleEntry> days;
+  final bool enabled;
+  final String timeHint;
+  final String? helperText;
+  final VoidCallback onChanged;
+
+  const _WeeklyLessonSchedulePicker({
+    required this.title,
+    required this.icon,
+    required this.weekdayLabels,
+    required this.days,
+    required this.enabled,
+    this.timeHint = '18:30',
+    this.helperText,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final intensive = template == 'intensive';
-    final lines = intensive
-        ? const [
-            'Mon verbal, Tue math, Wed verbal, Thu math, Fri verbal',
-            'Sat and Sun mock block: 09:00-16:30',
-            'Verbal/math lessons: 18:30-20:00',
-            'Repeats for 4 weeks from the starting date',
-          ]
-        : const [
-            'Mon verbal, Tue rest, Wed math, Thu rest, Fri verbal',
-            'Sat mock block: 09:00-16:30, Sun rest',
-            'Verbal/math lessons: 18:30-20:00',
-            'Repeats for 8 weeks from the starting date',
-          ];
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF4F7FF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFD7E3FF)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            intensive
-                ? 'Intensive course schedule'
-                : 'Standard course schedule',
-            style: const TextStyle(
-              color: Color(0xFF1A4AF0),
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          ...lines.map(
-            (line) => Padding(
-              padding: const EdgeInsets.only(top: 3),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('* ', style: TextStyle(color: Color(0xFF1A4AF0))),
-                  Expanded(
-                    child: Text(
-                      line,
-                      style: const TextStyle(
-                        color: Color(0xFF4A5A7A),
-                        fontSize: 12,
-                        height: 1.25,
-                      ),
-                    ),
-                  ),
-                ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 18, color: const Color(0xFF1A4AF0)),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Color(0xFF1A4AF0),
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          helperText ??
+              'Tap a day to enable it, then set the start time (HH:MM).',
+          style: const TextStyle(color: Color(0xFF6B7A99), fontSize: 12),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: List.generate(days.length, (index) {
+            final day = days[index];
+            final label = weekdayLabels[index];
+            return _WeekdayScheduleCell(
+              label: label,
+              enabled: enabled,
+              active: day.enabled,
+              timeController: day.timeController,
+              timeHint: timeHint,
+              onToggle: () {
+                day.enabled = !day.enabled;
+                onChanged();
+              },
+            );
+          }),
+        ),
+      ],
+    );
+  }
+}
+
+class _WeekdayScheduleCell extends StatelessWidget {
+  static const _cellWidth = 78.0;
+  static const _cellHeight = 90.0;
+  static const _timeAreaHeight = 40.0;
+
+  final String label;
+  final bool enabled;
+  final bool active;
+  final TextEditingController timeController;
+  final String timeHint;
+  final VoidCallback onToggle;
+
+  const _WeekdayScheduleCell({
+    required this.label,
+    required this.enabled,
+    required this.active,
+    required this.timeController,
+    this.timeHint = '18:30',
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = active
+        ? const Color(0xFF1A4AF0)
+        : const Color(0xFFD7E3FF);
+    final bgColor = active ? const Color(0xFFF4F7FF) : Colors.white;
+
+    return SizedBox(
+      width: _cellWidth,
+      height: _cellHeight,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor, width: 1.5),
+        ),
+        child: Column(
+          children: [
+            InkWell(
+              onTap: enabled ? onToggle : null,
+              borderRadius: BorderRadius.circular(8),
+              child: SizedBox(
+                height: 18,
+                width: double.infinity,
+                child: Center(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: active
+                          ? const Color(0xFF1A4AF0)
+                          : const Color(0xFF8A97B5),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: _timeAreaHeight,
+              width: double.infinity,
+              child: active
+                  ? TextField(
+                      controller: timeController,
+                      enabled: enabled,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 2,
+                          vertical: 10,
+                        ),
+                        hintText: timeHint,
+                        hintStyle: const TextStyle(fontSize: 11),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(6),
+                          borderSide: BorderSide(
+                            color: const Color(0xFF1A4AF0).withOpacity(0.35),
+                          ),
+                        ),
+                        focusedBorder: const OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(6)),
+                          borderSide: BorderSide(color: Color(0xFF1A4AF0)),
+                        ),
+                      ),
+                    )
+                  : InkWell(
+                      onTap: enabled ? onToggle : null,
+                      borderRadius: BorderRadius.circular(6),
+                      child: const Center(
+                        child: Text(
+                          '—',
+                          style: TextStyle(
+                            color: Color(0xFFB8C4DE),
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
