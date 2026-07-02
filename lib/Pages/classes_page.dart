@@ -90,6 +90,8 @@ class _ClassesPageState extends State<ClassesPage> {
           final data = snap.data!;
           final role = data.user.role.toLowerCase();
           final isStaffAdmin = role == 'admin' || role == 'mentor';
+          final canOpenControlPanel =
+              isStaffAdmin || role == 'teacher';
           final showArchivedSections = isStaffAdmin;
 
           return Column(
@@ -101,7 +103,7 @@ class _ClassesPageState extends State<ClassesPage> {
                   showArchivedSections: showArchivedSections,
                   canCreateClass: isStaffAdmin,
                   onCreateClass: _showCreateClassDialog,
-                  canOpenControlPanel: isStaffAdmin,
+                  canOpenControlPanel: canOpenControlPanel,
                   onOpenControlPanel: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(

@@ -13,6 +13,7 @@ class HomeworkResultDetailScreen extends StatefulWidget {
   final String studentName;
   final String sessionLabel;
   final bool isAdmin;
+  final bool canReturnForRevision;
 
   const HomeworkResultDetailScreen({
     super.key,
@@ -21,6 +22,7 @@ class HomeworkResultDetailScreen extends StatefulWidget {
     required this.studentName,
     required this.sessionLabel,
     required this.isAdmin,
+    this.canReturnForRevision = false,
   });
 
   @override
@@ -193,7 +195,7 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
                   padding: const EdgeInsets.fromLTRB(22, 22, 22, 34),
                   children: [
                     _SummaryCard(result: result),
-                    if (widget.isAdmin &&
+                    if (widget.canReturnForRevision &&
                         result.submitted &&
                         !result.isHistorical) ...[
                       const SizedBox(height: 14),

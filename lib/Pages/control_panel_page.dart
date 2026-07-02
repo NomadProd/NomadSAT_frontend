@@ -41,13 +41,16 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
 
   Future<_ControlPanelData> _load() async {
     final user = await _authService.fetchMe();
+    final role = user.role.toLowerCase();
     final classes = await _classService.fetchClasses(archived: false);
     final details = await Future.wait(
       classes.map((classInfo) {
         return _classService.fetchClassFullDetail(classInfo.classId);
       }),
     );
-    final users = await _classService.fetchUsers();
+    final users = _canManageUsers(role)
+        ? await _classService.fetchUsers()
+        : _usersFromClassDetails(details);
 
     details.sort((a, b) => a.className.compareTo(b.className));
     users.sort((a, b) {
@@ -993,6 +996,7 @@ Widget _classCategoryTable({
   required _ClassTableCategory category,
 }) {
   final isStaff = _isStaffRole(currentUserRole);
+  final canReturnForRevision = _canReturnForRevision(currentUserRole);
   switch (category) {
     case _ClassTableCategory.students:
       return DataTable(
@@ -1109,6 +1113,7 @@ Widget _classCategoryTable({
                                     result.assignmentId,
                                   ),
                                   isAdmin: isStaff,
+                                  canReturnForRevision: canReturnForRevision,
                                 ),
                               ),
                             );
@@ -1738,6 +1743,31 @@ bool _canManageUsers(String role) {
 bool _isStaffRole(String role) {
   final normalized = role.toLowerCase();
   return normalized == 'admin' || normalized == 'mentor';
+}
+
+bool _canReturnForRevision(String role) {
+  final normalized = role.toLowerCase();
+  return normalized == 'admin' ||
+      normalized == 'mentor' ||
+      normalized == 'teacher';
+}
+
+List<UserInfo> _usersFromClassDetails(List<ClassFullDetailInfo> details) {
+  final byId = <int, UserInfo>{};
+  for (final detail in details) {
+    for (final student in detail.students) {
+      byId[student.userId] = student;
+    }
+    final verbalTeacher = detail.verbalTeacher;
+    if (verbalTeacher != null) {
+      byId[verbalTeacher.userId] = verbalTeacher;
+    }
+    final mathTeacher = detail.mathTeacher;
+    if (mathTeacher != null) {
+      byId[mathTeacher.userId] = mathTeacher;
+    }
+  }
+  return byId.values.toList();
 }
 
 String _capitalize(String value) {
