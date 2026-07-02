@@ -313,35 +313,6 @@ double _calendarRowGap(bool compact) => compact ? 6 : 10;
 
 double _calendarCellAspectRatio(bool compact) => compact ? 1.1 : 1.2;
 
-void _agentLogTimetable(
-  String location,
-  String message,
-  Map<String, dynamic> data,
-  String hypothesisId,
-) {
-  // #region agent log
-  http
-      .post(
-        Uri.parse(
-          'http://127.0.0.1:7698/ingest/65637874-c5bf-45fd-a1a7-6e90b8027bca',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Debug-Session-Id': '9ed305',
-        },
-        body: jsonEncode({
-          'sessionId': '9ed305',
-          'location': location,
-          'message': message,
-          'data': data,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-          'hypothesisId': hypothesisId,
-        }),
-      )
-      .catchError((_) => http.Response('', 500));
-  // #endregion
-}
-
 class _CalendarSevenColumnRow extends StatelessWidget {
   final double horizontalGap;
   final List<Widget> children;
@@ -485,24 +456,6 @@ class _CalendarDateGridCell extends StatelessWidget {
 
         final key = _formatDateForApi(day!);
         final daySessions = sessionsByDate[key] ?? const <SessionInfo>[];
-
-        // #region agent log
-        _agentLogTimetable(
-          'timetable_page.dart:_CalendarDateGridCell',
-          'cell constraints',
-          {
-            'cellWidth': width,
-            'cellHeight': height,
-            'compact': compact,
-            'aspectRatio': aspectRatio,
-            'sessionCount': daySessions.length,
-            'hasTopic': daySessions.any(
-              (s) => (s.topic ?? '').trim().isNotEmpty,
-            ),
-          },
-          'H1',
-        );
-        // #endregion
 
         return SizedBox(
           height: height,
@@ -934,20 +887,6 @@ class _CompactSessionChip extends StatelessWidget {
     final typeLabel = _capitalize(session.sessionType);
     final tutorLabel = _compactTeacherName(teacher);
 
-    // #region agent log
-    _agentLogTimetable(
-      'timetable_page.dart:_CompactSessionChip',
-      'chip content',
-      {
-        'typeLabel': typeLabel,
-        'time': _compactTime(session.startTime),
-        'tutorLabel': tutorLabel,
-        'sessionType': session.sessionType,
-      },
-      'H2',
-    );
-    // #endregion
-
     return Tooltip(
       message: [
         typeLabel,
@@ -957,18 +896,6 @@ class _CompactSessionChip extends StatelessWidget {
       ].join('\n'),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // #region agent log
-          _agentLogTimetable(
-            'timetable_page.dart:_CompactSessionChip',
-            'chip constraints',
-            {
-              'maxWidth': constraints.maxWidth,
-              'maxHeight': constraints.maxHeight,
-            },
-            'H1',
-          );
-          // #endregion
-
           return Container(
             width: double.infinity,
             height: constraints.maxHeight,

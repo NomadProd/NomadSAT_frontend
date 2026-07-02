@@ -1,42 +1,10 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Pages/class_detail_page.dart';
 import 'package:flutter_web/Pages/control_panel_page.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
-
-void _agentLog(
-  String location,
-  String message,
-  Map<String, dynamic> data,
-  String hypothesisId,
-) {
-  // #region agent log
-  http
-      .post(
-        Uri.parse(
-          'http://127.0.0.1:7698/ingest/65637874-c5bf-45fd-a1a7-6e90b8027bca',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Debug-Session-Id': '9ed305',
-        },
-        body: jsonEncode({
-          'sessionId': '9ed305',
-          'location': location,
-          'message': message,
-          'data': data,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-          'hypothesisId': hypothesisId,
-        }),
-      )
-      .catchError((_) => http.Response('', 500));
-  // #endregion
-}
 
 List<ClassInfo> _activeClasses(List<ClassInfo> all) {
   return all.where((c) => !c.archived).toList()
@@ -69,19 +37,6 @@ class _ClassesPageState extends State<ClassesPage> {
   Future<_PageData> _loadAll() async {
     final classes = await classService.fetchClasses();
     final user = await authService.fetchMe();
-    // #region agent log
-    _agentLog(
-      'classes_page.dart:_loadAll',
-      'classes fetched',
-      {
-        'total': classes.length,
-        'active': classes.where((c) => !c.archived).length,
-        'archived': classes.where((c) => c.archived).length,
-        'role': user.role,
-      },
-      'H1',
-    );
-    // #endregion
     return _PageData(classes: classes, user: user);
   }
 
@@ -347,20 +302,6 @@ class _ClassesBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // #region agent log
-    _agentLog(
-      'classes_page.dart:_ClassesBody.build',
-      'render branch',
-      {
-        'showArchivedSections': showArchivedSections,
-        'total': classes.length,
-        'active': classes.where((c) => !c.archived).length,
-        'archived': classes.where((c) => c.archived).length,
-      },
-      'H2',
-    );
-    // #endregion
-
     if (classes.isEmpty) {
       return const _EmptyState();
     }

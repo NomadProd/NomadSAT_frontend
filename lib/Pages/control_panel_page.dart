@@ -202,7 +202,7 @@ class _ControlPanelContent extends StatelessWidget {
           icon: Icons.people_alt_rounded,
           title: 'Users',
           subtitle: 'Users grouped separately by role.',
-          action: data.user.role.toLowerCase() == 'admin'
+          action: _canManageUsers(data.user.role)
               ? TextButton.icon(
                   onPressed: () {
                     Navigator.of(context).push(
@@ -214,18 +214,7 @@ class _ControlPanelContent extends StatelessWidget {
                   icon: const Icon(Icons.open_in_new_rounded, size: 16),
                   label: const Text('Manage users'),
                 )
-              : TextButton.icon(
-                  onPressed: () => _showUserToolsDialog(
-                    context: context,
-                    initialRole: 'student',
-                    currentUserRole: data.user.role,
-                    users: data.users,
-                    classService: classService,
-                    onChanged: onChanged,
-                  ),
-                  icon: const Icon(Icons.edit_rounded, size: 16),
-                  label: const Text('Edit users'),
-                ),
+              : null,
         ),
         const SizedBox(height: 12),
         if (data.users.isEmpty)
@@ -552,260 +541,6 @@ enum _ClassTableCategory {
   homeworkResults,
   mockResults,
   attendance,
-}
-
-Future<void> _showUserToolsDialog({
-  required BuildContext context,
-  required String initialRole,
-  required String currentUserRole,
-  required List<UserInfo> users,
-  required ClassService classService,
-  required VoidCallback onChanged,
-  UserInfo? initialUser,
-}) async {
-  final nameController = TextEditingController();
-  final surnameController = TextEditingController();
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  final isAdmin = currentUserRole.toLowerCase() == 'admin';
-  final canDeleteUsers = isAdmin;
-  final deleteUsers = users;
-  final roleOptions = isAdmin
-      ? ['student', 'teacher', 'mentor', 'admin']
-      : ['student', 'teacher'];
-
-  String createRole = roleOptions.contains(initialRole)
-      ? initialRole
-      : 'student';
-  String changeRole = createRole;
-  final selectedUser = initialUser == null
-      ? null
-      : users.where((user) => user.userId == initialUser.userId).firstOrNull;
-  UserInfo? roleTarget = selectedUser ?? (users.isEmpty ? null : users.first);
-  UserInfo? deleteTarget =
-      selectedUser != null &&
-          deleteUsers.any((user) => user.userId == selectedUser.userId)
-      ? selectedUser
-      : (deleteUsers.isEmpty ? null : deleteUsers.first);
-
-  await showDialog(
-    context: context,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (context, setDialogState) {
-        return AlertDialog(
-          title: Text(isAdmin ? 'Edit users' : 'Create user'),
-          content: SizedBox(
-            width: 620,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _SubLabel('Create user'),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      _DialogField(
-                        width: 185,
-                        controller: nameController,
-                        label: 'First name',
-                      ),
-                      _DialogField(
-                        width: 185,
-                        controller: surnameController,
-                        label: 'Last name',
-                      ),
-                      _DialogField(
-                        width: 250,
-                        controller: emailController,
-                        label: 'Email',
-                      ),
-                      _DialogField(
-                        width: 185,
-                        controller: passwordController,
-                        label: 'Password',
-                        obscureText: true,
-                      ),
-                      SizedBox(
-                        width: 185,
-                        child: DropdownButtonFormField<String>(
-                          initialValue: createRole,
-                          decoration: const InputDecoration(labelText: 'Role'),
-                          items: roleOptions
-                              .map(
-                                (role) => DropdownMenuItem(
-                                  value: role,
-                                  child: Text(_capitalize(role)),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (value) {
-                            if (value == null) return;
-                            setDialogState(() => createRole = value);
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FilledButton.icon(
-                      onPressed: () async {
-                        final result = await classService.createUser(
-                          email: emailController.text.trim(),
-                          password: passwordController.text.trim(),
-                          name: nameController.text.trim(),
-                          surname: surnameController.text.trim(),
-                          role: createRole,
-                        );
-                        if (!context.mounted) return;
-                        _showResultSnack(context, result);
-                        if (result['success'] == true) {
-                          Navigator.of(dialogContext).pop();
-                          onChanged();
-                        }
-                      },
-                      icon: const Icon(Icons.person_add_rounded, size: 18),
-                      label: const Text('Create user'),
-                    ),
-                  ),
-                  if (isAdmin) ...[
-                    const Divider(height: 28),
-                    const _SubLabel('Change role'),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _UserDropdown(
-                            value: roleTarget,
-                            users: users,
-                            onChanged: (value) {
-                              setDialogState(() => roleTarget = value);
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        SizedBox(
-                          width: 150,
-                          child: DropdownButtonFormField<String>(
-                            initialValue: changeRole,
-                            decoration: const InputDecoration(
-                              labelText: 'New role',
-                            ),
-                            items: roleOptions
-                                .map(
-                                  (role) => DropdownMenuItem(
-                                    value: role,
-                                    child: Text(_capitalize(role)),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              setDialogState(() => changeRole = value);
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        FilledButton(
-                          onPressed: roleTarget == null
-                              ? null
-                              : () async {
-                                  final result = await classService
-                                      .updateUserRole(
-                                        userId: roleTarget!.userId,
-                                        role: changeRole,
-                                      );
-                                  if (!context.mounted) return;
-                                  _showResultSnack(context, result);
-                                  if (result['success'] == true) {
-                                    Navigator.of(dialogContext).pop();
-                                    onChanged();
-                                  }
-                                },
-                          child: const Text('Apply'),
-                        ),
-                      ],
-                    ),
-                  ],
-
-                  if (canDeleteUsers) ...[
-                    const Divider(height: 28),
-                    const _SubLabel('Delete user'),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _UserDropdown(
-                            value: deleteTarget,
-                            users: deleteUsers,
-                            onChanged: (value) {
-                              setDialogState(() => deleteTarget = value);
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFC62828),
-                          ),
-                          onPressed: deleteTarget == null
-                              ? null
-                              : () async {
-                                  final confirmed = await showConfirmDialog(
-                                    context,
-                                    title: 'Delete user',
-                                    body:
-                                        'Delete «${deleteTarget!.name} ${deleteTarget!.surname}» (${deleteTarget!.email ?? 'no email'})? This cannot be undone.',
-                                  );
-                                  if (!confirmed) return;
-
-                                  final result = await classService.deleteUser(
-                                    userId: deleteTarget!.userId,
-                                  );
-
-                                  if (!context.mounted) return;
-                                  if (result['success'] == true) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('User deleted')),
-                                    );
-                                    Navigator.of(dialogContext).pop();
-                                    onChanged();
-                                    return;
-                                  }
-
-                                  final message =
-                                      result['error'] == 'SELF_DELETE_FORBIDDEN'
-                                      ? 'You cannot delete your own account'
-                                      : result['message']?.toString() ??
-                                            'Failed to delete user. Try again.';
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(message)),
-                                  );
-                                },
-                          icon: const Icon(Icons.delete_rounded, size: 18),
-                          label: const Text('Delete'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    ),
-  );
 }
 
 Future<void> _showHomeworkResultEditDialog({
@@ -1586,37 +1321,6 @@ Future<html.File?> _pickImageFile() async {
   return input.files?.isNotEmpty == true ? input.files!.first : null;
 }
 
-class _UserDropdown extends StatelessWidget {
-  final UserInfo? value;
-  final List<UserInfo> users;
-  final ValueChanged<UserInfo?> onChanged;
-
-  const _UserDropdown({
-    required this.value,
-    required this.users,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButtonFormField<int>(
-      initialValue: value?.userId,
-      decoration: const InputDecoration(labelText: 'User'),
-      items: users
-          .map(
-            (user) => DropdownMenuItem(
-              value: user.userId,
-              child: Text('${user.fullName} (${user.role})'),
-            ),
-          )
-          .toList(),
-      onChanged: (userId) {
-        onChanged(users.where((user) => user.userId == userId).firstOrNull);
-      },
-    );
-  }
-}
-
 void _showResultSnack(BuildContext context, Map<String, dynamic> result) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
@@ -2024,6 +1728,11 @@ BoxDecoration _panelDecoration() {
 String _nameOf(UserInfo? user) {
   final name = user?.fullName ?? '';
   return name.isEmpty ? '-' : name;
+}
+
+bool _canManageUsers(String role) {
+  final normalized = role.toLowerCase();
+  return normalized == 'admin' || normalized == 'mentor';
 }
 
 String _capitalize(String value) {

@@ -1,10 +1,8 @@
 library class_detail;
 
-import 'dart:convert';
 import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';

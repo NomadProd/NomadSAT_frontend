@@ -241,11 +241,29 @@ class ClassService {
     required int userId,
     required String role,
   }) async {
+    return updateUser(userId: userId, role: role);
+  }
+
+  Future<Map<String, dynamic>> updateUser({
+    required int userId,
+    String? email,
+    String? password,
+    String? name,
+    String? surname,
+    String? role,
+  }) async {
     try {
+      final body = <String, dynamic>{};
+      if (email != null) body['email'] = email;
+      if (password != null && password.isNotEmpty) body['password'] = password;
+      if (name != null) body['name'] = name;
+      if (surname != null) body['surname'] = surname;
+      if (role != null) body['role'] = role;
+
       final response = await _client.patch(
         Uri.parse('$baseUrl/users/$userId'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'role': role}),
+        body: jsonEncode(body),
       );
 
       final data = decodeJsonResponse(response);
