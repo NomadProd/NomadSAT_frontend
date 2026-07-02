@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/auth_service.dart';
@@ -7,36 +5,6 @@ import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 import 'package:flutter_web/Widgets/confirm_dialog.dart';
-import 'package:http/http.dart' as http;
-
-// #region agent log
-void _agentDebugLog(
-  String location,
-  String message,
-  Map<String, dynamic> data,
-  String hypothesisId,
-) {
-  http
-      .post(
-        Uri.parse(
-          'http://127.0.0.1:7698/ingest/65637874-c5bf-45fd-a1a7-6e90b8027bca',
-        ),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Debug-Session-Id': '9ed305',
-        },
-        body: jsonEncode({
-          'sessionId': '9ed305',
-          'location': location,
-          'message': message,
-          'data': data,
-          'hypothesisId': hypothesisId,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
-        }),
-      )
-      .catchError((_) => http.Response('', 500));
-}
-// #endregion
 
 class UserListScreen extends StatefulWidget {
   const UserListScreen({super.key});
@@ -71,11 +39,9 @@ class _UserListScreenState extends State<UserListScreen> {
     setState(() => _future = _load());
   }
 
-  String _normalizedRole(UserInfo user) => user.role.trim().toLowerCase();
+  bool _isAdmin(UserInfo user) => user.role.toLowerCase() == 'admin';
 
-  bool _isAdmin(UserInfo user) => _normalizedRole(user) == 'admin';
-
-  bool _isMentor(UserInfo user) => _normalizedRole(user) == 'mentor';
+  bool _isMentor(UserInfo user) => user.role.toLowerCase() == 'mentor';
 
   bool _isStaffAdmin(UserInfo user) => _isAdmin(user) || _isMentor(user);
 
@@ -88,44 +54,11 @@ class _UserListScreenState extends State<UserListScreen> {
 
   bool _canDeleteTarget(UserInfo actor, UserInfo target) {
     if (_isAdmin(actor)) return actor.userId != target.userId;
-    if (_isMentor(actor)) return _normalizedRole(target) == 'student';
+    if (_isMentor(actor)) return target.role.toLowerCase() == 'student';
     return false;
   }
 
   List<UserInfo> _visibleUsers(UserInfo actor, List<UserInfo> users) => users;
-
-  List<TuranHeaderAction> _buildHeaderActions({
-    required bool canManageUsers,
-    required VoidCallback onCreate,
-    required VoidCallback onRefresh,
-  }) {
-    final actions = <TuranHeaderAction>[
-      if (canManageUsers)
-        TuranHeaderAction(
-          icon: Icons.person_add_rounded,
-          label: 'Create user',
-          onTap: onCreate,
-        ),
-      TuranHeaderAction(
-        icon: Icons.refresh_rounded,
-        label: 'Refresh',
-        onTap: onRefresh,
-      ),
-    ];
-    // #region agent log
-    _agentDebugLog(
-      'user_list_screen.dart:_buildHeaderActions',
-      'header actions built',
-      {
-        'canManageUsers': canManageUsers,
-        'actionCount': actions.length,
-        'actionLabels': actions.map((a) => a.label).toList(),
-      },
-      'H1',
-    );
-    // #endregion
-    return actions;
-  }
 
   Future<void> _showCreateDialog(UserInfo actor) async {
     final nameController = TextEditingController();
@@ -400,21 +333,6 @@ class _UserListScreenState extends State<UserListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: TuranColors.bg,
-      floatingActionButton: FutureBuilder<_UserListData>(
-        future: _future,
-        builder: (context, snap) {
-          final currentUser = snap.data?.currentUser;
-          final canManageUsers =
-              currentUser != null && _isStaffAdmin(currentUser);
-          if (!canManageUsers) return const SizedBox.shrink();
-          return FloatingActionButton.extended(
-            onPressed: () => _showCreateDialog(currentUser!),
-            icon: const Icon(Icons.person_add_rounded),
-            label: const Text('Create user'),
-            backgroundColor: TuranColors.primary,
-          );
-        },
-      ),
       body: FutureBuilder<_UserListData>(
         future: _future,
         builder: (context, snap) {
@@ -422,22 +340,6 @@ class _UserListScreenState extends State<UserListScreen> {
           final canAccess = currentUser != null && _canAccess(currentUser);
           final isStaffAdmin = currentUser != null && _isStaffAdmin(currentUser);
           final isMentor = currentUser != null && _isMentor(currentUser);
-          // #region agent log
-          _agentDebugLog(
-            'user_list_screen.dart:build',
-            'users screen state',
-            {
-              'hasData': snap.hasData,
-              'hasError': snap.hasError,
-              'canAccess': canAccess,
-              'isStaffAdmin': isStaffAdmin,
-              'role': currentUser?.role,
-              'normalizedRole':
-                  currentUser == null ? null : _normalizedRole(currentUser),
-            },
-            'H2',
-          );
-          // #endregion
 
           return Column(
             children: [
@@ -449,11 +351,19 @@ class _UserListScreenState extends State<UserListScreen> {
                     : 'User management',
                 pageLabel: isMentor ? 'Mentor' : 'Admin',
                 onBack: () => Navigator.of(context).pop(),
-                actions: _buildHeaderActions(
-                  canManageUsers: isStaffAdmin,
-                  onCreate: () => _showCreateDialog(currentUser!),
-                  onRefresh: _reload,
-                ),
+                actions: [
+                  if (canAccess)
+                    TuranHeaderAction(
+                      icon: Icons.person_add_rounded,
+                      label: 'Create user',
+                      onTap: () => _showCreateDialog(currentUser!),
+                    ),
+                  TuranHeaderAction(
+                    icon: Icons.refresh_rounded,
+                    label: 'Refresh',
+                    onTap: _reload,
+                  ),
+                ],
               ),
               Expanded(
                 child: snap.connectionState == ConnectionState.waiting
@@ -466,36 +376,15 @@ class _UserListScreenState extends State<UserListScreen> {
                     ? Center(child: Text('Failed to load users: ${snap.error}'))
                     : !canAccess
                     ? const Center(child: Text('Access denied'))
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (isStaffAdmin)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(22, 16, 22, 0),
-                              child: FilledButton.icon(
-                                onPressed: () =>
-                                    _showCreateDialog(currentUser!),
-                                icon: const Icon(Icons.person_add_rounded),
-                                label: const Text('Create user'),
-                              ),
-                            ),
-                          Expanded(
-                            child: _UserListBody(
-                              users: _visibleUsers(
-                                currentUser!,
-                                snap.data!.users,
-                              ),
-                              currentUser: currentUser,
-                              canEdit: (target) =>
-                                  _canEditTarget(currentUser, target),
-                              canDelete: (target) =>
-                                  _canDeleteTarget(currentUser, target),
-                              onEdit: (user) =>
-                                  _showEditDialog(currentUser, user),
-                              onDelete: _deleteUser,
-                            ),
-                          ),
-                        ],
+                    : _UserListBody(
+                        users: _visibleUsers(currentUser!, snap.data!.users),
+                        currentUser: currentUser,
+                        canEdit: (target) =>
+                            _canEditTarget(currentUser, target),
+                        canDelete: (target) =>
+                            _canDeleteTarget(currentUser, target),
+                        onEdit: (user) => _showEditDialog(currentUser, user),
+                        onDelete: _deleteUser,
                       ),
               ),
             ],
