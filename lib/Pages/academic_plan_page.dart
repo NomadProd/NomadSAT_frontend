@@ -563,7 +563,7 @@ class _AcademicPlanPageState extends State<AcademicPlanPage>
       _verbal = results[0] as List<AcademicPlanEntry>;
       _math = results[1] as List<AcademicPlanEntry>;
       _canEditPlan = role == 'admin' || role == 'mentor' || role == 'teacher';
-      _canDeletePlan = role == 'admin';
+      _canDeletePlan = role == 'admin' || role == 'mentor';
       _loading = false;
     });
   }

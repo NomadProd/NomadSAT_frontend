@@ -43,29 +43,30 @@ class _UserListScreenState extends State<UserListScreen> {
 
   bool _isMentor(UserInfo user) => user.role.toLowerCase() == 'mentor';
 
-  bool _canAccess(UserInfo user) => _isAdmin(user) || _isMentor(user);
+  bool _isStaffAdmin(UserInfo user) => _isAdmin(user) || _isMentor(user);
 
-  bool _canManageTarget(UserInfo actor, UserInfo target) {
+  bool _canAccess(UserInfo user) => _isStaffAdmin(user);
+
+  bool _canEditTarget(UserInfo actor, UserInfo target) {
+    if (!_isStaffAdmin(actor)) return false;
+    return actor.userId != target.userId;
+  }
+
+  bool _canDeleteTarget(UserInfo actor, UserInfo target) {
     if (_isAdmin(actor)) return actor.userId != target.userId;
     if (_isMentor(actor)) return target.role.toLowerCase() == 'student';
     return false;
   }
 
-  List<UserInfo> _visibleUsers(UserInfo actor, List<UserInfo> users) {
-    if (_isAdmin(actor)) return users;
-    return users.where((u) => u.role.toLowerCase() == 'student').toList();
-  }
+  List<UserInfo> _visibleUsers(UserInfo actor, List<UserInfo> users) => users;
 
   Future<void> _showCreateDialog(UserInfo actor) async {
-    final isAdmin = _isAdmin(actor);
     final nameController = TextEditingController();
     final surnameController = TextEditingController();
     final emailController = TextEditingController();
     final passwordController = TextEditingController();
     var selectedRole = 'student';
-    final roleOptions = isAdmin
-        ? ['student', 'teacher', 'mentor', 'admin']
-        : ['student'];
+    const roleOptions = ['student', 'teacher', 'mentor', 'admin'];
 
     final createdRole = await showDialog<String>(
       context: context,
@@ -100,13 +101,12 @@ class _UserListScreenState extends State<UserListScreen> {
                     label: 'Password',
                     obscureText: true,
                   ),
-                  if (isAdmin)
-                    SizedBox(
-                      width: 240,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: selectedRole,
-                        decoration: const InputDecoration(labelText: 'Role'),
-                        items: roleOptions
+                  SizedBox(
+                    width: 240,
+                    child: DropdownButtonFormField<String>(
+                      initialValue: selectedRole,
+                      decoration: const InputDecoration(labelText: 'Role'),
+                      items: roleOptions
                             .map(
                               (role) => DropdownMenuItem(
                                 value: role,
@@ -187,7 +187,6 @@ class _UserListScreenState extends State<UserListScreen> {
   }
 
   Future<void> _showEditDialog(UserInfo actor, UserInfo user) async {
-    final isAdmin = _isAdmin(actor);
     final nameController = TextEditingController(text: user.name);
     final surnameController = TextEditingController(text: user.surname);
     final emailController = TextEditingController(text: user.email ?? '');
@@ -228,13 +227,12 @@ class _UserListScreenState extends State<UserListScreen> {
                     label: 'New password (optional)',
                     obscureText: true,
                   ),
-                  if (isAdmin)
-                    SizedBox(
-                      width: 240,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: selectedRole,
-                        decoration: const InputDecoration(labelText: 'Role'),
-                        items: roleOptions
+                  SizedBox(
+                    width: 240,
+                    child: DropdownButtonFormField<String>(
+                      initialValue: selectedRole,
+                      decoration: const InputDecoration(labelText: 'Role'),
+                      items: roleOptions
                             .map(
                               (role) => DropdownMenuItem(
                                 value: role,
@@ -267,7 +265,7 @@ class _UserListScreenState extends State<UserListScreen> {
                   password: passwordController.text.trim().isEmpty
                       ? null
                       : passwordController.text.trim(),
-                  role: isAdmin ? selectedRole : null,
+                  role: selectedRole,
                 );
                 if (!context.mounted) return;
                 if (result['success'] == true) {
@@ -340,7 +338,7 @@ class _UserListScreenState extends State<UserListScreen> {
         builder: (context, snap) {
           final currentUser = snap.data?.currentUser;
           final canAccess = currentUser != null && _canAccess(currentUser);
-          final isAdmin = currentUser != null && _isAdmin(currentUser);
+          final isStaffAdmin = currentUser != null && _isStaffAdmin(currentUser);
           final isMentor = currentUser != null && _isMentor(currentUser);
 
           return Column(
@@ -348,12 +346,10 @@ class _UserListScreenState extends State<UserListScreen> {
               TuranHeader(
                 user: currentUser,
                 title: 'Users',
-                subtitle: isAdmin
-                    ? 'Admin user management'
-                    : isMentor
-                    ? 'Manage students'
+                subtitle: isStaffAdmin
+                    ? 'Staff user management'
                     : 'User management',
-                pageLabel: isAdmin ? 'Admin' : 'Mentor',
+                pageLabel: isMentor ? 'Mentor' : 'Admin',
                 onBack: () => Navigator.of(context).pop(),
                 actions: [
                   if (canAccess)
@@ -383,8 +379,10 @@ class _UserListScreenState extends State<UserListScreen> {
                     : _UserListBody(
                         users: _visibleUsers(currentUser!, snap.data!.users),
                         currentUser: currentUser,
-                        canManage: (target) =>
-                            _canManageTarget(currentUser, target),
+                        canEdit: (target) =>
+                            _canEditTarget(currentUser, target),
+                        canDelete: (target) =>
+                            _canDeleteTarget(currentUser, target),
                         onEdit: (user) => _showEditDialog(currentUser, user),
                         onDelete: _deleteUser,
                       ),
@@ -407,14 +405,16 @@ class _UserListData {
 class _UserListBody extends StatelessWidget {
   final List<UserInfo> users;
   final UserInfo currentUser;
-  final bool Function(UserInfo target) canManage;
+  final bool Function(UserInfo target) canEdit;
+  final bool Function(UserInfo target) canDelete;
   final ValueChanged<UserInfo> onEdit;
   final ValueChanged<UserInfo> onDelete;
 
   const _UserListBody({
     required this.users,
     required this.currentUser,
-    required this.canManage,
+    required this.canEdit,
+    required this.canDelete,
     required this.onEdit,
     required this.onDelete,
   });
@@ -431,7 +431,8 @@ class _UserListBody extends StatelessWidget {
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final user = users[index];
-        final manageable = canManage(user);
+        final editable = canEdit(user);
+        final deletable = canDelete(user);
 
         return Material(
           color: TuranColors.surface,
@@ -466,20 +467,21 @@ class _UserListBody extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (manageable) ...[
+                if (editable) ...[
                   IconButton(
                     tooltip: 'Edit user',
                     icon: const Icon(Icons.edit_outlined),
                     color: TuranColors.primary,
                     onPressed: () => onEdit(user),
                   ),
+                ],
+                if (deletable)
                   IconButton(
                     tooltip: 'Delete user',
                     icon: const Icon(Icons.delete_outline_rounded),
                     color: TuranColors.error,
                     onPressed: () => onDelete(user),
                   ),
-                ],
               ],
             ),
           ),

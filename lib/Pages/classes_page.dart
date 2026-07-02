@@ -88,8 +88,8 @@ class _ClassesPageState extends State<ClassesPage> {
 
           final data = snap.data!;
           final role = data.user.role.toLowerCase();
-          final isAdmin = role == 'admin' || role == 'mentor';
-          final showArchivedSections = role == 'admin';
+          final isStaffAdmin = role == 'admin' || role == 'mentor';
+          final showArchivedSections = isStaffAdmin;
 
           return Column(
             children: [
@@ -98,9 +98,9 @@ class _ClassesPageState extends State<ClassesPage> {
                 child: _ClassesContent(
                   classes: data.classes,
                   showArchivedSections: showArchivedSections,
-                  canCreateClass: isAdmin,
+                  canCreateClass: isStaffAdmin,
                   onCreateClass: _showCreateClassDialog,
-                  canOpenControlPanel: isAdmin,
+                  canOpenControlPanel: isStaffAdmin,
                   onOpenControlPanel: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(

@@ -74,6 +74,11 @@ InputDecoration _fieldDeco(String label, {String? hint, Widget? suffixIcon}) {
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 bool _isMockSession(SessionInfo s) => s.sessionType.toLowerCase() == 'mock';
 
+bool _isStaffAdmin(String role) {
+  final normalized = role.toLowerCase();
+  return normalized == 'admin' || normalized == 'mentor';
+}
+
 bool _canOpenStudentProgress(UserInfo user) {
   final role = user.role.toLowerCase();
   return role == 'admin' || role == 'mentor' || role == 'teacher';
@@ -398,8 +403,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final detail = await classService.fetchClassFullDetail(widget.classId);
 
     final role = user.role.toLowerCase();
-    final isAdmin = role == 'admin';
-    final canManageClass = isAdmin || role == 'mentor';
+    final canManageClass = _isStaffAdmin(role);
     final canLoadDirectories = canManageClass;
     final teachersFuture = canLoadDirectories
         ? classService.fetchTeachers()
@@ -1069,7 +1073,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     required AssignmentInfo assignment,
   }) async {
     final role = _pageData?.user.role.toLowerCase();
-    if (role != 'admin' && role != 'teacher') return;
+    if (!_isStaffAdmin(role ?? '') && role != 'teacher') return;
 
     final slotLabel = assignment.slotIndex?.toString() ?? '?';
     final ok = await _confirmDialog(
@@ -1128,7 +1132,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
   // в”Ђв”Ђв”Ђ Delete assignment в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
   Future<void> _deleteAssignment({required AssignmentInfo assignment}) async {
     final role = _pageData?.user.role.toLowerCase();
-    if (role != 'admin' && role != 'teacher') return;
+    if (!_isStaffAdmin(role ?? '') && role != 'teacher') return;
     final ok = await _confirmDialog(
       context,
       icon: Icons.delete_outline_rounded,
@@ -1458,7 +1462,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     if (d == null) return;
     final role = d.user.role.toLowerCase();
     if (role != 'admin' && role != 'mentor') return;
-    final canDelete = role == 'admin';
+    final canDelete = _isStaffAdmin(role);
     await showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -1594,7 +1598,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
   Future<void> _openStudentsDialog({required List<UserInfo> students}) async {
     final role = _pageData?.user.role.toLowerCase();
     if (role != 'admin' && role != 'mentor') return;
-    final canRemove = role == 'admin';
+    final canRemove = _isStaffAdmin(role);
     await showDialog(
       context: context,
       builder: (ctx) => Dialog(
@@ -1963,9 +1967,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
 
   Widget _buildBody(_PageData data) {
     final role = data.user.role.toLowerCase();
-    final isAdmin = role == 'admin';
-    final canDeleteHomework = isAdmin || role == 'teacher';
-    final canManageClass = isAdmin || role == 'mentor';
+    final isStaffAdmin = _isStaffAdmin(role);
+    final canDeleteHomework = isStaffAdmin || role == 'teacher';
+    final canManageClass = isStaffAdmin;
     final canOpenStudentProgress = _canOpenStudentProgress(data.user);
     final selected = data.sessions.firstWhere(
       (s) => s.sessionId == _selectedSessionId,

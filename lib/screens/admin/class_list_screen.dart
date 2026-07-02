@@ -110,14 +110,15 @@ class _ClassListScreenState extends State<ClassListScreen> {
         future: _future,
         builder: (context, snap) {
           final user = snap.data?.user;
-          final isAdmin = user?.role.toLowerCase() == 'admin';
+          final isStaffAdmin = user?.role.toLowerCase() == 'admin' ||
+              user?.role.toLowerCase() == 'mentor';
 
           return Column(
             children: [
               TuranHeader(
                 user: user,
                 title: 'Classes',
-                subtitle: isAdmin
+                subtitle: isStaffAdmin
                     ? 'Active and archived classes'
                     : 'Admin class management',
                 pageLabel: 'Admin',
@@ -139,13 +140,13 @@ class _ClassListScreenState extends State<ClassListScreen> {
                     ? Center(child: Text('Failed to load classes: ${snap.error}'))
                     : _ClassListBody(
                         classes: snap.data!.classes,
-                        isAdmin: isAdmin,
+                        isAdmin: isStaffAdmin,
                         onOpen: (classInfo) async {
                           final deleted = await Navigator.of(context).push<bool>(
                             MaterialPageRoute(
                               builder: (_) => ClassDetailScreen(
                                 classId: classInfo.classId,
-                                isAdmin: isAdmin,
+                                isAdmin: isStaffAdmin,
                               ),
                             ),
                           );
@@ -153,12 +154,12 @@ class _ClassListScreenState extends State<ClassListScreen> {
                             _reload();
                           }
                         },
-                        onDelete: isAdmin ? _deleteClass : null,
-                        onArchive: isAdmin
+                        onDelete: isStaffAdmin ? _deleteClass : null,
+                        onArchive: isStaffAdmin
                             ? (classInfo) =>
                                   _setClassArchived(classInfo, archived: true)
                             : null,
-                        onRestore: isAdmin
+                        onRestore: isStaffAdmin
                             ? (classInfo) =>
                                   _setClassArchived(classInfo, archived: false)
                             : null,
