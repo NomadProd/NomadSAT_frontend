@@ -1596,7 +1596,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
   }
 
   Future<void> _openStudentsDialog({required List<UserInfo> students}) async {
-    final role = _pageData?.user.role.toLowerCase();
+    final pageData = _pageData;
+    if (pageData == null) return;
+    final role = pageData.user.role.toLowerCase();
     if (role != 'admin' && role != 'mentor') return;
     final canRemove = _isStaffAdmin(role);
     await showDialog(
