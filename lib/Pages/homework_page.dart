@@ -100,7 +100,7 @@ class _HomeworkPageState extends State<HomeworkPage>
             assignment.assignmentId,
           );
           mockResult = results
-              .where((r) => r.studentId == user.userId && r.submitted)
+              .where((r) => r.studentId == user.userId)
               .firstOrNull;
         } else {
           final results = await _classService.fetchHomeworkResultsByAssignment(

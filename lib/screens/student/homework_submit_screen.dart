@@ -22,7 +22,8 @@ const _kError = TuranColors.error;
 const _kWarning = TuranColors.warning;
 
 const _maxFiles = 10;
-const _maxFileSizeBytes = 52428800;
+const _maxFileSizeBytes = 10 * 1024 * 1024;
+const _maxFileSizeMessage = 'File size cannot exceed 10mb';
 const _allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'pdf'];
 
 class HomeworkSubmitScreen extends StatefulWidget {
@@ -189,7 +190,7 @@ class _HomeworkSubmitScreenState extends State<HomeworkSubmitScreen>
         return;
       }
       if (file.size > _maxFileSizeBytes) {
-        _showBannerError('«${file.name}» exceeds the 50 MB limit');
+        _showBannerError(_maxFileSizeMessage);
         return;
       }
     }

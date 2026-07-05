@@ -22,7 +22,8 @@ const _kError = Color(0xFFC62828);
 const _kMock = Color(0xFFEF6C00);
 
 const _maxFiles = 10;
-const _maxFileSizeBytes = 52428800;
+const _maxFileSizeBytes = 10 * 1024 * 1024;
+const _maxFileSizeMessage = 'File size cannot exceed 10mb';
 const _allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'pdf'];
 
 class MockResultDetailPage extends StatefulWidget {
@@ -89,7 +90,38 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
       if (result.resultId > 0) {
         _reloadResult(result.resultId);
       }
+    } else {
+      _loadExistingMockResultIfAny();
     }
+  }
+
+  Future<void> _loadExistingMockResultIfAny() async {
+    try {
+      final results = await _classService.fetchMockResultsByAssignment(
+        widget.assignment.assignmentId,
+      );
+      final existing = results
+          .where((r) => r.studentId == widget.assignment.studentId)
+          .firstOrNull;
+      if (existing == null || existing.resultId <= 0) return;
+      if (!mounted) return;
+
+      _verbalController.text = existing.verbalPoints?.toString() ?? '';
+      _mathController.text = existing.mathPoints?.toString() ?? '';
+      _analysisController.text = existing.weakAreas ?? '';
+      await _reloadResult(existing.resultId);
+    } catch (_) {}
+  }
+
+  Future<int?> _resolveExistingMockResultId() async {
+    final results = await _classService.fetchMockResultsByAssignment(
+      widget.assignment.assignmentId,
+    );
+    final existing = results
+        .where((r) => r.studentId == widget.assignment.studentId)
+        .firstOrNull;
+    if (existing == null || existing.resultId <= 0) return null;
+    return existing.resultId;
   }
 
   @override
@@ -162,7 +194,7 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
         return;
       }
       if (file.size > _maxFileSizeBytes) {
-        _showBannerError('«${file.name}» exceeds the 50 MB limit');
+        _showBannerError(_maxFileSizeMessage);
         return;
       }
     }
@@ -221,7 +253,15 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
     );
 
     if (created['success'] != true) {
-      setState(() => _error = created['message']?.toString() ?? 'Could not create result');
+      final msg = created['message']?.toString() ?? 'Could not create result';
+      if (msg.toLowerCase().contains('already exists')) {
+        final resultId = await _resolveExistingMockResultId();
+        if (resultId != null) {
+          await _reloadResult(resultId);
+          return resultId;
+        }
+      }
+      setState(() => _error = msg);
       return null;
     }
 

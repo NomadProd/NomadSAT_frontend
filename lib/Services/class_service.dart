@@ -13,6 +13,9 @@ import 'package:flutter_web/Models/homework_result.dart';
 import 'package:flutter_web/Models/mock_result.dart';
 
 class ClassService {
+  static const int maxUploadFileSizeBytes = 10 * 1024 * 1024;
+  static const String maxUploadFileSizeMessage = 'File size cannot exceed 10mb';
+
   final String baseUrl = ApiConfig.baseUrl;
   final http.Client _client = BrowserClient()..withCredentials = true;
 
@@ -888,11 +891,25 @@ class ClassService {
     }
   }
 
+  String? _uploadFileSizeError(List<PlatformFile> files) {
+    for (final file in files) {
+      if (file.size > maxUploadFileSizeBytes) {
+        return maxUploadFileSizeMessage;
+      }
+    }
+    return null;
+  }
+
   Future<Map<String, dynamic>> uploadHomeworkResultFiles({
     required int resultId,
     required List<PlatformFile> files,
   }) async {
     try {
+      final sizeError = _uploadFileSizeError(files);
+      if (sizeError != null) {
+        return {'success': false, 'message': sizeError, 'status_code': 422};
+      }
+
       final request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/homework-results/$resultId/upload'),
@@ -930,7 +947,7 @@ class ClassService {
       if (response.statusCode == 422) {
         return {
           'success': false,
-          'message': _formatHomeworkUploadValidationError(data),
+          'message': _formatUploadValidationError(data),
           'status_code': 422,
         };
       }
@@ -958,7 +975,7 @@ class ClassService {
     }
   }
 
-  String _formatHomeworkUploadValidationError(Map<String, dynamic> data) {
+  String _formatUploadValidationError(Map<String, dynamic> data) {
     final error = data['error']?.toString();
     final filename = data['filename']?.toString();
 
@@ -969,10 +986,9 @@ class ClassService {
         }
         return 'One or more files have an unsupported type';
       case 'FILE_TOO_LARGE':
-        if (filename != null && filename.isNotEmpty) {
-          return '«$filename» exceeds the 50 MB limit';
-        }
-        return 'One or more files exceed the 50 MB limit';
+        final detail = data['detail'];
+        if (detail is String && detail.isNotEmpty) return detail;
+        return maxUploadFileSizeMessage;
       case 'TOO_MANY_FILES':
         return 'Maximum 10 files per submission';
       default:
@@ -1094,6 +1110,11 @@ class ClassService {
     required List<PlatformFile> files,
   }) async {
     try {
+      final sizeError = _uploadFileSizeError(files);
+      if (sizeError != null) {
+        return {'success': false, 'message': sizeError, 'status_code': 422};
+      }
+
       final request = http.MultipartRequest(
         'POST',
         Uri.parse('$baseUrl/mock-results/$resultId/upload'),
@@ -1129,12 +1150,9 @@ class ClassService {
       }
 
       if (response.statusCode == 422) {
-        final detail = data['detail'];
         return {
           'success': false,
-          'message': detail is String
-              ? detail
-              : detail?.toString() ?? 'Validation failed',
+          'message': _formatUploadValidationError(data),
           'status_code': 422,
         };
       }
