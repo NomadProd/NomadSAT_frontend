@@ -1329,7 +1329,7 @@ class _PlanSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        Text(
+        SelectableText(
           text,
           style: const TextStyle(
             color: _kTextDark,
