@@ -155,10 +155,14 @@ class AssignmentInfo {
 }
 
 class AttendanceInfo {
+  static const String present = 'present';
+  static const String absent = 'absent';
+  static const String excused = 'excused';
+
   final int attendanceId;
   final int sessionId;
   final int studentId;
-  final bool status;
+  final String status;
 
   AttendanceInfo({
     required this.attendanceId,
@@ -167,14 +171,57 @@ class AttendanceInfo {
     required this.status,
   });
 
+  bool get isPresent => status == present;
+  bool get isAbsent => status == absent;
+  bool get isExcused => status == excused;
+
+  String get statusLabel {
+    switch (status) {
+      case present:
+        return 'Present';
+      case excused:
+        return 'Excused';
+      case absent:
+      default:
+        return 'Absent';
+    }
+  }
+
+  /// Cycle: present → absent → excused → present
+  String get nextStatus {
+    switch (status) {
+      case present:
+        return absent;
+      case absent:
+        return excused;
+      case excused:
+        return present;
+      default:
+        return present;
+    }
+  }
+
   factory AttendanceInfo.fromJson(Map<String, dynamic> json) {
     return AttendanceInfo(
       attendanceId: json['attendance_id'] ?? 0,
       sessionId: json['session_id'] ?? 0,
       studentId: json['student_id'] ?? 0,
-      status: json['status'] ?? false,
+      status: _parseAttendanceStatus(json['status']),
     );
   }
+}
+
+String _parseAttendanceStatus(dynamic raw) {
+  if (raw is bool) {
+    return raw ? AttendanceInfo.present : AttendanceInfo.absent;
+  }
+  final value = (raw ?? '').toString().trim().toLowerCase();
+  if (value == AttendanceInfo.present ||
+      value == AttendanceInfo.absent ||
+      value == AttendanceInfo.excused) {
+    return value;
+  }
+  return AttendanceInfo.absent;
 }
 
 class HomeworkResultInfo {

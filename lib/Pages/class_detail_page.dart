@@ -1853,7 +1853,8 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     required int studentId,
     required AttendanceInfo? current,
   }) async {
-    final newStatus = current == null ? true : !current.status;
+    final newStatus =
+        current == null ? AttendanceInfo.present : current.nextStatus;
     setState(() => _savingAttendance = true);
     try {
       final r = await classService.upsertAttendance(

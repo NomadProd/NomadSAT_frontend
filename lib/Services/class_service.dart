@@ -1359,7 +1359,7 @@ class ClassService {
   Future<Map<String, dynamic>> upsertAttendance({
     required int sessionId,
     required int studentId,
-    required bool status,
+    required String status,
   }) async {
     try {
       final response = await _client.post(

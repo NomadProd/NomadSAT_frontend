@@ -1221,7 +1221,7 @@ Widget _classCategoryTable({
                   DataCell(
                     Text(_studentName(detail, users, attendance.studentId)),
                   ),
-                  DataCell(Text(attendance.status ? 'Present' : 'Absent')),
+                  DataCell(Text(attendance.statusLabel)),
                 ],
               ),
             )

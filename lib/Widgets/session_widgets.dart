@@ -616,23 +616,27 @@ class _AttendanceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isNull = attendance == null;
-    final isPresent = attendance?.status == true;
+    final status = attendance?.status;
 
     final Color bg, fg;
     final IconData icon;
     final String text;
 
-    if (isNull) {
+    if (status == null) {
       bg = _kNeutralBg;
       fg = _kNeutral;
       icon = Icons.help_outline_rounded;
       text = 'No record';
-    } else if (isPresent) {
+    } else if (status == AttendanceInfo.present) {
       bg = _kSuccessBg;
       fg = _kSuccess;
       icon = Icons.check_circle_outline_rounded;
       text = 'Present';
+    } else if (status == AttendanceInfo.excused) {
+      bg = _kWarningBg;
+      fg = _kWarning;
+      icon = Icons.event_busy_rounded;
+      text = 'Excused';
     } else {
       bg = _kErrorBg;
       fg = _kError;
@@ -641,7 +645,7 @@ class _AttendanceChip extends StatelessWidget {
     }
 
     return Tooltip(
-      message: 'Tap to toggle attendance',
+      message: 'Tap to cycle: Present → Absent → Excused',
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
