@@ -8,11 +8,13 @@ import 'package:flutter_web/Widgets/confirm_dialog.dart';
 class ClassDetailScreen extends StatefulWidget {
   final int classId;
   final bool isAdmin;
+  final bool canEditTeachers;
 
   const ClassDetailScreen({
     super.key,
     required this.classId,
     required this.isAdmin,
+    this.canEditTeachers = false,
   });
 
   @override
@@ -135,6 +137,19 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     );
   }
 
+  Future<void> _editTeachers(ClassDetailInfo detail) async {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (_) => _EditTeachersDialog(
+        classService: _classService,
+        detail: detail,
+      ),
+    );
+    if (updated == true && mounted) {
+      _reload();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -183,6 +198,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                         detail: snap.data!,
                         isAdmin: widget.isAdmin,
                         onRemoveStudent: _removeStudent,
+                        onEditTeachers: widget.canEditTeachers
+                            ? () => _editTeachers(snap.data!)
+                            : null,
                       ),
               ),
             ],
@@ -198,11 +216,13 @@ class _ClassDetailBody extends StatelessWidget {
   final bool isAdmin;
   final Future<void> Function(ClassDetailInfo detail, UserInfo student)
   onRemoveStudent;
+  final VoidCallback? onEditTeachers;
 
   const _ClassDetailBody({
     required this.detail,
     required this.isAdmin,
     required this.onRemoveStudent,
+    this.onEditTeachers,
   });
 
   @override
@@ -219,6 +239,13 @@ class _ClassDetailBody extends StatelessWidget {
             'Verbal: ${detail.verbalTeacher?.fullName ?? '—'}',
             'Math: ${detail.mathTeacher?.fullName ?? '—'}',
           ],
+          action: onEditTeachers == null
+              ? null
+              : TextButton.icon(
+                  onPressed: onEditTeachers,
+                  icon: const Icon(Icons.edit_rounded, size: 16),
+                  label: const Text('Edit'),
+                ),
         ),
         const SizedBox(height: 16),
         Text('Students (${students.length})', style: TuranTextStyles.title),
@@ -256,8 +283,13 @@ class _ClassDetailBody extends StatelessWidget {
 class _InfoCard extends StatelessWidget {
   final String title;
   final List<String> lines;
+  final Widget? action;
 
-  const _InfoCard({required this.title, required this.lines});
+  const _InfoCard({
+    required this.title,
+    required this.lines,
+    this.action,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -272,7 +304,17 @@ class _InfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TuranTextStyles.title.copyWith(fontSize: 16)),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: TuranTextStyles.title.copyWith(fontSize: 16),
+                ),
+              ),
+              if (action != null) action!,
+            ],
+          ),
           const SizedBox(height: 8),
           for (final line in lines)
             Padding(
@@ -281,6 +323,198 @@ class _InfoCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _EditTeachersDialog extends StatefulWidget {
+  final ClassService classService;
+  final ClassDetailInfo detail;
+
+  const _EditTeachersDialog({
+    required this.classService,
+    required this.detail,
+  });
+
+  @override
+  State<_EditTeachersDialog> createState() => _EditTeachersDialogState();
+}
+
+class _EditTeachersDialogState extends State<_EditTeachersDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late Future<List<UserInfo>> _teachersFuture;
+  int? _verbalTeacherId;
+  int? _mathTeacherId;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _verbalTeacherId = widget.detail.verbalTeacher?.userId;
+    _mathTeacherId = widget.detail.mathTeacher?.userId;
+    _teachersFuture = widget.classService.fetchTeachers();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_verbalTeacherId == null || _mathTeacherId == null) {
+      setState(() => _error = 'Choose both verbal and math teachers');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    final result = await widget.classService.updateClass(
+      classId: widget.detail.classId,
+      verbalTeacherId: _verbalTeacherId,
+      mathTeacherId: _mathTeacherId,
+    );
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final sessionsUpdated = result['sessions_updated'];
+      final suffix = sessionsUpdated is int && sessionsUpdated > 0
+          ? ' Updated $sessionsUpdated upcoming session(s).'
+          : '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Teachers updated.$suffix')),
+      );
+      Navigator.of(context).pop(true);
+      return;
+    }
+
+    setState(() {
+      _saving = false;
+      _error = result['message']?.toString() ?? 'Failed to update teachers';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: const Text('Edit teachers'),
+      content: SizedBox(
+        width: 420,
+        child: FutureBuilder<List<UserInfo>>(
+          future: _teachersFuture,
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const SizedBox(
+                height: 120,
+                child: Center(
+                  child: CircularProgressIndicator(color: TuranColors.primary),
+                ),
+              );
+            }
+
+            if (snap.hasError) {
+              return Text(
+                'Could not load teachers: ${snap.error}',
+                style: const TextStyle(color: TuranColors.error),
+              );
+            }
+
+            final teachers = snap.data ?? [];
+            if (teachers.isEmpty) {
+              return const Text('No teachers found.');
+            }
+
+            return Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: _verbalTeacherId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Verbal teacher',
+                      prefixIcon: Icon(Icons.menu_book_rounded),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: teachers
+                        .map(
+                          (teacher) => DropdownMenuItem<int>(
+                            value: teacher.userId,
+                            child: Text(
+                              teacher.fullName,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(() => _verbalTeacherId = value),
+                    validator: (value) =>
+                        value == null ? 'Choose a verbal teacher' : null,
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<int>(
+                    initialValue: _mathTeacherId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Math teacher',
+                      prefixIcon: Icon(Icons.calculate_rounded),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: teachers
+                        .map(
+                          (teacher) => DropdownMenuItem<int>(
+                            value: teacher.userId,
+                            child: Text(
+                              teacher.fullName,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(() => _mathTeacherId = value),
+                    validator: (value) =>
+                        value == null ? 'Choose a math teacher' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Upcoming verbal/math sessions will be reassigned to the new teachers. Past sessions stay unchanged.',
+                    style: TuranTextStyles.subtitle,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      _error!,
+                      style: const TextStyle(color: TuranColors.error),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save'),
+        ),
+      ],
     );
   }
 }

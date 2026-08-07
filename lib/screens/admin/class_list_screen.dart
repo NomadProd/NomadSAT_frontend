@@ -147,6 +147,7 @@ class _ClassListScreenState extends State<ClassListScreen> {
                               builder: (_) => ClassDetailScreen(
                                 classId: classInfo.classId,
                                 isAdmin: isStaffAdmin,
+                                canEditTeachers: isStaffAdmin,
                               ),
                             ),
                           );

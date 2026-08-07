@@ -209,6 +209,7 @@ class ClassService {
         'success': response.statusCode == 200,
         'message':
             data['message'] ?? data['detail'] ?? 'Failed to update class',
+        'sessions_updated': data['sessions_updated'],
       };
     } catch (e) {
       return {'success': false, 'message': 'Connection failed: $e'};
