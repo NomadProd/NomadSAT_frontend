@@ -42,6 +42,7 @@ class _MockInlineSection extends StatelessWidget {
         message: 'Not submitted yet',
       );
     }
+    final submittedAtLabel = _formatMockSubmittedAt(result.submittedAt);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
@@ -119,6 +120,17 @@ class _MockInlineSection extends StatelessWidget {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
+                            if (submittedAtLabel != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                'Uploaded $submittedAtLabel',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.82),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -341,6 +353,29 @@ class _MockInlineSection extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _formatMockSubmittedAt(String? isoValue) {
+  final parsed = DateTime.tryParse(isoValue ?? '');
+  if (parsed == null) return null;
+  final local = parsed.toLocal();
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final hh = local.hour.toString().padLeft(2, '0');
+  final mm = local.minute.toString().padLeft(2, '0');
+  return '${local.day} ${months[local.month - 1]} ${local.year}, $hh:$mm';
 }
 
 // в”Ђв”Ђв”Ђ Score panel в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ

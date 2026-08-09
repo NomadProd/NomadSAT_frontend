@@ -391,6 +391,7 @@ class MockResultInfo {
   final int assignmentId;
   final int studentId;
   final bool submitted;
+  final String? submittedAt;
   final int? totalPoints;
   final int? verbalPoints;
   final int? mathPoints;
@@ -406,6 +407,7 @@ class MockResultInfo {
     required this.assignmentId,
     required this.studentId,
     required this.submitted,
+    required this.submittedAt,
     required this.totalPoints,
     required this.verbalPoints,
     required this.mathPoints,
@@ -434,6 +436,7 @@ class MockResultInfo {
       assignmentId: json['assignment_id'] ?? 0,
       studentId: json['student_id'] ?? 0,
       submitted: json['submitted'] ?? false,
+      submittedAt: json['submitted_at']?.toString(),
       totalPoints: json['total_points'],
       verbalPoints: json['verbal_points'],
       mathPoints: json['math_points'],

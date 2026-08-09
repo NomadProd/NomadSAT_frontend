@@ -1163,6 +1163,7 @@ Widget _classCategoryTable({
           DataColumn(label: Text('Session date')),
           DataColumn(label: Text('Student')),
           DataColumn(label: Text('Submitted')),
+          DataColumn(label: Text('Uploaded at')),
           DataColumn(label: Text('Total')),
           DataColumn(label: Text('Verbal')),
           DataColumn(label: Text('Math')),
@@ -1178,6 +1179,7 @@ Widget _classCategoryTable({
                   ),
                   DataCell(Text(_studentName(detail, users, result.studentId))),
                   DataCell(Text(result.submitted ? 'Yes' : 'No')),
+                  DataCell(Text(_formatIsoDateTimeLocal(result.submittedAt))),
                   DataCell(
                     Text(
                       (result.totalPoints ??
@@ -1441,6 +1443,29 @@ String _dueText(AssignmentInfo assignment) {
   final time = _compactTime(assignment.dueTime);
   if (date.isEmpty && time.isEmpty) return '-';
   return [date, time].where((part) => part.isNotEmpty).join(' ');
+}
+
+String _formatIsoDateTimeLocal(String? isoValue) {
+  final parsed = DateTime.tryParse(isoValue ?? '');
+  if (parsed == null) return '-';
+  final local = parsed.toLocal();
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final hh = local.hour.toString().padLeft(2, '0');
+  final mm = local.minute.toString().padLeft(2, '0');
+  return '${local.day} ${months[local.month - 1]} ${local.year}, $hh:$mm';
 }
 
 class _SectionTitle extends StatelessWidget {
