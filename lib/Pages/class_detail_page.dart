@@ -2,12 +2,15 @@ library class_detail;
 
 import 'dart:html' as html;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Pages/academic_plan_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
+import 'package:flutter_web/Utils/homework_pdf.dart';
+import 'package:flutter_web/Widgets/homework_pdf_section.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/Widgets/weekly_schedule_picker.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
@@ -317,12 +320,14 @@ class _PageData {
 class _AssignmentDialogResult {
   final String instruction, taskLink, dueDate, dueTime;
   final List<UserInfo> students;
+  final PlatformFile? pendingPdf;
   const _AssignmentDialogResult({
     required this.instruction,
     required this.taskLink,
     required this.dueDate,
     required this.dueTime,
     required this.students,
+    this.pendingPdf,
   });
 }
 
@@ -545,7 +550,8 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final hasInstruction = (assignment.instruction ?? '').trim().isNotEmpty;
     final hasLink = (assignment.taskLink ?? '').trim().isNotEmpty;
     final hasDue = (assignment.dueDate ?? '').trim().isNotEmpty;
-    return !hasInstruction && !hasLink && !hasDue;
+    final hasPdf = assignment.homeworkDocument != null;
+    return !hasInstruction && !hasLink && !hasDue && !hasPdf;
   }
 
   bool _canReceiveHomeworkCopy({
@@ -591,6 +597,12 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     int? copySourceAssignmentId;
     bool copyingFromStudent = false;
     String? copyFromStudentError;
+    final canManagePdf = canManageHomeworkPdf(_pageData?.user.role);
+    PlatformFile? pendingPdf;
+    HomeworkDocument? currentDocument = assignment?.homeworkDocument;
+    bool uploadingPdf = false;
+    String? pdfMessage;
+    var pdfMessageIsError = false;
     final canCopyInto = assignment == null ||
         (assignment != null && _assignmentIsEmpty(assignment));
     final copySources = canCopyInto
@@ -678,6 +690,103 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                     TextField(
                       controller: link,
                       decoration: _fieldDeco('Task link', hint: 'https://...'),
+                    ),
+                    const SizedBox(height: 20),
+                    HomeworkPdfSection(
+                      document: currentDocument,
+                      pendingFile: pendingPdf,
+                      canManage: canManagePdf,
+                      uploading: uploadingPdf,
+                      message: pdfMessage,
+                      messageIsError: pdfMessageIsError,
+                      onPick: () async {
+                        final picked = await FilePicker.platform.pickFiles(
+                          allowMultiple: false,
+                          type: FileType.custom,
+                          allowedExtensions: const ['pdf'],
+                          withData: true,
+                        );
+                        if (picked == null || picked.files.isEmpty) return;
+                        final file = picked.files.first;
+                        final error = validateHomeworkPdfSelection(
+                          filename: file.name,
+                          sizeBytes: file.size,
+                          extension: file.extension,
+                        );
+                        if (error != null) {
+                          setDlg(() {
+                            pdfMessage = error;
+                            pdfMessageIsError = true;
+                          });
+                          return;
+                        }
+                        if (assignment == null) {
+                          setDlg(() {
+                            pendingPdf = file;
+                            pdfMessage = null;
+                            pdfMessageIsError = false;
+                          });
+                          return;
+                        }
+                        setDlg(() {
+                          uploadingPdf = true;
+                          pdfMessage = null;
+                          pdfMessageIsError = false;
+                        });
+                        final upload = await classService.uploadHomeworkDocument(
+                          assignmentId: assignment.assignmentId,
+                          file: file,
+                        );
+                        if (!ctx.mounted) return;
+                        setDlg(() {
+                          uploadingPdf = false;
+                          if (upload['success'] == true) {
+                            currentDocument =
+                                upload['document'] as HomeworkDocument?;
+                            pendingPdf = null;
+                            pdfMessage = 'PDF uploaded successfully';
+                            pdfMessageIsError = false;
+                          } else {
+                            pdfMessage =
+                                upload['message']?.toString() ??
+                                'Upload failed. Please try again.';
+                            pdfMessageIsError = true;
+                          }
+                        });
+                      },
+                      onRemove: assignment == null
+                          ? null
+                          : () async {
+                              setDlg(() {
+                                uploadingPdf = true;
+                                pdfMessage = null;
+                                pdfMessageIsError = false;
+                              });
+                              final removed = await classService
+                                  .deleteHomeworkDocument(
+                                    assignmentId: assignment.assignmentId,
+                                  );
+                              if (!ctx.mounted) return;
+                              setDlg(() {
+                                uploadingPdf = false;
+                                if (removed['success'] == true) {
+                                  currentDocument = null;
+                                  pdfMessage = 'PDF removed';
+                                  pdfMessageIsError = false;
+                                } else {
+                                  pdfMessage =
+                                      removed['message']?.toString() ??
+                                      'Failed to remove homework PDF';
+                                  pdfMessageIsError = true;
+                                }
+                              });
+                            },
+                      onClearPending: () => setDlg(() {
+                        pendingPdf = null;
+                        pdfMessage = null;
+                        pdfMessageIsError = false;
+                      }),
+                      onOpen: () => _openHomeworkPdf(currentDocument?.url),
                     ),
                     if (canCopyInto && copySources.isNotEmpty) ...[
                       const SizedBox(height: 20),
@@ -979,6 +1088,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                           dueDate: dDate.text.trim(),
                           dueTime: dTime.text.trim(),
                           students: List<UserInfo>.from(selectedStudents),
+                          pendingPdf: pendingPdf,
                         ),
                       ),
                 child: Text(
@@ -1017,6 +1127,18 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
           );
           if (r['success'] == true) {
             created++;
+            final newId = r['assignment_id'];
+            if (result.pendingPdf != null && newId is int) {
+              final upload = await classService.uploadHomeworkDocument(
+                assignmentId: newId,
+                file: result.pendingPdf!,
+              );
+              if (upload['success'] != true) {
+                failures.add(
+                  '${selectedStudent.fullName}: ${upload['message'] ?? 'PDF upload failed'}',
+                );
+              }
+            }
           } else {
             failures.add(
               '${selectedStudent.fullName}: ${r['message'] ?? 'failed'}',
@@ -1896,6 +2018,26 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
   void _openLink(String? url) {
     if ((url ?? '').trim().isEmpty) return;
     html.window.open(url!.trim(), '_blank');
+  }
+
+  void _openHomeworkPdf(String? url) {
+    final trimmed = (url ?? '').trim();
+    if (trimmed.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(homeworkPdfOpenErrorMessage)),
+      );
+      return;
+    }
+    try {
+      final opened = html.window.open(trimmed, '_blank');
+      if (opened == null) {
+        throw StateError('popup blocked');
+      }
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(homeworkPdfOpenErrorMessage)),
+      );
+    }
   }
 
   void _openStudentPage(UserInfo student) {

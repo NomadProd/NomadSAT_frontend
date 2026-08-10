@@ -113,6 +113,50 @@ class SessionInfo {
   }
 }
 
+class HomeworkDocument {
+  final String url;
+  final String filename;
+  final String contentType;
+  final int sizeBytes;
+  final String? uploadedAt;
+
+  const HomeworkDocument({
+    required this.url,
+    required this.filename,
+    required this.contentType,
+    required this.sizeBytes,
+    this.uploadedAt,
+  });
+
+  factory HomeworkDocument.fromJson(Map<String, dynamic> json) {
+    final secureUrl = json['secure_url']?.toString();
+    final url = (secureUrl != null && secureUrl.isNotEmpty)
+        ? secureUrl
+        : (json['url']?.toString() ?? '');
+    return HomeworkDocument(
+      url: url,
+      filename: json['filename']?.toString() ?? 'homework.pdf',
+      contentType: json['content_type']?.toString() ?? 'application/pdf',
+      sizeBytes: json['size_bytes'] is num
+          ? (json['size_bytes'] as num).toInt()
+          : int.tryParse('${json['size_bytes']}') ?? 0,
+      uploadedAt: json['uploaded_at']?.toString(),
+    );
+  }
+
+  double get sizeMb => sizeBytes / (1024 * 1024);
+}
+
+HomeworkDocument? parseHomeworkDocument(dynamic value) {
+  if (value is Map<String, dynamic>) {
+    return HomeworkDocument.fromJson(value);
+  }
+  if (value is Map) {
+    return HomeworkDocument.fromJson(Map<String, dynamic>.from(value));
+  }
+  return null;
+}
+
 class AssignmentInfo {
   final int assignmentId;
   final int sessionId;
@@ -124,6 +168,7 @@ class AssignmentInfo {
   final String? dueDate;
   final String? dueTime;
   final bool photoRequired;
+  final HomeworkDocument? homeworkDocument;
 
   AssignmentInfo({
     required this.assignmentId,
@@ -136,6 +181,7 @@ class AssignmentInfo {
     required this.dueDate,
     required this.dueTime,
     required this.photoRequired,
+    this.homeworkDocument,
   });
 
   factory AssignmentInfo.fromJson(Map<String, dynamic> json) {
@@ -150,6 +196,38 @@ class AssignmentInfo {
       dueDate: json['due_date']?.toString(),
       dueTime: json['due_time']?.toString(),
       photoRequired: json['photo_required'] ?? false,
+      homeworkDocument: parseHomeworkDocument(json['homework_document']),
+    );
+  }
+
+  AssignmentInfo copyWith({
+    int? assignmentId,
+    int? sessionId,
+    int? studentId,
+    int? slotIndex,
+    String? title,
+    String? instruction,
+    String? taskLink,
+    String? dueDate,
+    String? dueTime,
+    bool? photoRequired,
+    HomeworkDocument? homeworkDocument,
+    bool clearHomeworkDocument = false,
+  }) {
+    return AssignmentInfo(
+      assignmentId: assignmentId ?? this.assignmentId,
+      sessionId: sessionId ?? this.sessionId,
+      studentId: studentId ?? this.studentId,
+      slotIndex: slotIndex ?? this.slotIndex,
+      title: title ?? this.title,
+      instruction: instruction ?? this.instruction,
+      taskLink: taskLink ?? this.taskLink,
+      dueDate: dueDate ?? this.dueDate,
+      dueTime: dueTime ?? this.dueTime,
+      photoRequired: photoRequired ?? this.photoRequired,
+      homeworkDocument: clearHomeworkDocument
+          ? null
+          : (homeworkDocument ?? this.homeworkDocument),
     );
   }
 }

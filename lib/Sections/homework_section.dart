@@ -335,6 +335,14 @@ class _HomeworkCard extends StatelessWidget {
                 onOpen: onOpenLink,
               ),
             ],
+            if (cur.homeworkDocument != null) ...[
+              const SizedBox(height: 10),
+              HomeworkPdfSection(
+                document: cur.homeworkDocument,
+                canManage: false,
+                onOpen: () => onOpenLink(cur.homeworkDocument?.url),
+              ),
+            ],
             if ((cur.dueDate ?? '').isNotEmpty ||
                 (cur.dueTime ?? '').isNotEmpty) ...[
               const SizedBox(height: 8),

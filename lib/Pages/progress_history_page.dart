@@ -3,6 +3,7 @@ import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/class_service.dart';
+import 'package:flutter_web/Utils/homework_pdf.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
 const _kPrimary = TuranColors.primary;
@@ -1270,6 +1271,44 @@ class _TaskCell extends StatelessWidget {
                     ),
                     child: Icon(
                       Icons.open_in_new_rounded,
+                      color: color,
+                      size: 15,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+            if ((item.assignment.homeworkDocument?.url ?? '').isNotEmpty) ...[
+              const SizedBox(width: 6),
+              Tooltip(
+                message: 'Open PDF',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () {
+                    try {
+                      final pdfUrl = item.assignment.homeworkDocument!.url;
+                      final opened = html.window.open(pdfUrl, '_blank');
+                      if (opened == null) {
+                        throw StateError('popup blocked');
+                      }
+                    } catch (_) {
+                      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                        const SnackBar(
+                          content: Text(homeworkPdfOpenErrorMessage),
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.09),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: color.withOpacity(0.16)),
+                    ),
+                    child: Icon(
+                      Icons.picture_as_pdf_rounded,
                       color: color,
                       size: 15,
                     ),

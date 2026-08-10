@@ -8,7 +8,9 @@ import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/Models/homework_result.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
+import 'package:flutter_web/Utils/homework_pdf.dart';
 import 'package:flutter_web/Widgets/file_list_tile.dart';
+import 'package:flutter_web/Widgets/homework_pdf_section.dart';
 
 const _kPrimary = TuranColors.primary;
 const _kBg = TuranColors.bgAlt;
@@ -155,6 +157,24 @@ class _HomeworkSubmitScreenState extends State<HomeworkSubmitScreen>
     if (t.isEmpty) return;
     final withScheme = t.startsWith(RegExp(r'https?://')) ? t : 'https://$t';
     html.window.open(withScheme, '_blank');
+  }
+
+  void _openHomeworkPdf(String url) {
+    try {
+      final trimmed = url.trim();
+      if (trimmed.isEmpty) {
+        throw StateError('empty');
+      }
+      final opened = html.window.open(trimmed, '_blank');
+      if (opened == null) {
+        throw StateError('popup blocked');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(homeworkPdfOpenErrorMessage)),
+      );
+    }
   }
 
   bool get _canEditFiles => _result == null || !_result!.isSubmittedLocked;
@@ -429,8 +449,10 @@ class _HomeworkSubmitScreenState extends State<HomeworkSubmitScreen>
                     final details = _DetailsCard(
                       instruction: instruction,
                       taskLink: taskLink,
+                      homeworkDocument: widget.assignment.homeworkDocument,
                       photoRequired: widget.assignment.photoRequired,
                       onOpenLink: _openLink,
+                      onOpenHomeworkPdf: _openHomeworkPdf,
                     );
                     final form = _SubmissionCard(
                       formKey: _formKey,
@@ -949,14 +971,18 @@ class _StatusBadge extends StatelessWidget {
 class _DetailsCard extends StatelessWidget {
   final String instruction;
   final String taskLink;
+  final HomeworkDocument? homeworkDocument;
   final bool photoRequired;
   final ValueChanged<String> onOpenLink;
+  final ValueChanged<String> onOpenHomeworkPdf;
 
   const _DetailsCard({
     required this.instruction,
     required this.taskLink,
+    required this.homeworkDocument,
     required this.photoRequired,
     required this.onOpenLink,
+    required this.onOpenHomeworkPdf,
   });
 
   @override
@@ -989,6 +1015,14 @@ class _DetailsCard extends StatelessWidget {
                 ),
               ),
             ),
+          if (homeworkDocument != null) ...[
+            const SizedBox(height: 14),
+            HomeworkPdfSection(
+              document: homeworkDocument,
+              canManage: false,
+              onOpen: () => onOpenHomeworkPdf(homeworkDocument!.url),
+            ),
+          ],
           const SizedBox(height: 14),
           _RequirementBanner(photoRequired: photoRequired),
         ],

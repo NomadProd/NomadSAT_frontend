@@ -11,6 +11,7 @@ import 'package:flutter_web/Services/api_config.dart';
 import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Models/homework_result.dart';
 import 'package:flutter_web/Models/mock_result.dart';
+import 'package:flutter_web/Utils/homework_pdf.dart';
 
 class ClassService {
   static const int maxUploadFileSizeBytes = 10 * 1024 * 1024;
@@ -604,6 +605,133 @@ class ClassService {
       return {
         'success': false,
         'message': detailMessage ?? 'Failed to copy assignment',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Connection failed: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadHomeworkDocument({
+    required int assignmentId,
+    required PlatformFile file,
+  }) async {
+    try {
+      final validationError = validateHomeworkPdfSelection(
+        filename: file.name,
+        sizeBytes: file.size,
+        extension: file.extension,
+      );
+      if (validationError != null) {
+        return {
+          'success': false,
+          'message': validationError,
+          'status_code': 422,
+        };
+      }
+
+      final bytes = file.bytes;
+      if (bytes == null) {
+        return {
+          'success': false,
+          'message':
+              'Could not read ${file.name}. Try selecting the file again.',
+        };
+      }
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/assignments/$assignmentId/homework-document'),
+      );
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: file.name,
+          contentType: MediaType('application', 'pdf'),
+        ),
+      );
+
+      final streamed = await _client.send(request);
+      final response = await http.Response.fromStream(streamed);
+      final data = response.bodyBytes.isEmpty
+          ? <String, dynamic>{}
+          : decodeJsonResponse(response);
+
+      if (response.statusCode == 200) {
+        final documentJson = data is Map ? data['homework_document'] : null;
+        return {
+          'success': true,
+          'document': parseHomeworkDocument(documentJson),
+          'assignment_id': data is Map ? data['assignment_id'] : assignmentId,
+        };
+      }
+
+      if (response.statusCode == 422 && data is Map<String, dynamic>) {
+        return {
+          'success': false,
+          'message': formatHomeworkPdfValidationError(data),
+          'status_code': 422,
+        };
+      }
+
+      if (response.statusCode == 422 && data is Map) {
+        return {
+          'success': false,
+          'message': formatHomeworkPdfValidationError(
+            Map<String, dynamic>.from(data),
+          ),
+          'status_code': 422,
+        };
+      }
+
+      if (response.statusCode == 403) {
+        return {
+          'success': false,
+          'message': 'Not enough permissions',
+          'status_code': 403,
+        };
+      }
+
+      if (response.statusCode == 500) {
+        return {
+          'success': false,
+          'message': 'Upload failed. Please try again.',
+          'status_code': 500,
+        };
+      }
+
+      final detailMessage = data is Map ? data['detail'] : null;
+      return {
+        'success': false,
+        'message': detailMessage?.toString() ?? 'Upload failed. Please try again.',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Connection failed: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteHomeworkDocument({
+    required int assignmentId,
+  }) async {
+    try {
+      final response = await _client.delete(
+        Uri.parse('$baseUrl/assignments/$assignmentId/homework-document'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 204) {
+        return {'success': true};
+      }
+
+      final data = response.bodyBytes.isEmpty
+          ? <String, dynamic>{}
+          : decodeJsonResponse(response);
+      final detailMessage = data is Map ? data['detail'] : null;
+      return {
+        'success': false,
+        'message':
+            detailMessage?.toString() ?? 'Failed to remove homework PDF',
+        'status_code': response.statusCode,
       };
     } catch (e) {
       return {'success': false, 'message': 'Connection failed: $e'};
