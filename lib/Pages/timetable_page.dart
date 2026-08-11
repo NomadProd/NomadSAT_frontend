@@ -1083,6 +1083,8 @@ class _EditClassScheduleDialogState extends State<_EditClassScheduleDialog> {
   late final List<DayScheduleEntry> _verbalSchedule;
   late final List<DayScheduleEntry> _mathSchedule;
   late final List<DayScheduleEntry> _mockSchedule;
+  late final List<DayScheduleEntry> _verbalReviewSchedule;
+  late final List<DayScheduleEntry> _mathReviewSchedule;
   bool _saving = false;
   String? _error;
 
@@ -1100,6 +1102,8 @@ class _EditClassScheduleDialogState extends State<_EditClassScheduleDialog> {
     _mockSchedule = WeeklyScheduleForm.createEntries(
       defaultTime: WeeklyScheduleForm.defaultMockTime,
     );
+    _verbalReviewSchedule = WeeklyScheduleForm.createEntries();
+    _mathReviewSchedule = WeeklyScheduleForm.createEntries();
     _applyInferredSchedule();
   }
 
@@ -1110,6 +1114,8 @@ class _EditClassScheduleDialogState extends State<_EditClassScheduleDialog> {
     WeeklyScheduleForm.disposeEntries(_verbalSchedule);
     WeeklyScheduleForm.disposeEntries(_mathSchedule);
     WeeklyScheduleForm.disposeEntries(_mockSchedule);
+    WeeklyScheduleForm.disposeEntries(_verbalReviewSchedule);
+    WeeklyScheduleForm.disposeEntries(_mathReviewSchedule);
     super.dispose();
   }
 
@@ -1124,6 +1130,8 @@ class _EditClassScheduleDialogState extends State<_EditClassScheduleDialog> {
       verbal: _verbalSchedule,
       math: _mathSchedule,
       mock: _mockSchedule,
+      verbalReview: _verbalReviewSchedule,
+      mathReview: _mathReviewSchedule,
     );
   }
 
@@ -1151,6 +1159,8 @@ class _EditClassScheduleDialogState extends State<_EditClassScheduleDialog> {
       verbal: _verbalSchedule,
       math: _mathSchedule,
       mock: _mockSchedule,
+      verbalReview: _verbalReviewSchedule,
+      mathReview: _mathReviewSchedule,
     );
     if (scheduleError != null) {
       setState(() => _error = scheduleError);
@@ -1212,6 +1222,9 @@ class _EditClassScheduleDialogState extends State<_EditClassScheduleDialog> {
       verbalSchedule: WeeklyScheduleForm.buildPayload(_verbalSchedule),
       mathSchedule: WeeklyScheduleForm.buildPayload(_mathSchedule),
       mockSchedule: WeeklyScheduleForm.buildPayload(_mockSchedule),
+      verbalReviewSchedule:
+          WeeklyScheduleForm.buildPayload(_verbalReviewSchedule),
+      mathReviewSchedule: WeeklyScheduleForm.buildPayload(_mathReviewSchedule),
     );
 
     if (!mounted) return;
@@ -1362,6 +1375,24 @@ class _EditClassScheduleDialogState extends State<_EditClassScheduleDialog> {
                     timeHint: WeeklyScheduleForm.defaultMockTime,
                     helperText:
                         'Each mock block lasts 7.5 hours from the start time.',
+                    onChanged: () => setState(() {}),
+                  ),
+                  const SizedBox(height: 16),
+                  WeeklyLessonSchedulePicker(
+                    title: 'Verbal review',
+                    icon: Icons.rate_review_rounded,
+                    weekdayLabels: WeeklyScheduleLabels.full,
+                    days: _verbalReviewSchedule,
+                    enabled: !_saving,
+                    onChanged: () => setState(() {}),
+                  ),
+                  const SizedBox(height: 16),
+                  WeeklyLessonSchedulePicker(
+                    title: 'Math review',
+                    icon: Icons.rate_review_outlined,
+                    weekdayLabels: WeeklyScheduleLabels.full,
+                    days: _mathReviewSchedule,
+                    enabled: !_saving,
                     onChanged: () => setState(() {}),
                   ),
                   if (_error != null) ...[

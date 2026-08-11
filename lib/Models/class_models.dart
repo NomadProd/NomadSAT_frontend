@@ -74,6 +74,7 @@ class SessionInfo {
   final String? startTime;
   final String? endTime;
   final String sessionType;
+  final String? subject;
   final String? topic;
   final int? academicPlanItemId;
   final List<int> academicPlanItemIds;
@@ -87,6 +88,7 @@ class SessionInfo {
     required this.startTime,
     required this.endTime,
     required this.sessionType,
+    required this.subject,
     required this.topic,
     required this.academicPlanItemId,
     required this.academicPlanItemIds,
@@ -102,6 +104,7 @@ class SessionInfo {
       startTime: json['start_time']?.toString(),
       endTime: json['end_time']?.toString(),
       sessionType: json['session_type'] ?? '',
+      subject: json['subject']?.toString(),
       topic: json['topic']?.toString(),
       academicPlanItemId: json['academic_plan_item_id'],
       academicPlanItemIds:

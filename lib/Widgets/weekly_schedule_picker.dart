@@ -69,8 +69,16 @@ class WeeklyScheduleForm {
     required List<DayScheduleEntry> verbal,
     required List<DayScheduleEntry> math,
     required List<DayScheduleEntry> mock,
+    List<DayScheduleEntry>? verbalReview,
+    List<DayScheduleEntry>? mathReview,
   }) {
-    for (final entry in [...verbal, ...math, ...mock]) {
+    for (final entry in [
+      ...verbal,
+      ...math,
+      ...mock,
+      ...?verbalReview,
+      ...?mathReview,
+    ]) {
       entry.enabled = false;
       entry.timeController.text = defaultLessonTime;
     }
@@ -88,10 +96,12 @@ class WeeklyScheduleForm {
       if (weekday < 0 || weekday > 6) continue;
 
       final type = session.sessionType.toLowerCase();
+      final subject = (session.subject ?? '').toLowerCase();
       final List<DayScheduleEntry>? entries = switch (type) {
         'verbal' => verbal,
         'math' => math,
         'mock' => mock,
+        'review' => subject == 'math' ? mathReview : verbalReview,
         _ => null,
       };
       if (entries == null) continue;
@@ -105,13 +115,22 @@ class WeeklyScheduleForm {
     required List<DayScheduleEntry> verbal,
     required List<DayScheduleEntry> math,
     required List<DayScheduleEntry> mock,
+    List<DayScheduleEntry>? verbalReview,
+    List<DayScheduleEntry>? mathReview,
     List<String> weekdayLabels = WeeklyScheduleLabels.full,
   }) {
     final hasVerbal = verbal.any((day) => day.enabled);
     final hasMath = math.any((day) => day.enabled);
     final hasMock = mock.any((day) => day.enabled);
-    if (!hasVerbal && !hasMath && !hasMock) {
-      return 'Enable at least one verbal, math, or mock day';
+    final hasVerbalReview =
+        verbalReview?.any((day) => day.enabled) ?? false;
+    final hasMathReview = mathReview?.any((day) => day.enabled) ?? false;
+    if (!hasVerbal &&
+        !hasMath &&
+        !hasMock &&
+        !hasVerbalReview &&
+        !hasMathReview) {
+      return 'Enable at least one verbal, math, mock, or review day';
     }
 
     for (var i = 0; i < verbal.length; i++) {
@@ -138,6 +157,28 @@ class WeeklyScheduleForm {
       final time = day.timeController.text.trim();
       if (!timePattern.hasMatch(time)) {
         return 'Mock ${weekdayLabels[i]}: use HH:MM (e.g. $defaultMockTime)';
+      }
+    }
+
+    if (verbalReview != null) {
+      for (var i = 0; i < verbalReview.length; i++) {
+        final day = verbalReview[i];
+        if (!day.enabled) continue;
+        final time = day.timeController.text.trim();
+        if (!timePattern.hasMatch(time)) {
+          return 'Verbal review ${weekdayLabels[i]}: use HH:MM (e.g. $defaultLessonTime)';
+        }
+      }
+    }
+
+    if (mathReview != null) {
+      for (var i = 0; i < mathReview.length; i++) {
+        final day = mathReview[i];
+        if (!day.enabled) continue;
+        final time = day.timeController.text.trim();
+        if (!timePattern.hasMatch(time)) {
+          return 'Math review ${weekdayLabels[i]}: use HH:MM (e.g. $defaultLessonTime)';
+        }
       }
     }
 

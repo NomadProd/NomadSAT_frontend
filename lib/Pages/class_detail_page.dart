@@ -78,6 +78,9 @@ InputDecoration _fieldDeco(String label, {String? hint, Widget? suffixIcon}) {
 // в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 bool _isMockSession(SessionInfo s) => s.sessionType.toLowerCase() == 'mock';
 
+bool _isReviewSession(SessionInfo s) =>
+    s.sessionType.toLowerCase() == 'review';
+
 bool _isStaffAdmin(String role) {
   final normalized = role.toLowerCase();
   return normalized == 'admin' || normalized == 'mentor';
@@ -88,6 +91,13 @@ bool _canOpenStudentProgress(UserInfo user) {
   return role == 'admin' || role == 'mentor' || role == 'teacher';
 }
 
+bool _canEditAttendanceForSession(String role, SessionInfo session) {
+  if (_isReviewSession(session)) {
+    return _isStaffAdmin(role);
+  }
+  return true;
+}
+
 Color _sessionTypeColor(String type) {
   switch (type.toLowerCase()) {
     case 'verbal':
@@ -96,9 +106,19 @@ Color _sessionTypeColor(String type) {
       return const Color(0xFF00897B);
     case 'mock':
       return const Color(0xFFEF6C00);
+    case 'review':
+      return const Color(0xFF3949AB);
     default:
       return _kNeutral;
   }
+}
+
+String _sessionChipLabel(SessionInfo session) {
+  final type = session.sessionType.toUpperCase();
+  if (!_isReviewSession(session)) return type;
+  final subject = (session.subject ?? '').trim();
+  if (subject.isEmpty) return type;
+  return '$type · ${subject.toUpperCase()}';
 }
 
 String _capitalize(String v) =>
@@ -253,6 +273,13 @@ String _teacherLabel(
       if (verbal != null) return '${verbal.name} ${verbal.surname}'.trim();
     case 'math':
       if (math != null) return '${math.name} ${math.surname}'.trim();
+    case 'review':
+      final subject = (s.subject ?? '').toLowerCase();
+      if (subject == 'math') {
+        if (math != null) return '${math.name} ${math.surname}'.trim();
+      } else if (verbal != null) {
+        return '${verbal.name} ${verbal.surname}'.trim();
+      }
     case 'mock':
       final t = s.teacherId == null
           ? null
@@ -333,12 +360,14 @@ class _AssignmentDialogResult {
 
 class _EditSessionDialogResult {
   final String date, startTime, endTime, sessionType, topic;
+  final String? subject;
   final int? teacherId;
   const _EditSessionDialogResult({
     required this.date,
     required this.startTime,
     required this.endTime,
     required this.sessionType,
+    required this.subject,
     required this.teacherId,
     required this.topic,
   });
@@ -1232,6 +1261,338 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     }
   }
 
+  Future<void> _openCopyAssignmentDialog({
+    required AssignmentInfo sourceAssignment,
+  }) async {
+    final data = _pageData;
+    if (data == null) return;
+
+    final dueDateC = TextEditingController(text: sourceAssignment.dueDate ?? '');
+    final dueTimeC = TextEditingController(
+      text: _compactTime(sourceAssignment.dueTime),
+    );
+
+    final classes = await classService.fetchClasses();
+    if (!mounted) return;
+    if (classes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No classes available for copying')),
+      );
+      return;
+    }
+
+    int selectedClassId = widget.classId;
+    if (!classes.any((c) => c.classId == selectedClassId)) {
+      selectedClassId = classes.first.classId;
+    }
+    int? selectedSessionId;
+    int? selectedStudentId;
+    bool allStudents = true;
+    String? inlineError;
+    bool loadingTargets = false;
+    bool submitting = false;
+
+    List<SessionInfo> targetSessions = [];
+    List<UserInfo> targetStudents = [];
+
+    Future<void> loadTargetsForClass(
+      int classId,
+      void Function(void Function()) setDlg,
+    ) async {
+      setDlg(() {
+        loadingTargets = true;
+        inlineError = null;
+      });
+      try {
+        final sessions = await classService.fetchClassSessions(classId);
+        final classDetail = await classService.fetchClassFullDetail(classId);
+        if (!mounted) return;
+
+        var scopedSessions = [...sessions];
+        if (data.user.role.toLowerCase() == 'teacher') {
+          scopedSessions = scopedSessions
+              .where((session) => session.teacherId == data.user.userId)
+              .toList();
+        }
+
+        setDlg(() {
+          targetSessions = scopedSessions
+            ..sort((a, b) => _sessionDateTime(a).compareTo(_sessionDateTime(b)));
+          targetStudents = [...classDetail.students]
+            ..sort((a, b) => a.fullName.compareTo(b.fullName));
+          selectedSessionId = targetSessions.any(
+                (session) => session.sessionId == selectedSessionId,
+              )
+              ? selectedSessionId
+              : targetSessions.firstOrNull?.sessionId;
+          selectedStudentId = targetStudents.any(
+                (student) => student.userId == selectedStudentId,
+              )
+              ? selectedStudentId
+              : targetStudents.firstOrNull?.userId;
+          loadingTargets = false;
+        });
+      } catch (e) {
+        setDlg(() {
+          loadingTargets = false;
+          targetSessions = [];
+          targetStudents = [];
+          selectedSessionId = null;
+          selectedStudentId = null;
+          inlineError = 'Failed to load class sessions: $e';
+        });
+      }
+    }
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) {
+          if (targetSessions.isEmpty && !loadingTargets && inlineError == null) {
+            loadTargetsForClass(selectedClassId, setDlg);
+          }
+          return _DialogShell(
+            icon: Icons.copy_rounded,
+            title: 'Copy Assignment',
+            width: 620,
+            content: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _DlgLabel('Source'),
+                    const SizedBox(height: 8),
+                    _InfoRow(
+                      label: 'Title',
+                      value: sourceAssignment.title ?? 'Homework',
+                    ),
+                    if ((sourceAssignment.instruction ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _InfoRow(
+                        label: 'Instruction',
+                        value: sourceAssignment.instruction ?? '',
+                      ),
+                    ],
+                    if ((sourceAssignment.taskLink ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _LinkRow(
+                        label: 'Task',
+                        url: sourceAssignment.taskLink ?? '',
+                        onOpen: _openLink,
+                      ),
+                    ],
+                    if (sourceAssignment.homeworkDocument != null) ...[
+                      const SizedBox(height: 8),
+                      _InfoRow(
+                        label: 'PDF',
+                        value: sourceAssignment.homeworkDocument!.filename,
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    const _DlgLabel('Target'),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<int>(
+                      value: selectedClassId,
+                      decoration: _fieldDeco('Class'),
+                      items: classes
+                          .map(
+                            (c) => DropdownMenuItem<int>(
+                              value: c.classId,
+                              child: Text(c.className),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: submitting || loadingTargets
+                          ? null
+                          : (value) {
+                              if (value == null) return;
+                              setDlg(() {
+                                selectedClassId = value;
+                                targetSessions = [];
+                                targetStudents = [];
+                                selectedSessionId = null;
+                                selectedStudentId = null;
+                              });
+                              loadTargetsForClass(value, setDlg);
+                            },
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<int>(
+                      value: selectedSessionId,
+                      decoration: _fieldDeco('Session'),
+                      items: targetSessions
+                          .map(
+                            (session) => DropdownMenuItem<int>(
+                              value: session.sessionId,
+                              child: Text(
+                                '${_formatDateHuman(_parseDate(session.date))} · ${_compactTime(session.startTime)} ${_capitalize(session.sessionType)}',
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: submitting || loadingTargets
+                          ? null
+                          : (value) => setDlg(() => selectedSessionId = value),
+                    ),
+                    const SizedBox(height: 10),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Copy to all students in class'),
+                      value: allStudents,
+                      onChanged: submitting || loadingTargets
+                          ? null
+                          : (value) => setDlg(() => allStudents = value),
+                    ),
+                    if (!allStudents) ...[
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<int>(
+                        value: selectedStudentId,
+                        decoration: _fieldDeco('Student'),
+                        items: targetStudents
+                            .map(
+                              (student) => DropdownMenuItem<int>(
+                                value: student.userId,
+                                child: Text(student.fullName),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: submitting || loadingTargets
+                            ? null
+                            : (value) => setDlg(() => selectedStudentId = value),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    const _DlgLabel('Due date/time'),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: TextField(
+                            controller: dueDateC,
+                            readOnly: true,
+                            decoration: _fieldDeco(
+                              'Date',
+                              hint: 'YYYY-MM-DD',
+                              suffixIcon: const Icon(
+                                Icons.calendar_today_rounded,
+                                size: 18,
+                              ),
+                            ),
+                            onTap: () async {
+                              final p = await showDatePicker(
+                                context: ctx,
+                                initialDate: dueDateC.text.isEmpty
+                                    ? _normalizeDate(DateTime.now())
+                                    : _parseDate(dueDateC.text),
+                                firstDate: DateTime(2024),
+                                lastDate: DateTime(2100),
+                              );
+                              if (p != null) {
+                                setDlg(() => dueDateC.text = _formatDateForApi(p));
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: TextField(
+                            controller: dueTimeC,
+                            decoration: _fieldDeco('Time', hint: '18:30'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (loadingTargets) ...[
+                      const SizedBox(height: 12),
+                      const LinearProgressIndicator(minHeight: 2),
+                    ],
+                    if (inlineError != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        inlineError!,
+                        style: const TextStyle(
+                          color: _kError,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: submitting ? null : () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: submitting || loadingTargets
+                    ? null
+                    : () async {
+                        if (selectedSessionId == null) {
+                          setDlg(
+                            () => inlineError = 'Please select a target session.',
+                          );
+                          return;
+                        }
+                        if (!allStudents && selectedStudentId == null) {
+                          setDlg(() => inlineError = 'Please select a student.');
+                          return;
+                        }
+                        if (dueDateC.text.trim().isEmpty ||
+                            dueTimeC.text.trim().isEmpty) {
+                          setDlg(
+                            () => inlineError =
+                                'Due date and time are required for this copy.',
+                          );
+                          return;
+                        }
+
+                        setDlg(() {
+                          submitting = true;
+                          inlineError = null;
+                        });
+                        final copyResult = await classService.copyAssignment(
+                          sourceAssignmentId: sourceAssignment.assignmentId,
+                          sessionId: selectedSessionId,
+                          allStudents: allStudents,
+                          studentId: allStudents ? null : selectedStudentId,
+                          dueDate: dueDateC.text.trim(),
+                          dueTime: _timeForApi(dueTimeC.text.trim()),
+                        );
+                        if (!ctx.mounted) return;
+                        if (copyResult['success'] == true) {
+                          Navigator.of(ctx).pop(true);
+                          return;
+                        }
+                        setDlg(() {
+                          submitting = false;
+                          inlineError = copyResult['message']?.toString() ??
+                              'Failed to copy assignment';
+                        });
+                      },
+                child: Text(submitting ? 'Copying...' : 'Copy'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (result == true) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Assignment copied')),
+      );
+      await _reload();
+    }
+  }
+
   List<({int assignmentId, String label})> _assignmentCopySources({
     required SessionInfo session,
     required int excludeStudentId,
@@ -1293,13 +1654,22 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     required SessionInfo session,
     required List<UserInfo> teachers,
   }) async {
-    final role = _pageData?.user.role.toLowerCase();
+    final d = _pageData;
+    final role = d?.user.role.toLowerCase();
     if (role != 'admin' && role != 'mentor') return;
     final dateC = TextEditingController(text: session.date);
     final startC = TextEditingController(text: _compactTime(session.startTime));
     final endC = TextEditingController(text: _compactTime(session.endTime));
     final topicC = TextEditingController(text: session.topic ?? '');
-    String sType = session.sessionType;
+    String sType = session.sessionType.toLowerCase();
+    if (sType != 'verbal' &&
+        sType != 'math' &&
+        sType != 'mock' &&
+        sType != 'review') {
+      sType = 'verbal';
+    }
+    String subject =
+        (session.subject ?? 'verbal').toLowerCase() == 'math' ? 'math' : 'verbal';
     int? tId =
         session.teacherId ??
         (teachers.isNotEmpty ? teachers.first.userId : null);
@@ -1368,11 +1738,40 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                     DropdownMenuItem(value: 'verbal', child: Text('Verbal')),
                     DropdownMenuItem(value: 'math', child: Text('Math')),
                     DropdownMenuItem(value: 'mock', child: Text('Mock')),
+                    DropdownMenuItem(value: 'review', child: Text('Review')),
                   ],
                   onChanged: (v) {
-                    if (v != null) setDlg(() => sType = v);
+                    if (v == null) return;
+                    setDlg(() {
+                      sType = v;
+                      if (v == 'review') {
+                        tId = subject == 'math'
+                            ? d?.detail.mathTeacher?.userId
+                            : d?.detail.verbalTeacher?.userId;
+                      }
+                    });
                   },
                 ),
+                if (sType == 'review') ...[
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: subject,
+                    decoration: _fieldDeco('Subject'),
+                    items: const [
+                      DropdownMenuItem(value: 'verbal', child: Text('Verbal')),
+                      DropdownMenuItem(value: 'math', child: Text('Math')),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setDlg(() {
+                        subject = v;
+                        tId = v == 'math'
+                            ? d?.detail.mathTeacher?.userId
+                            : d?.detail.verbalTeacher?.userId;
+                      });
+                    },
+                  ),
+                ],
                 const SizedBox(height: 10),
                 DropdownButtonFormField<int>(
                   value: tId,
@@ -1409,6 +1808,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                   startTime: startC.text.trim(),
                   endTime: endC.text.trim(),
                   sessionType: sType,
+                  subject: sType == 'review' ? subject : null,
                   teacherId: tId,
                   topic: topicC.text.trim(),
                 ),
@@ -1428,6 +1828,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
         startTime: result.startTime.isEmpty ? null : result.startTime,
         endTime: result.endTime.isEmpty ? null : result.endTime,
         sessionType: result.sessionType,
+        subject: result.subject,
         teacherId: result.teacherId,
         topic: result.topic.isEmpty ? null : result.topic,
       );
@@ -1451,6 +1852,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final endC = TextEditingController();
     final topicC = TextEditingController();
     String sType = 'verbal';
+    String subject = 'verbal';
     int? tId = d.detail.verbalTeacher?.userId ?? d.teachers.firstOrNull?.userId;
 
     final result = await showDialog<_EditSessionDialogResult>(
@@ -1518,11 +1920,44 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                     DropdownMenuItem(value: 'verbal', child: Text('Verbal')),
                     DropdownMenuItem(value: 'math', child: Text('Math')),
                     DropdownMenuItem(value: 'mock', child: Text('Mock')),
+                    DropdownMenuItem(value: 'review', child: Text('Review')),
                   ],
                   onChanged: (v) {
-                    if (v != null) setDlg(() => sType = v);
+                    if (v == null) return;
+                    setDlg(() {
+                      sType = v;
+                      if (v == 'review') {
+                        tId = subject == 'math'
+                            ? d.detail.mathTeacher?.userId
+                            : d.detail.verbalTeacher?.userId;
+                      } else if (v == 'verbal') {
+                        tId = d.detail.verbalTeacher?.userId ?? tId;
+                      } else if (v == 'math') {
+                        tId = d.detail.mathTeacher?.userId ?? tId;
+                      }
+                    });
                   },
                 ),
+                if (sType == 'review') ...[
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: subject,
+                    decoration: _fieldDeco('Subject'),
+                    items: const [
+                      DropdownMenuItem(value: 'verbal', child: Text('Verbal')),
+                      DropdownMenuItem(value: 'math', child: Text('Math')),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setDlg(() {
+                        subject = v;
+                        tId = v == 'math'
+                            ? d.detail.mathTeacher?.userId
+                            : d.detail.verbalTeacher?.userId;
+                      });
+                    },
+                  ),
+                ],
                 const SizedBox(height: 10),
                 DropdownButtonFormField<int>(
                   value: tId,
@@ -1559,6 +1994,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                   startTime: startC.text.trim(),
                   endTime: endC.text.trim(),
                   sessionType: sType,
+                  subject: sType == 'review' ? subject : null,
                   teacherId: tId,
                   topic: topicC.text.trim(),
                 ),
@@ -1576,6 +2012,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       startTime: result.startTime.isEmpty ? null : result.startTime,
       endTime: result.endTime.isEmpty ? null : result.endTime,
       sessionType: result.sessionType,
+      subject: result.subject,
       teacherId: result.teacherId,
       topic: result.topic.isEmpty ? null : result.topic,
     );
@@ -2121,6 +2558,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final role = data.user.role.toLowerCase();
     final isStaffAdmin = _isStaffAdmin(role);
     final canDeleteHomework = isStaffAdmin || role == 'teacher';
+    final canEditPastHomework = isStaffAdmin;
     final canManageClass = isStaffAdmin;
     final canOpenStudentProgress = _canOpenStudentProgress(data.user);
     final selected = data.sessions.firstWhere(
@@ -2211,12 +2649,25 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                         ? (assignment) =>
                               _copyHomeworkToClass(assignment: assignment)
                         : null,
+                    onCopyAssignment:
+                        (isStaffAdmin ||
+                            (role == 'teacher' &&
+                                selected.teacherId == data.user.userId))
+                        ? (assignment) =>
+                              _openCopyAssignmentDialog(
+                                sourceAssignment: assignment,
+                              )
+                        : null,
+                    canEditPastHomework: canEditPastHomework,
                     onOpenLink: _openLink,
-                    onToggleAttendance: () => _toggleAttendance(
-                      sessionId: selected.sessionId,
-                      studentId: student.userId,
-                      current: att,
-                    ),
+                    onToggleAttendance:
+                        _canEditAttendanceForSession(data.user.role, selected)
+                        ? () => _toggleAttendance(
+                            sessionId: selected.sessionId,
+                            studentId: student.userId,
+                            current: att,
+                          )
+                        : null,
                   ),
                 );
               }),

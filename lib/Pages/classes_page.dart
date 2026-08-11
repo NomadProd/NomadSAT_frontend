@@ -397,6 +397,8 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
   late final List<DayScheduleEntry> _verbalSchedule;
   late final List<DayScheduleEntry> _mathSchedule;
   late final List<DayScheduleEntry> _mockSchedule;
+  late final List<DayScheduleEntry> _verbalReviewSchedule;
+  late final List<DayScheduleEntry> _mathReviewSchedule;
   late Future<List<UserInfo>> _teachersFuture;
   int? _verbalTeacherId;
   int? _mathTeacherId;
@@ -415,6 +417,8 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
     _mockSchedule = WeeklyScheduleForm.createEntries(
       defaultTime: WeeklyScheduleForm.defaultMockTime,
     );
+    _verbalReviewSchedule = WeeklyScheduleForm.createEntries();
+    _mathReviewSchedule = WeeklyScheduleForm.createEntries();
     _verbalSchedule[0].enabled = true;
     _verbalSchedule[2].enabled = true;
     _verbalSchedule[4].enabled = true;
@@ -433,6 +437,8 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
     WeeklyScheduleForm.disposeEntries(_verbalSchedule);
     WeeklyScheduleForm.disposeEntries(_mathSchedule);
     WeeklyScheduleForm.disposeEntries(_mockSchedule);
+    WeeklyScheduleForm.disposeEntries(_verbalReviewSchedule);
+    WeeklyScheduleForm.disposeEntries(_mathReviewSchedule);
     super.dispose();
   }
 
@@ -443,6 +449,8 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
         verbal: _verbalSchedule,
         math: _mathSchedule,
         mock: _mockSchedule,
+        verbalReview: _verbalReviewSchedule,
+        mathReview: _mathReviewSchedule,
       );
 
   Future<void> _createClass() async {
@@ -474,6 +482,8 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
       verbalSchedule: _buildSchedulePayload(_verbalSchedule),
       mathSchedule: _buildSchedulePayload(_mathSchedule),
       mockSchedule: _buildSchedulePayload(_mockSchedule),
+      verbalReviewSchedule: _buildSchedulePayload(_verbalReviewSchedule),
+      mathReviewSchedule: _buildSchedulePayload(_mathReviewSchedule),
     );
 
     if (!mounted) return;
@@ -695,6 +705,26 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
                       timeHint: WeeklyScheduleForm.defaultMockTime,
                       helperText:
                           'Each mock block lasts 7.5 hours from the start time.',
+                      onChanged: () => setState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    WeeklyLessonSchedulePicker(
+                      title: 'Verbal review',
+                      icon: Icons.rate_review_rounded,
+                      weekdayLabels: WeeklyScheduleLabels.full,
+                      days: _verbalReviewSchedule,
+                      enabled: !_saving,
+                      timeHint: WeeklyScheduleForm.defaultLessonTime,
+                      onChanged: () => setState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    WeeklyLessonSchedulePicker(
+                      title: 'Math review',
+                      icon: Icons.rate_review_outlined,
+                      weekdayLabels: WeeklyScheduleLabels.full,
+                      days: _mathReviewSchedule,
+                      enabled: !_saving,
+                      timeHint: WeeklyScheduleForm.defaultLessonTime,
                       onChanged: () => setState(() {}),
                     ),
                     if (_error != null) ...[

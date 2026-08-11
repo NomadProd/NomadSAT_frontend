@@ -268,7 +268,7 @@ class _WeekDaySessionCard extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                s.sessionType.toUpperCase(),
+                                _sessionChipLabel(s),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
@@ -479,8 +479,10 @@ class _StudentSessionRow extends StatelessWidget {
   onAssignHomework;
   final void Function(AssignmentInfo assignment)? onDeleteHomework;
   final void Function(AssignmentInfo assignment)? onCopyHomeworkToClass;
+  final void Function(AssignmentInfo assignment)? onCopyAssignment;
+  final bool canEditPastHomework;
   final void Function(String? url) onOpenLink;
-  final VoidCallback onToggleAttendance;
+  final VoidCallback? onToggleAttendance;
 
   const _StudentSessionRow({
     required this.student,
@@ -494,6 +496,8 @@ class _StudentSessionRow extends StatelessWidget {
     required this.onAssignHomework,
     required this.onDeleteHomework,
     this.onCopyHomeworkToClass,
+    this.onCopyAssignment,
+    required this.canEditPastHomework,
     required this.onOpenLink,
     required this.onToggleAttendance,
   });
@@ -501,6 +505,7 @@ class _StudentSessionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMock = _isMockSession(session);
+    final isReview = _isReviewSession(session);
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -566,7 +571,7 @@ class _StudentSessionRow extends StatelessWidget {
             ),
           ),
           Container(width: 1, color: _kBorder),
-          // Right — homework / mock
+          // Right — homework / mock / review attendance
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -579,23 +584,27 @@ class _StudentSessionRow extends StatelessWidget {
                     attendance: attendance,
                     onTap: onToggleAttendance,
                   ),
-                  if (isMock)
-                    _MockInlineSection(
-                      student: student,
-                      assignments: assignments,
-                      mockResultsByAssignment: mockResultsByAssignment,
-                      onOpenLink: onOpenLink,
-                    )
-                  else
-                    _HomeworkPerStudentSection(
-                      student: student,
-                      assignments: assignments,
-                      homeworkResultsByAssignment: homeworkResultsByAssignment,
-                      onOpenLink: onOpenLink,
-                      onAssignHomework: onAssignHomework,
-                      onDeleteHomework: onDeleteHomework,
-                      onCopyHomeworkToClass: onCopyHomeworkToClass,
-                    ),
+                  if (!isReview)
+                    if (isMock)
+                      _MockInlineSection(
+                        student: student,
+                        assignments: assignments,
+                        mockResultsByAssignment: mockResultsByAssignment,
+                        onOpenLink: onOpenLink,
+                      )
+                    else
+                      _HomeworkPerStudentSection(
+                        student: student,
+                        assignments: assignments,
+                        homeworkResultsByAssignment:
+                            homeworkResultsByAssignment,
+                        onOpenLink: onOpenLink,
+                        onAssignHomework: onAssignHomework,
+                        onDeleteHomework: onDeleteHomework,
+                        onCopyHomeworkToClass: onCopyHomeworkToClass,
+                        onCopyAssignment: onCopyAssignment,
+                        canEditPastHomework: canEditPastHomework,
+                      ),
                 ],
               ),
             ),

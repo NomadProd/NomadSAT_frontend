@@ -31,6 +31,8 @@ class ClassService {
     List<Map<String, dynamic>>? verbalSchedule,
     List<Map<String, dynamic>>? mathSchedule,
     List<Map<String, dynamic>>? mockSchedule,
+    List<Map<String, dynamic>>? verbalReviewSchedule,
+    List<Map<String, dynamic>>? mathReviewSchedule,
   }) async {
     final resolvedVerbalTeacherId = verbalTeacherId ?? teacherId;
     final resolvedMathTeacherId = mathTeacherId ?? teacherId;
@@ -56,6 +58,10 @@ class ClassService {
           if (verbalSchedule != null) 'verbal_schedule': verbalSchedule,
           if (mathSchedule != null) 'math_schedule': mathSchedule,
           if (mockSchedule != null) 'mock_schedule': mockSchedule,
+          if (verbalReviewSchedule != null)
+            'verbal_review_schedule': verbalReviewSchedule,
+          if (mathReviewSchedule != null)
+            'math_review_schedule': mathReviewSchedule,
         }),
       );
 
@@ -86,6 +92,8 @@ class ClassService {
     required List<Map<String, dynamic>> verbalSchedule,
     required List<Map<String, dynamic>> mathSchedule,
     required List<Map<String, dynamic>> mockSchedule,
+    List<Map<String, dynamic>> verbalReviewSchedule = const [],
+    List<Map<String, dynamic>> mathReviewSchedule = const [],
   }) async {
     try {
       final response = await _client.put(
@@ -97,6 +105,8 @@ class ClassService {
           'verbal_schedule': verbalSchedule,
           'math_schedule': mathSchedule,
           'mock_schedule': mockSchedule,
+          'verbal_review_schedule': verbalReviewSchedule,
+          'math_review_schedule': mathReviewSchedule,
         }),
       );
 
@@ -395,6 +405,7 @@ class ClassService {
     String? startTime,
     String? endTime,
     required String sessionType,
+    String? subject,
     int? teacherId,
     String? topic,
   }) async {
@@ -411,6 +422,7 @@ class ClassService {
               ? '$endTime:00'
               : endTime,
           'session_type': sessionType,
+          if (subject != null) 'subject': subject,
           'teacher_id': teacherId,
           'topic': topic,
         }),
@@ -565,15 +577,21 @@ class ClassService {
   Future<Map<String, dynamic>> copyAssignment({
     required int sourceAssignmentId,
     List<int>? targetStudentIds,
+    int? studentId,
     bool allStudents = false,
     int? targetSlotIndex,
     int? sessionId,
+    String? dueDate,
+    String? dueTime,
   }) async {
     try {
       final body = <String, dynamic>{
         'all_students': allStudents,
         if (sessionId != null) 'session_id': sessionId,
         if (targetSlotIndex != null) 'target_slot_index': targetSlotIndex,
+        if (studentId != null) 'student_id': studentId,
+        if (dueDate != null) 'due_date': dueDate,
+        if (dueTime != null) 'due_time': dueTime,
         if (!allStudents && targetStudentIds != null)
           'target_student_ids': targetStudentIds,
       };
@@ -1517,6 +1535,7 @@ class ClassService {
     String? startTime,
     String? endTime,
     required String sessionType,
+    String? subject,
     int? teacherId,
     String? topic,
   }) async {
@@ -1533,6 +1552,7 @@ class ClassService {
               ? '$endTime:00'
               : endTime,
           'session_type': sessionType,
+          if (subject != null) 'subject': subject,
           'teacher_id': teacherId,
           'topic': topic,
         }),

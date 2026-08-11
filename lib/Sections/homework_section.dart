@@ -21,6 +21,8 @@ class _HomeworkPerStudentSection extends StatelessWidget {
   onAssignHomework;
   final void Function(AssignmentInfo assignment)? onDeleteHomework;
   final void Function(AssignmentInfo assignment)? onCopyHomeworkToClass;
+  final void Function(AssignmentInfo assignment)? onCopyAssignment;
+  final bool canEditPastHomework;
 
   const _HomeworkPerStudentSection({
     required this.student,
@@ -30,6 +32,8 @@ class _HomeworkPerStudentSection extends StatelessWidget {
     required this.onAssignHomework,
     required this.onDeleteHomework,
     this.onCopyHomeworkToClass,
+    this.onCopyAssignment,
+    required this.canEditPastHomework,
   });
 
   @override
@@ -77,6 +81,8 @@ class _HomeworkPerStudentSection extends StatelessWidget {
           onAssignHomework: onAssignHomework,
           onDeleteHomework: onDeleteHomework,
           onCopyHomeworkToClass: onCopyHomeworkToClass,
+          onCopyAssignment: onCopyAssignment,
+          canEditPastHomework: canEditPastHomework,
         ),
       );
     }
@@ -181,6 +187,8 @@ class _HomeworkCard extends StatelessWidget {
   onAssignHomework;
   final void Function(AssignmentInfo assignment)? onDeleteHomework;
   final void Function(AssignmentInfo assignment)? onCopyHomeworkToClass;
+  final void Function(AssignmentInfo assignment)? onCopyAssignment;
+  final bool canEditPastHomework;
 
   const _HomeworkCard({
     required this.title,
@@ -191,6 +199,8 @@ class _HomeworkCard extends StatelessWidget {
     required this.onAssignHomework,
     required this.onDeleteHomework,
     this.onCopyHomeworkToClass,
+    this.onCopyAssignment,
+    required this.canEditPastHomework,
   });
 
   _HwStatus get _status {
@@ -372,6 +382,20 @@ class _HomeworkCard extends StatelessWidget {
                     ),
                     label: const Text('Edit'),
                   ),
+                  if (onCopyAssignment != null)
+                    OutlinedButton.icon(
+                      onPressed: () => onCopyAssignment!(cur),
+                      icon: const Icon(
+                        Icons.copy_rounded,
+                        size: 16,
+                        color: _kPrimary,
+                      ),
+                      label: const Text('Copy'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: _kPrimary,
+                        side: BorderSide(color: _kPrimary.withOpacity(0.45)),
+                      ),
+                    ),
                   if (onCopyHomeworkToClass != null)
                     OutlinedButton.icon(
                       onPressed: () => onCopyHomeworkToClass!(cur),
@@ -403,6 +427,55 @@ class _HomeworkCard extends StatelessWidget {
                 ],
               ),
             ] else ...[
+              if (canEditPastHomework ||
+                  onCopyAssignment != null ||
+                  onCopyHomeworkToClass != null) ...[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (canEditPastHomework)
+                      FilledButton.icon(
+                        onPressed: () => onAssignHomework(slotIndex, cur),
+                        icon: const Icon(
+                          Icons.edit_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        ),
+                        label: const Text('Edit'),
+                      ),
+                    if (onCopyAssignment != null)
+                      OutlinedButton.icon(
+                        onPressed: () => onCopyAssignment!(cur),
+                        icon: const Icon(
+                          Icons.copy_rounded,
+                          size: 16,
+                          color: _kPrimary,
+                        ),
+                        label: const Text('Copy'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _kPrimary,
+                          side: BorderSide(color: _kPrimary.withOpacity(0.45)),
+                        ),
+                      ),
+                    if (onCopyHomeworkToClass != null)
+                      OutlinedButton.icon(
+                        onPressed: () => onCopyHomeworkToClass!(cur),
+                        icon: const Icon(
+                          Icons.copy_all_rounded,
+                          size: 16,
+                          color: _kPrimary,
+                        ),
+                        label: const Text('Copy to class'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _kPrimary,
+                          side: BorderSide(color: _kPrimary.withOpacity(0.45)),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
               // Past: show result
               if (result?.submitted == true) ...[
                 if ((result?.photoLink ?? '').isNotEmpty)
