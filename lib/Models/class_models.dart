@@ -79,6 +79,7 @@ class SessionInfo {
   final int? academicPlanItemId;
   final List<int> academicPlanItemIds;
   final String? lessonNotes;
+  final HomeworkDocument? mockDocument;
 
   SessionInfo({
     required this.sessionId,
@@ -93,6 +94,7 @@ class SessionInfo {
     required this.academicPlanItemId,
     required this.academicPlanItemIds,
     required this.lessonNotes,
+    this.mockDocument,
   });
 
   factory SessionInfo.fromJson(Map<String, dynamic> json) {
@@ -112,6 +114,42 @@ class SessionInfo {
               .map((e) => e as int)
               .toList(),
       lessonNotes: json['lesson_notes']?.toString(),
+      mockDocument: parseHomeworkDocument(json['mock_document']),
+    );
+  }
+
+  SessionInfo copyWith({
+    int? sessionId,
+    int? classId,
+    int? teacherId,
+    String? date,
+    String? startTime,
+    String? endTime,
+    String? sessionType,
+    String? subject,
+    String? topic,
+    int? academicPlanItemId,
+    List<int>? academicPlanItemIds,
+    String? lessonNotes,
+    HomeworkDocument? mockDocument,
+    bool clearMockDocument = false,
+  }) {
+    return SessionInfo(
+      sessionId: sessionId ?? this.sessionId,
+      classId: classId ?? this.classId,
+      teacherId: teacherId ?? this.teacherId,
+      date: date ?? this.date,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      sessionType: sessionType ?? this.sessionType,
+      subject: subject ?? this.subject,
+      topic: topic ?? this.topic,
+      academicPlanItemId: academicPlanItemId ?? this.academicPlanItemId,
+      academicPlanItemIds: academicPlanItemIds ?? this.academicPlanItemIds,
+      lessonNotes: lessonNotes ?? this.lessonNotes,
+      mockDocument: clearMockDocument
+          ? null
+          : (mockDocument ?? this.mockDocument),
     );
   }
 }

@@ -34,6 +34,7 @@ class MockResultDetailPage extends StatefulWidget {
   final String deadline;
   final String sessionType;
   final AssignmentInfo assignment;
+  final SessionInfo? session;
   final MockResultInfo? result;
 
   const MockResultDetailPage({
@@ -43,6 +44,7 @@ class MockResultDetailPage extends StatefulWidget {
     required this.deadline,
     required this.sessionType,
     required this.assignment,
+    this.session,
     this.result,
   });
 
@@ -398,10 +400,10 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
                   builder: (context, constraints) {
                     final details = _DetailsCard(
                       taskLink: widget.assignment.taskLink?.trim() ?? '',
-                      homeworkDocument: widget.assignment.homeworkDocument,
+                      mockDocument: widget.session?.mockDocument,
                       photoRequired: widget.assignment.photoRequired,
                       onOpenLink: _openLink,
-                      onOpenHomeworkPdf: _openHomeworkPdf,
+                      onOpenMockPdf: _openHomeworkPdf,
                     );
                     final form = _SubmissionCard(
                       formKey: _formKey,
@@ -555,17 +557,17 @@ class _HeroChip extends StatelessWidget {
 
 class _DetailsCard extends StatelessWidget {
   final String taskLink;
-  final HomeworkDocument? homeworkDocument;
+  final HomeworkDocument? mockDocument;
   final bool photoRequired;
   final ValueChanged<String> onOpenLink;
-  final ValueChanged<String> onOpenHomeworkPdf;
+  final ValueChanged<String> onOpenMockPdf;
 
   const _DetailsCard({
     required this.taskLink,
-    required this.homeworkDocument,
+    required this.mockDocument,
     required this.photoRequired,
     required this.onOpenLink,
-    required this.onOpenHomeworkPdf,
+    required this.onOpenMockPdf,
   });
 
   @override
@@ -629,14 +631,17 @@ class _DetailsCard extends StatelessWidget {
                     ),
                   ),
           ),
-          if (homeworkDocument != null) ...[
-            const SizedBox(height: 14),
-            HomeworkPdfSection(
-              document: homeworkDocument,
-              canManage: false,
-              onOpen: () => onOpenHomeworkPdf(homeworkDocument!.url),
-            ),
-          ],
+          const SizedBox(height: 14),
+          HomeworkPdfSection(
+            document: mockDocument,
+            canManage: false,
+            title: 'Mock Test Document',
+            emptyFilename: 'No test document uploaded yet',
+            sectionKey: 'mock-pdf',
+            onOpen: mockDocument != null
+                ? () => onOpenMockPdf(mockDocument!.url)
+                : null,
+          ),
           const SizedBox(height: 14),
           _RequirementBanner(photoRequired: photoRequired),
         ],

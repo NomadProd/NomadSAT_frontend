@@ -384,6 +384,7 @@ class _HomeworkCard extends StatelessWidget {
                   ),
                   if (onCopyAssignment != null)
                     OutlinedButton.icon(
+                      key: const Key('copy-assignment'),
                       onPressed: () => onCopyAssignment!(cur),
                       icon: const Icon(
                         Icons.copy_rounded,
@@ -398,6 +399,7 @@ class _HomeworkCard extends StatelessWidget {
                     ),
                   if (onCopyHomeworkToClass != null)
                     OutlinedButton.icon(
+                      key: const Key('copy-to-class'),
                       onPressed: () => onCopyHomeworkToClass!(cur),
                       icon: const Icon(
                         Icons.copy_all_rounded,
@@ -446,6 +448,7 @@ class _HomeworkCard extends StatelessWidget {
                       ),
                     if (onCopyAssignment != null)
                       OutlinedButton.icon(
+                        key: const Key('copy-assignment'),
                         onPressed: () => onCopyAssignment!(cur),
                         icon: const Icon(
                           Icons.copy_rounded,
@@ -460,6 +463,7 @@ class _HomeworkCard extends StatelessWidget {
                       ),
                     if (onCopyHomeworkToClass != null)
                       OutlinedButton.icon(
+                        key: const Key('copy-to-class'),
                         onPressed: () => onCopyHomeworkToClass!(cur),
                         icon: const Icon(
                           Icons.copy_all_rounded,

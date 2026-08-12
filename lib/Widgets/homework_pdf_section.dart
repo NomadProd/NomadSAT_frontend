@@ -14,6 +14,10 @@ class HomeworkPdfSection extends StatelessWidget {
   final VoidCallback? onRemove;
   final VoidCallback? onOpen;
   final VoidCallback? onClearPending;
+  final String title;
+  final String emptyFilename;
+  final String uploadLabel;
+  final String sectionKey;
 
   const HomeworkPdfSection({
     super.key,
@@ -27,13 +31,17 @@ class HomeworkPdfSection extends StatelessWidget {
     this.onRemove,
     this.onOpen,
     this.onClearPending,
+    this.title = 'Homework PDF',
+    this.emptyFilename = 'No PDF selected',
+    this.uploadLabel = 'Upload homework PDF',
+    this.sectionKey = 'homework-pdf',
   });
 
   bool get _hasDocument => document != null && document!.url.isNotEmpty;
 
   String get _filename {
     if (pendingFile != null) return pendingFile!.name;
-    return document?.filename ?? 'No PDF selected';
+    return document?.filename ?? emptyFilename;
   }
 
   String? get _sizeLabel {
@@ -49,13 +57,13 @@ class HomeworkPdfSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return KeyedSubtree(
-      key: const Key('homework-pdf-section'),
+      key: Key('$sectionKey-section'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Homework PDF',
-            style: TextStyle(
+          Text(
+            title,
+            style: const TextStyle(
               color: TuranColors.textDark,
               fontSize: 13,
               fontWeight: FontWeight.w800,
@@ -69,6 +77,7 @@ class HomeworkPdfSection extends StatelessWidget {
                 filename: _filename,
                 sizeLabel: _sizeLabel,
                 hasFile: _hasDocument || pendingFile != null,
+                filenameKey: '$sectionKey-filename',
               );
               final actions = _ActionRow(
                 canManage: canManage,
@@ -79,6 +88,8 @@ class HomeworkPdfSection extends StatelessWidget {
                 onRemove: onRemove,
                 onOpen: _hasDocument ? onOpen : null,
                 onClearPending: onClearPending,
+                uploadLabel: uploadLabel,
+                sectionKey: sectionKey,
               );
 
               if (stacked) {
@@ -100,8 +111,8 @@ class HomeworkPdfSection extends StatelessWidget {
           ),
           if (uploading) ...[
             const SizedBox(height: 10),
-            const LinearProgressIndicator(
-              key: Key('homework-pdf-progress'),
+            LinearProgressIndicator(
+              key: Key('$sectionKey-progress'),
               minHeight: 4,
             ),
           ],
@@ -109,7 +120,7 @@ class HomeworkPdfSection extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               message!,
-              key: const Key('homework-pdf-message'),
+              key: Key('$sectionKey-message'),
               style: TextStyle(
                 color: messageIsError ? TuranColors.error : TuranColors.success,
                 fontSize: 13,
@@ -127,11 +138,13 @@ class _FileInfo extends StatelessWidget {
   final String filename;
   final String? sizeLabel;
   final bool hasFile;
+  final String filenameKey;
 
   const _FileInfo({
     required this.filename,
     required this.sizeLabel,
     required this.hasFile,
+    required this.filenameKey,
   });
 
   @override
@@ -159,7 +172,7 @@ class _FileInfo extends StatelessWidget {
               children: [
                 Text(
                   filename,
-                  key: const Key('homework-pdf-filename'),
+                  key: Key(filenameKey),
                   softWrap: true,
                   style: const TextStyle(
                     color: TuranColors.textDark,
@@ -197,6 +210,8 @@ class _ActionRow extends StatelessWidget {
   final VoidCallback? onRemove;
   final VoidCallback? onOpen;
   final VoidCallback? onClearPending;
+  final String uploadLabel;
+  final String sectionKey;
 
   const _ActionRow({
     required this.canManage,
@@ -207,6 +222,8 @@ class _ActionRow extends StatelessWidget {
     required this.onRemove,
     required this.onOpen,
     required this.onClearPending,
+    required this.uploadLabel,
+    required this.sectionKey,
   });
 
   @override
@@ -214,22 +231,22 @@ class _ActionRow extends StatelessWidget {
     final buttons = <Widget>[
       if (onOpen != null)
         _PdfButton(
-          key: const Key('homework-pdf-open'),
+          key: Key('$sectionKey-open'),
           icon: Icons.open_in_new_rounded,
           label: 'Open PDF',
           onPressed: uploading ? null : onOpen,
         ),
       if (canManage)
         _PdfButton(
-          key: Key(hasDocument ? 'homework-pdf-replace' : 'homework-pdf-upload'),
+          key: Key(hasDocument ? '$sectionKey-replace' : '$sectionKey-upload'),
           icon: Icons.upload_file_rounded,
-          label: hasDocument ? 'Replace PDF' : 'Upload homework PDF',
+          label: hasDocument ? 'Replace PDF' : uploadLabel,
           filled: true,
           onPressed: uploading ? null : onPick,
         ),
       if (canManage && hasDocument)
         _PdfButton(
-          key: const Key('homework-pdf-remove'),
+          key: Key('$sectionKey-remove'),
           icon: Icons.delete_outline_rounded,
           label: 'Remove PDF',
           destructive: true,
@@ -237,7 +254,7 @@ class _ActionRow extends StatelessWidget {
         ),
       if (canManage && hasPending && !hasDocument)
         _PdfButton(
-          key: const Key('homework-pdf-clear-pending'),
+          key: Key('$sectionKey-clear-pending'),
           icon: Icons.close_rounded,
           label: 'Remove PDF',
           destructive: true,

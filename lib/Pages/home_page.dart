@@ -770,6 +770,7 @@ class _HomeworkTile extends StatelessWidget {
             deadline: _formatMockSubmissionLabel(item.session),
             sessionType: _capitalize(item.session.sessionType),
             assignment: item.assignment,
+            session: item.session,
           ),
         ),
       );

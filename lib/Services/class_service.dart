@@ -756,6 +756,134 @@ class ClassService {
     }
   }
 
+  Future<Map<String, dynamic>> uploadMockDocument({
+    required int sessionId,
+    required PlatformFile file,
+  }) async {
+    try {
+      final validationError = validateHomeworkPdfSelection(
+        filename: file.name,
+        sizeBytes: file.size,
+        extension: file.extension,
+      );
+      if (validationError != null) {
+        return {
+          'success': false,
+          'message': validationError,
+          'status_code': 422,
+        };
+      }
+
+      final bytes = file.bytes;
+      if (bytes == null) {
+        return {
+          'success': false,
+          'message':
+              'Could not read ${file.name}. Try selecting the file again.',
+        };
+      }
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/sessions/$sessionId/mock-document'),
+      );
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: file.name,
+          contentType: MediaType('application', 'pdf'),
+        ),
+      );
+
+      final streamed = await _client.send(request);
+      final response = await http.Response.fromStream(streamed);
+      final data = response.bodyBytes.isEmpty
+          ? <String, dynamic>{}
+          : decodeJsonResponse(response);
+
+      if (response.statusCode == 200) {
+        final documentJson = data is Map ? data['mock_document'] : null;
+        return {
+          'success': true,
+          'document': parseHomeworkDocument(documentJson),
+          'session_id': data is Map ? data['session_id'] : sessionId,
+        };
+      }
+
+      if (response.statusCode == 422 && data is Map<String, dynamic>) {
+        return {
+          'success': false,
+          'message': formatHomeworkPdfValidationError(data),
+          'status_code': 422,
+        };
+      }
+
+      if (response.statusCode == 422 && data is Map) {
+        return {
+          'success': false,
+          'message': formatHomeworkPdfValidationError(
+            Map<String, dynamic>.from(data),
+          ),
+          'status_code': 422,
+        };
+      }
+
+      if (response.statusCode == 403) {
+        return {
+          'success': false,
+          'message': 'Not enough permissions',
+          'status_code': 403,
+        };
+      }
+
+      if (response.statusCode == 500) {
+        return {
+          'success': false,
+          'message': 'Upload failed. Please try again.',
+          'status_code': 500,
+        };
+      }
+
+      final detailMessage = data is Map ? data['detail'] : null;
+      return {
+        'success': false,
+        'message':
+            detailMessage?.toString() ?? 'Upload failed. Please try again.',
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Connection failed: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteMockDocument({
+    required int sessionId,
+  }) async {
+    try {
+      final response = await _client.delete(
+        Uri.parse('$baseUrl/sessions/$sessionId/mock-document'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 204) {
+        return {'success': true};
+      }
+
+      final data = response.bodyBytes.isEmpty
+          ? <String, dynamic>{}
+          : decodeJsonResponse(response);
+      final detailMessage = data is Map ? data['detail'] : null;
+      return {
+        'success': false,
+        'message':
+            detailMessage?.toString() ?? 'Failed to remove mock test PDF',
+        'status_code': response.statusCode,
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Connection failed: $e'};
+    }
+  }
+
   Future<Map<String, dynamic>> deleteAssignment({
     required int assignmentId,
   }) async {

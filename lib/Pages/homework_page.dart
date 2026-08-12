@@ -142,6 +142,7 @@ class _HomeworkPageState extends State<HomeworkPage>
             deadline: item.deadlineLabel,
             sessionType: _capitalize(item.session.sessionType),
             assignment: item.assignment,
+            session: item.session,
             result: item.mockResult,
           ),
         ),

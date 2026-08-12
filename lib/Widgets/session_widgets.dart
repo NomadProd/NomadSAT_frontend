@@ -306,6 +306,13 @@ class _SessionMetaCard extends StatelessWidget {
   final UserInfo? verbalTeacher, mathTeacher;
   final List<UserInfo> teachers;
   final bool canManageClass;
+  final bool canManageMockPdf;
+  final bool uploadingMockPdf;
+  final String? mockPdfMessage;
+  final bool mockPdfMessageIsError;
+  final VoidCallback? onPickMockPdf;
+  final VoidCallback? onRemoveMockPdf;
+  final VoidCallback? onOpenMockPdf;
   final VoidCallback onStudents, onSessions;
 
   const _SessionMetaCard({
@@ -314,6 +321,13 @@ class _SessionMetaCard extends StatelessWidget {
     required this.mathTeacher,
     required this.teachers,
     required this.canManageClass,
+    this.canManageMockPdf = false,
+    this.uploadingMockPdf = false,
+    this.mockPdfMessage,
+    this.mockPdfMessageIsError = false,
+    this.onPickMockPdf,
+    this.onRemoveMockPdf,
+    this.onOpenMockPdf,
     required this.onStudents,
     required this.onSessions,
   });
@@ -385,6 +399,26 @@ class _SessionMetaCard extends StatelessWidget {
                         onTap: onSessions,
                       ),
                     ],
+                  ),
+                ),
+              if (_isMockSession(session))
+                SizedBox(
+                  width: c.maxWidth,
+                  child: HomeworkPdfSection(
+                    document: session.mockDocument,
+                    canManage: canManageMockPdf,
+                    uploading: uploadingMockPdf,
+                    message: mockPdfMessage,
+                    messageIsError: mockPdfMessageIsError,
+                    title: 'Mock Test Document',
+                    emptyFilename: 'No test document uploaded yet',
+                    uploadLabel: 'Upload PDF',
+                    sectionKey: 'mock-pdf',
+                    onPick: onPickMockPdf,
+                    onRemove: session.mockDocument != null
+                        ? onRemoveMockPdf
+                        : null,
+                    onOpen: onOpenMockPdf,
                   ),
                 ),
             ],

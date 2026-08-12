@@ -10,6 +10,7 @@ import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Pages/academic_plan_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
 import 'package:flutter_web/Utils/homework_pdf.dart';
+import 'package:flutter_web/Utils/assignment_copy.dart';
 import 'package:flutter_web/Widgets/homework_pdf_section.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/Widgets/weekly_schedule_picker.dart';
@@ -402,6 +403,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
   bool _savingAssignment = false;
   bool _savingAttendance = false;
   bool _savingSession = false;
+  bool _uploadingMockPdf = false;
+  String? _mockPdfMessage;
+  bool _mockPdfMessageIsError = false;
   List<UserInfo> _allStudents = [];
   DateTime _sessionWeekAnchor = DateTime.now();
 
@@ -632,8 +636,13 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     bool uploadingPdf = false;
     String? pdfMessage;
     var pdfMessageIsError = false;
-    final canCopyInto = assignment == null ||
-        (assignment != null && _assignmentIsEmpty(assignment));
+    final canCopyInto = (assignment == null ||
+            (assignment != null && _assignmentIsEmpty(assignment))) &&
+        canCopyAssignment(
+          role: _pageData?.user.role,
+          sessionTeacherId: session.teacherId,
+          currentUserId: _pageData?.user.userId,
+        );
     final copySources = canCopyInto
         ? _assignmentCopySources(
             session: session,
@@ -1230,8 +1239,17 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
   Future<void> _copyHomeworkToClass({
     required AssignmentInfo assignment,
   }) async {
-    final role = _pageData?.user.role.toLowerCase();
-    if (!_isStaffAdmin(role ?? '') && role != 'teacher') return;
+    final sessionTeacherId = _pageData?.sessions
+        .where((s) => s.sessionId == assignment.sessionId)
+        .firstOrNull
+        ?.teacherId;
+    if (!canCopyAssignment(
+      role: _pageData?.user.role,
+      sessionTeacherId: sessionTeacherId,
+      currentUserId: _pageData?.user.userId,
+    )) {
+      return;
+    }
 
     final slotLabel = assignment.slotIndex?.toString() ?? '?';
     final ok = await _confirmDialog(
@@ -1272,7 +1290,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       text: _compactTime(sourceAssignment.dueTime),
     );
 
-    final classes = await classService.fetchClasses();
+    final classes = await classService.fetchClasses(archived: false);
     if (!mounted) return;
     if (classes.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2477,6 +2495,91 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     }
   }
 
+  void _replaceSelectedSession(SessionInfo updated) {
+    final data = _pageData;
+    if (data == null) return;
+    final sessions = data.sessions
+        .map((s) => s.sessionId == updated.sessionId ? updated : s)
+        .toList();
+    setState(() {
+      _pageData = data.copyWith(
+        sessions: sessions,
+        detail: data.detail.copyWith(sessions: sessions),
+      );
+    });
+  }
+
+  Future<void> _pickMockDocument(SessionInfo session) async {
+    final picked = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      type: FileType.custom,
+      allowedExtensions: const ['pdf'],
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+    final file = picked.files.first;
+    final error = validateHomeworkPdfSelection(
+      filename: file.name,
+      sizeBytes: file.size,
+      extension: file.extension,
+    );
+    if (error != null) {
+      setState(() {
+        _mockPdfMessage = error;
+        _mockPdfMessageIsError = true;
+      });
+      return;
+    }
+    setState(() {
+      _uploadingMockPdf = true;
+      _mockPdfMessage = null;
+      _mockPdfMessageIsError = false;
+    });
+    final upload = await classService.uploadMockDocument(
+      sessionId: session.sessionId,
+      file: file,
+    );
+    if (!mounted) return;
+    setState(() {
+      _uploadingMockPdf = false;
+      if (upload['success'] == true) {
+        _mockPdfMessage = 'PDF uploaded successfully';
+        _mockPdfMessageIsError = false;
+        _replaceSelectedSession(
+          session.copyWith(mockDocument: upload['document'] as HomeworkDocument?),
+        );
+      } else {
+        _mockPdfMessage =
+            upload['message']?.toString() ?? 'Upload failed. Please try again.';
+        _mockPdfMessageIsError = true;
+      }
+    });
+  }
+
+  Future<void> _removeMockDocument(SessionInfo session) async {
+    setState(() {
+      _uploadingMockPdf = true;
+      _mockPdfMessage = null;
+      _mockPdfMessageIsError = false;
+    });
+    final removed = await classService.deleteMockDocument(
+      sessionId: session.sessionId,
+    );
+    if (!mounted) return;
+    setState(() {
+      _uploadingMockPdf = false;
+      if (removed['success'] == true) {
+        _mockPdfMessage = 'PDF removed';
+        _mockPdfMessageIsError = false;
+        _replaceSelectedSession(session.copyWith(clearMockDocument: true));
+      } else {
+        _mockPdfMessage =
+            removed['message']?.toString() ?? 'Failed to remove mock test PDF';
+        _mockPdfMessageIsError = true;
+      }
+    });
+  }
+
   void _openStudentPage(UserInfo student) {
     final user = _pageData?.user;
     if (user == null || !_canOpenStudentProgress(user)) return;
@@ -2565,6 +2668,11 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       (s) => s.sessionId == _selectedSessionId,
       orElse: () => data.sessions.first,
     );
+    final canCopySelected = canCopyAssignment(
+      role: role,
+      sessionTeacherId: selected.teacherId,
+      currentUserId: data.user.userId,
+    );
     final attendance = data.detail.attendance
         .where((a) => a.sessionId == selected.sessionId)
         .toList();
@@ -2593,6 +2701,8 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                 .firstOrNull;
             setState(() {
               _selectedSessionId = id;
+              _mockPdfMessage = null;
+              _mockPdfMessageIsError = false;
               if (next != null) _sessionWeekAnchor = _parseDate(next.date);
             });
           },
@@ -2609,6 +2719,14 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                 mathTeacher: data.detail.mathTeacher,
                 teachers: data.teachers,
                 canManageClass: canManageClass,
+                canManageMockPdf: canManageHomeworkPdf(role),
+                uploadingMockPdf: _uploadingMockPdf,
+                mockPdfMessage: _mockPdfMessage,
+                mockPdfMessageIsError: _mockPdfMessageIsError,
+                onPickMockPdf: () => _pickMockDocument(selected),
+                onRemoveMockPdf: () => _removeMockDocument(selected),
+                onOpenMockPdf: () =>
+                    _openHomeworkPdf(selected.mockDocument?.url),
                 onStudents: () =>
                     _openStudentsDialog(students: data.detail.students),
                 onSessions: _openSessionsDialog,
@@ -2645,14 +2763,11 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                         ? (assignment) =>
                               _deleteAssignment(assignment: assignment)
                         : null,
-                    onCopyHomeworkToClass: canDeleteHomework
+                    onCopyHomeworkToClass: canCopySelected
                         ? (assignment) =>
                               _copyHomeworkToClass(assignment: assignment)
                         : null,
-                    onCopyAssignment:
-                        (isStaffAdmin ||
-                            (role == 'teacher' &&
-                                selected.teacherId == data.user.userId))
+                    onCopyAssignment: canCopySelected
                         ? (assignment) =>
                               _openCopyAssignmentDialog(
                                 sourceAssignment: assignment,
