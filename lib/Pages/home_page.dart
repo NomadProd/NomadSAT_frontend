@@ -6,6 +6,7 @@ import 'package:flutter_web/Pages/homework_detail_page.dart';
 import 'package:flutter_web/Pages/mock_result_detail_page.dart';
 import 'package:flutter_web/Pages/homework_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
+import 'package:flutter_web/screens/student/diagnostic_test_screen.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Services/api_json.dart';
@@ -352,6 +353,14 @@ class _HomePageState extends State<HomePage> with RouteAware {
                         children: [
                           _GreetingCard(user: data.user),
                           const SizedBox(height: 14),
+                          _DiagnosticEntryCard(
+                            onStart: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const DiagnosticTestScreen(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
                           _DashboardRow(
                             children: [
                               _DueNowSection(
@@ -605,6 +614,74 @@ class _GreetingCard extends StatelessWidget {
 }
 
 // РІвЂќР‚РІвЂќР‚РІвЂќР‚ Dashboard row РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
+class _DiagnosticEntryCard extends StatelessWidget {
+  final VoidCallback onStart;
+
+  const _DiagnosticEntryCard({required this.onStart});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: TuranColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onStart,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _kBorder),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8EEFF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.quiz_rounded,
+                  color: _kPrimary,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Digital SAT diagnostic',
+                      style: TextStyle(
+                        color: _kTextDark,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      '20 questions · ~27 minutes · approximate score range',
+                      style: TextStyle(
+                        color: _kTextMid,
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: _kTextLight),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DashboardRow extends StatelessWidget {
   final List<Widget> children;
 

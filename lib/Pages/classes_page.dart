@@ -5,6 +5,7 @@ import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Pages/class_detail_page.dart';
 import 'package:flutter_web/Pages/control_panel_page.dart';
+import 'package:flutter_web/screens/admin/diagnostic_question_bank_screen.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/Widgets/weekly_schedule_picker.dart';
 
@@ -93,6 +94,8 @@ class _ClassesPageState extends State<ClassesPage> {
           final isStaffAdmin = role == 'admin' || role == 'mentor';
           final canOpenControlPanel =
               isStaffAdmin || role == 'teacher';
+          final canOpenDiagnosticBank =
+              isStaffAdmin || role == 'teacher';
           final showArchivedSections = isStaffAdmin;
 
           return Column(
@@ -109,6 +112,14 @@ class _ClassesPageState extends State<ClassesPage> {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const ControlPanelPage(),
+                      ),
+                    );
+                  },
+                  canOpenDiagnosticBank: canOpenDiagnosticBank,
+                  onOpenDiagnosticBank: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const DiagnosticQuestionBankScreen(),
                       ),
                     );
                   },
@@ -152,6 +163,8 @@ class _ClassesContent extends StatelessWidget {
   final VoidCallback onCreateClass;
   final bool canOpenControlPanel;
   final VoidCallback onOpenControlPanel;
+  final bool canOpenDiagnosticBank;
+  final VoidCallback onOpenDiagnosticBank;
 
   const _ClassesContent({
     required this.classes,
@@ -160,11 +173,27 @@ class _ClassesContent extends StatelessWidget {
     required this.onCreateClass,
     required this.canOpenControlPanel,
     required this.onOpenControlPanel,
+    required this.canOpenDiagnosticBank,
+    required this.onOpenDiagnosticBank,
   });
 
   @override
   Widget build(BuildContext context) {
     final actionButtons = [
+      if (canOpenDiagnosticBank)
+        OutlinedButton.icon(
+          onPressed: onOpenDiagnosticBank,
+          icon: const Icon(Icons.quiz_rounded, size: 18),
+          label: const Text('Diagnostic questions'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF1A4AF0),
+            side: const BorderSide(color: Color(0xFF1A4AF0)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
       if (canOpenControlPanel)
         OutlinedButton.icon(
           onPressed: onOpenControlPanel,

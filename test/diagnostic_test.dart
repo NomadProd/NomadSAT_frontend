@@ -1,0 +1,395 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_web/Models/diagnostic_attempt.dart';
+import 'package:flutter_web/Models/diagnostic_question.dart';
+import 'package:flutter_web/Utils/desmos_config.dart';
+import 'package:flutter_web/Utils/diagnostic_layout.dart';
+import 'package:flutter_web/Utils/math_reference.dart';
+import 'package:flutter_web/Widgets/diagnostic_question_taking_view.dart';
+import 'package:flutter_web/Widgets/diagnostic_timer_bar.dart';
+import 'package:flutter_web/Widgets/math_reference_sheet_panel.dart';
+import 'package:flutter_web/screens/student/diagnostic_results_screen.dart';
+
+DiagnosticAttempt _completedAttempt() {
+  return DiagnosticAttempt(
+    id: 11,
+    studentId: 7,
+    startedAt: DateTime.utc(2026, 8, 15, 10),
+    completedAt: DateTime.utc(2026, 8, 15, 10, 25),
+    status: 'completed',
+    rwScaledEstimate: 620,
+    mathScaledEstimate: 680,
+    totalPointEstimate: 1300,
+    totalRangeLow: 1220,
+    totalRangeHigh: 1380,
+  );
+}
+
+void main() {
+  test('layout has 20 slots and 50 points per section', () {
+    expect(kDiagnosticLayout, hasLength(20));
+    final rw = kDiagnosticLayout.where((slot) => !slot.isMath);
+    final math = kDiagnosticLayout.where((slot) => slot.isMath);
+    expect(rw, hasLength(10));
+    expect(math, hasLength(10));
+    expect(rw.fold<int>(0, (sum, slot) => sum + slot.points), 50);
+    expect(math.fold<int>(0, (sum, slot) => sum + slot.points), 50);
+  });
+
+  test('rejects mismatched difficulty and points', () {
+    expect(
+      diagnosticLayoutMismatch(
+        orderIndex: 3,
+        section: 'reading_writing',
+        domain: 'Craft and Structure',
+        difficulty: 'hard',
+        points: 3,
+      ),
+      isNotNull,
+    );
+  });
+
+  test('section timer counts down and hits zero', () {
+    final started = DateTime.utc(2026, 8, 15, 12);
+    expect(
+      diagnosticSectionRemaining(
+        now: started,
+        sectionStartedAt: started,
+        isMath: false,
+      ),
+      const Duration(minutes: 12),
+    );
+    expect(
+      diagnosticSectionRemaining(
+        now: started.add(const Duration(minutes: 12)),
+        sectionStartedAt: started,
+        isMath: false,
+      ),
+      Duration.zero,
+    );
+    expect(
+      diagnosticSectionRemaining(
+        now: started.add(const Duration(minutes: 5)),
+        sectionStartedAt: started,
+        isMath: true,
+      ),
+      const Duration(minutes: 10),
+    );
+    expect(formatDiagnosticCountdown(const Duration(minutes: 12)), '12:00');
+    expect(formatDiagnosticCountdown(const Duration(seconds: 9)), '00:09');
+  });
+
+  test('question bank access is role-gated', () {
+    expect(canManageDiagnosticBank('admin'), isTrue);
+    expect(canManageDiagnosticBank('mentor'), isTrue);
+    expect(canManageDiagnosticBank('teacher'), isFalse);
+    expect(canManageDiagnosticBank('student'), isFalse);
+    expect(canViewDiagnosticBank('teacher'), isTrue);
+    expect(canViewDiagnosticBank('student'), isFalse);
+  });
+
+  testWidgets('results screen shows score range and disclaimer', (tester) async {
+    var retakeCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DiagnosticResultsView(
+            attempt: _completedAttempt(),
+            onRetake: () => retakeCount += 1,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('diagnostic-score-range')), findsOneWidget);
+    expect(find.text('1220–1380'), findsOneWidget);
+    expect(find.byKey(const Key('diagnostic-disclaimer')), findsOneWidget);
+    expect(find.text(kDiagnosticScoreDisclaimer), findsOneWidget);
+    expect(find.text('620'), findsOneWidget);
+    expect(find.text('680'), findsOneWidget);
+
+    await tester.tap(find.text('Retake test'));
+    expect(retakeCount, 1);
+  });
+
+  testWidgets('results and timer fit mobile and desktop', (tester) async {
+    Future<void> pumpAt(Size size) async {
+      await tester.binding.setSurfaceSize(size);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                DiagnosticTimerBar(
+                  remaining: const Duration(minutes: 11, seconds: 40),
+                  isMath: false,
+                  sectionNumber: 4,
+                ),
+                Expanded(
+                  child: DiagnosticResultsView(
+                    attempt: _completedAttempt(),
+                    onRetake: () {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await pumpAt(const Size(390, 844));
+    expect(tester.takeException(), isNull);
+    expect(find.text('11:40'), findsOneWidget);
+    expect(find.text('Question 4 of 10 — Reading & Writing'), findsOneWidget);
+
+    await pumpAt(const Size(1280, 800));
+    expect(tester.takeException(), isNull);
+    expect(find.text('1220–1380'), findsOneWidget);
+
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+  });
+
+  test('retaking keeps previous completed attempts in history', () {
+    final previous = _completedAttempt();
+    final next = DiagnosticAttempt(
+      id: 12,
+      studentId: previous.studentId,
+      startedAt: previous.startedAt.add(const Duration(days: 1)),
+      status: 'in_progress',
+    );
+    expect(previous.id, isNot(next.id));
+    expect(previous.isCompleted, isTrue);
+    expect(next.isInProgress, isTrue);
+  });
+
+  testWidgets('teacher bank view is read-only and students are blocked', (tester) async {
+    Widget bankFor(String role) {
+      return MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              if (!canViewDiagnosticBank(role)) {
+                return const Text('You do not have access to the diagnostic question bank.');
+              }
+              return Column(
+                children: [
+                  if (canManageDiagnosticBank(role)) const Text('Edit'),
+                  if (canManageDiagnosticBank(role)) const Text('Add'),
+                  if (!canManageDiagnosticBank(role))
+                    const Text('Reading & Writing'),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(bankFor('student'));
+    expect(find.text('You do not have access to the diagnostic question bank.'), findsOneWidget);
+    expect(find.text('Edit'), findsNothing);
+
+    await tester.pumpWidget(bankFor('teacher'));
+    expect(find.text('Edit'), findsNothing);
+    expect(find.text('Reading & Writing'), findsOneWidget);
+
+    await tester.pumpWidget(bankFor('admin'));
+    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Add'), findsOneWidget);
+
+    await tester.pumpWidget(bankFor('mentor'));
+    expect(find.text('Edit'), findsOneWidget);
+  });
+
+  testWidgets('calculator and reference are math-only', (tester) async {
+    await tester.pumpWidget(
+      _TakingHarness(
+        question: _question(math: false, order: 10),
+        remaining: const Duration(minutes: 4),
+      ),
+    );
+    expect(find.byKey(const Key('diagnostic-calculator-button')), findsNothing);
+    expect(find.byKey(const Key('diagnostic-reference-button')), findsNothing);
+    expect(find.text('Reading stem'), findsOneWidget);
+
+    await tester.pumpWidget(
+      _TakingHarness(
+        question: _question(math: true, order: 11),
+        remaining: const Duration(minutes: 15),
+        showHint: true,
+      ),
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('diagnostic-calculator-button')), findsOneWidget);
+    expect(find.byKey(const Key('diagnostic-reference-button')), findsOneWidget);
+    expect(find.byKey(const Key('diagnostic-math-tools-hint')), findsOneWidget);
+    expect(find.text(kDesmosCalculatorHint), findsOneWidget);
+    expect(find.text('Math stem'), findsOneWidget);
+  });
+
+  testWidgets('toggling calculator does not change the timer', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _TakingHarness(
+        question: _question(math: true, order: 11),
+        remaining: const Duration(minutes: 12, seconds: 5),
+      ),
+    );
+    expect(find.text('12:05'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('diagnostic-calculator-button')));
+    await tester.pump();
+    expect(find.text('12:05'), findsOneWidget);
+    expect(find.text('Calculator'), findsOneWidget);
+    expect(find.text('Math stem'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('desmos-calculator-close')));
+    await tester.pump();
+    expect(find.text('12:05'), findsOneWidget);
+    expect(find.text('Calculator'), findsNothing);
+    expect(find.text('Math stem'), findsOneWidget);
+  });
+
+  testWidgets('toggling reference does not change the timer', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _TakingHarness(
+        question: _question(math: true, order: 12),
+        remaining: const Duration(minutes: 9, seconds: 40),
+      ),
+    );
+    expect(find.text('09:40'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('diagnostic-reference-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('09:40'), findsOneWidget);
+    expect(find.byKey(const Key('math-reference-sheet')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('math-reference-close')));
+    await tester.pumpAndSettle();
+    expect(find.text('09:40'), findsOneWidget);
+    expect(find.byKey(const Key('math-reference-sheet')), findsNothing);
+  });
+
+  testWidgets('reference sheet lists the official formulas only', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: MathReferenceSheetPanel())),
+    );
+    expect(kMathReferenceItems, hasLength(15));
+    for (final item in kMathReferenceItems) {
+      expect(find.text(item.text), findsOneWidget);
+    }
+    expect(find.textContaining('quadratic'), findsNothing);
+    expect(find.textContaining('logarithm'), findsNothing);
+    expect(find.textContaining('sin'), findsNothing);
+  });
+
+  testWidgets('math tools layout works on mobile and desktop', (tester) async {
+    Future<void> pumpAt(Size size, {required bool calculatorOpen}) async {
+      await tester.binding.setSurfaceSize(size);
+      await tester.pumpWidget(
+        _TakingHarness(
+          question: _question(math: true, order: 11),
+          remaining: const Duration(minutes: 10),
+          calculatorOpen: calculatorOpen,
+        ),
+      );
+      await tester.pump();
+    }
+
+    await pumpAt(const Size(390, 844), calculatorOpen: true);
+    expect(tester.takeException(), isNull);
+    expect(find.text('Calculator'), findsOneWidget);
+
+    await pumpAt(const Size(1280, 800), calculatorOpen: true);
+    expect(tester.takeException(), isNull);
+    expect(find.text('Math stem'), findsOneWidget);
+    expect(find.text('Calculator'), findsOneWidget);
+
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+  });
+}
+
+DiagnosticQuestion _question({required bool math, int order = 1}) {
+  return DiagnosticQuestion(
+    id: order,
+    section: math ? 'math' : 'reading_writing',
+    domain: math ? 'Algebra' : 'Craft and Structure',
+    difficulty: 'easy',
+    orderIndex: order,
+    questionText: math ? 'Math stem' : 'Reading stem',
+    choices: const [
+      DiagnosticChoice(key: 'A', text: 'One'),
+      DiagnosticChoice(key: 'B', text: 'Two'),
+    ],
+  );
+}
+
+class _TakingHarness extends StatefulWidget {
+  final DiagnosticQuestion question;
+  final Duration remaining;
+  final bool showHint;
+  final bool calculatorOpen;
+
+  const _TakingHarness({
+    required this.question,
+    required this.remaining,
+    this.showHint = false,
+    this.calculatorOpen = false,
+  });
+
+  @override
+  State<_TakingHarness> createState() => _TakingHarnessState();
+}
+
+class _TakingHarnessState extends State<_TakingHarness> {
+  late bool calculatorOpen = widget.calculatorOpen;
+  late bool showHint = widget.showHint;
+
+  @override
+  void didUpdateWidget(_TakingHarness oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.calculatorOpen != widget.calculatorOpen) {
+      calculatorOpen = widget.calculatorOpen;
+    }
+    if (oldWidget.showHint != widget.showHint) {
+      showHint = widget.showHint;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final question = widget.question;
+    final isMath = question.isMath;
+    return MaterialApp(
+      home: Builder(
+        builder: (dialogContext) {
+          return Scaffold(
+            body: DiagnosticQuestionTakingView(
+              remaining: widget.remaining,
+              isMath: isMath,
+              sectionNumber: isMath ? question.orderIndex - 10 : question.orderIndex,
+              question: question,
+              selectedChoice: null,
+              completing: false,
+              calculatorOpen: calculatorOpen,
+              showMathToolsHint: showHint,
+              onSelect: (_) {},
+              onNext: () {},
+              onLeave: () {},
+              onToggleCalculator: () {
+                setState(() => calculatorOpen = !calculatorOpen);
+              },
+              onOpenReference: () {
+                showMathReferenceSheet(dialogContext);
+              },
+              onDismissHint: () {
+                setState(() => showHint = false);
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
