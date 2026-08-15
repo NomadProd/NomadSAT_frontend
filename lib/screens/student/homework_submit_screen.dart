@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/class_service.dart';
+import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/Models/homework_result.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
@@ -111,7 +112,12 @@ class _HomeworkSubmitScreenState extends State<HomeworkSubmitScreen>
       _incorrectController.text = existing.incorrectTotal?.toString() ?? '';
       _analysisController.text = existing.analysis ?? '';
       await _reloadResult(existing.resultId);
-    } catch (_) {}
+    } catch (_) {
+      if (!mounted) return;
+      _showBannerError(
+        'Could not load the previous submission. You can still submit.',
+      );
+    }
   }
 
   Future<int?> _resolveExistingResultId() async {
@@ -140,7 +146,7 @@ class _HomeworkSubmitScreenState extends State<HomeworkSubmitScreen>
       setState(() => _result = result);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = userFacingError(e));
     }
   }
 

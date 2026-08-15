@@ -8,6 +8,8 @@ import 'package:flutter_web/Pages/homework_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
+import 'package:flutter_web/Services/api_json.dart';
+import 'package:flutter_web/Utils/assignment_title.dart';
 import 'package:flutter_web/Widgets/app_route_observer.dart';
 
 // РІвЂќР‚РІвЂќР‚РІвЂќР‚ Palette РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
@@ -74,69 +76,77 @@ class _HomePageState extends State<HomePage> with RouteAware {
   }
 
   Future<_StudentHomeData> _loadHome() async {
-    final user = await _authService.fetchMe();
-    final details = await _classService.fetchStudentHomeClassDetails();
-    final classHomes = <_StudentClassHome>[];
+    late final UserInfo user;
+    late final List<ClassFullDetailInfo> details;
+    await Future.wait([
+      _authService.fetchMe().then((value) {
+        user = value;
+      }),
+      _classService.fetchStudentHomeClassDetails().then((value) {
+        details = value;
+      }),
+    ]);
 
-    for (final detail in details) {
-      final classInfo = _classInfoFromDetail(detail);
-      final sessions = [...detail.sessions]
-        ..sort((a, b) => _parseDate(a.date).compareTo(_parseDate(b.date)));
-
-      final homeworkResultsByAssignment = <int, List<HomeworkResultInfo>>{};
-      final mockResultsByAssignment = <int, List<MockResultInfo>>{};
-
-      final userAssignments = detail.assignments
-          .where((a) => a.studentId == user.userId)
-          .toList();
-      final userAssignmentIds = userAssignments
-          .map((a) => a.assignmentId)
-          .toSet();
-
-      final homeworkResultsFuture = _classService.fetchHomeworkResultsByClass(
-        classInfo.classId,
-      );
-      final mockResultsFuture = _classService.fetchMockResultsByClass(
-        classInfo.classId,
-      );
-
-      final classHomeworkResults = await homeworkResultsFuture;
-      final classMockResults = await mockResultsFuture;
-
-      for (final result in classHomeworkResults) {
-        if (!userAssignmentIds.contains(result.assignmentId)) continue;
-        homeworkResultsByAssignment
-            .putIfAbsent(result.assignmentId, () => <HomeworkResultInfo>[])
-            .add(result);
-      }
-
-      for (final result in classMockResults) {
-        if (!userAssignmentIds.contains(result.assignmentId)) continue;
-        mockResultsByAssignment
-            .putIfAbsent(result.assignmentId, () => <MockResultInfo>[])
-            .add(result);
-      }
-
-      classHomes.add(
-        _StudentClassHome(
-          classInfo: classInfo,
-          detail: detail,
-          sessions: sessions,
-          homeworkResultsByAssignment: homeworkResultsByAssignment,
-          mockResultsByAssignment: mockResultsByAssignment,
-        ),
-      );
-    }
-
-    final enrolledClassHome = classHomes.firstOrNull;
+    final classHomes = await Future.wait(
+      details.map((detail) => _loadClassHome(user.userId, detail)),
+    );
 
     return _StudentHomeData(
       user: user,
-      academicPlanClass: enrolledClassHome?.classInfo,
-      timetableClass: enrolledClassHome,
+      classHomes: classHomes,
       dueHomework: _buildDueHomework(classHomes, user.userId),
       nextClass: _buildNextClass(classHomes),
       progress: _buildProgress(classHomes),
+    );
+  }
+
+  Future<_StudentClassHome> _loadClassHome(
+    int userId,
+    ClassFullDetailInfo detail,
+  ) async {
+    final classInfo = _classInfoFromDetail(detail);
+    final sessions = [...detail.sessions]
+      ..sort((a, b) => _parseDate(a.date).compareTo(_parseDate(b.date)));
+    final userAssignmentIds = {
+      for (final assignment in detail.assignments)
+        if (assignment.studentId == userId) assignment.assignmentId,
+    };
+
+    late final List<HomeworkResultInfo> classHomeworkResults;
+    late final List<MockResultInfo> classMockResults;
+    await Future.wait([
+      _classService.fetchHomeworkResultsByClass(classInfo.classId).then((
+        value,
+      ) {
+        classHomeworkResults = value;
+      }),
+      _classService.fetchMockResultsByClass(classInfo.classId).then((value) {
+        classMockResults = value;
+      }),
+    ]);
+
+    final homeworkResultsByAssignment = <int, List<HomeworkResultInfo>>{};
+    for (final result in classHomeworkResults) {
+      if (!userAssignmentIds.contains(result.assignmentId)) continue;
+      homeworkResultsByAssignment
+          .putIfAbsent(result.assignmentId, () => <HomeworkResultInfo>[])
+          .add(result);
+    }
+
+    final mockResultsByAssignment = <int, List<MockResultInfo>>{};
+    for (final result in classMockResults) {
+      if (!userAssignmentIds.contains(result.assignmentId)) continue;
+      mockResultsByAssignment
+          .putIfAbsent(result.assignmentId, () => <MockResultInfo>[])
+          .add(result);
+    }
+
+    return _StudentClassHome(
+      classInfo: classInfo,
+      detail: detail,
+      sessions: sessions,
+      homeworkResultsByAssignment: homeworkResultsByAssignment,
+      mockResultsByAssignment: mockResultsByAssignment,
     );
   }
 
@@ -309,7 +319,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
           }
           if (snap.hasError) {
             return _ErrorState(
-              message: snap.error.toString(),
+              message: userFacingError(snap.error!),
               onRetry: _refreshHome,
             );
           }
@@ -363,8 +373,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
                           const SizedBox(height: 14),
                           _QuickNav(
                             classService: _classService,
-                            academicPlanClass: data.academicPlanClass,
-                            timetableClass: data.timetableClass,
+                            classHomes: data.classHomes,
                           ),
                         ],
                       ),
@@ -1270,13 +1279,11 @@ class _ProgressStatCard extends StatelessWidget {
 // РІвЂќР‚РІвЂќР‚РІвЂќР‚ Quick nav РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
 class _QuickNav extends StatelessWidget {
   final ClassService classService;
-  final ClassInfo? academicPlanClass;
-  final _StudentClassHome? timetableClass;
+  final List<_StudentClassHome> classHomes;
 
   const _QuickNav({
     required this.classService,
-    required this.academicPlanClass,
-    required this.timetableClass,
+    required this.classHomes,
   });
 
   void _openHomework(BuildContext context) {
@@ -1285,40 +1292,63 @@ class _QuickNav extends StatelessWidget {
     ).push(MaterialPageRoute(builder: (_) => const HomeworkPage()));
   }
 
-  void _openAcademicPlan(BuildContext context) {
-    final classInfo = academicPlanClass;
-    if (classInfo == null) {
+  Future<_StudentClassHome?> _pickClass(BuildContext context) async {
+    if (classHomes.isEmpty) return null;
+    if (classHomes.length == 1) return classHomes.first;
+    return showDialog<_StudentClassHome>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Choose a class'),
+        children: [
+          for (final classHome in classHomes)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, classHome),
+              child: Text(classHome.classInfo.className),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openAcademicPlan(BuildContext context) async {
+    final classHome = await _pickClass(context);
+    if (classHome == null) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('No enrolled class found.')));
       return;
     }
 
+    if (!context.mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AcademicPlanPage(
-          classId: classInfo.classId,
-          className: classInfo.className,
+          classId: classHome.classInfo.classId,
+          className: classHome.classInfo.className,
         ),
       ),
     );
   }
 
-  void _openTimetable(BuildContext context) {
-    final classHome = timetableClass;
+  Future<void> _openTimetable(BuildContext context) async {
+    final classHome = await _pickClass(context);
     if (classHome == null) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No class timetable found.')),
       );
       return;
     }
     if (classHome.sessions.isEmpty) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No timetable sessions found.')),
       );
       return;
     }
 
+    if (!context.mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => TimetablePage(
@@ -1956,16 +1986,14 @@ class _ErrorState extends StatelessWidget {
 // РІвЂќР‚РІвЂќР‚РІвЂќР‚ Data models (unchanged) РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
 class _StudentHomeData {
   final UserInfo user;
-  final ClassInfo? academicPlanClass;
-  final _StudentClassHome? timetableClass;
+  final List<_StudentClassHome> classHomes;
   final List<_DueHomeworkItem> dueHomework;
   final _NextClassInfo? nextClass;
   final _ProgressInfo progress;
 
   const _StudentHomeData({
     required this.user,
-    required this.academicPlanClass,
-    required this.timetableClass,
+    required this.classHomes,
     required this.dueHomework,
     required this.nextClass,
     required this.progress,
@@ -2178,11 +2206,12 @@ String _formatMockSubmissionLabel(SessionInfo session) {
 }
 
 String _assignmentTitle(AssignmentInfo a, SessionInfo s) {
-  final title = (a.title ?? '').trim();
-  if (title.isNotEmpty) return title;
-  if (_isMockSession(s)) return 'Mock submission';
-  final slot = a.slotIndex == null ? '' : ' ${a.slotIndex! + 1}';
-  return '${_capitalize(s.sessionType)} homework$slot';
+  return assignmentDisplayTitle(
+    title: a.title,
+    sessionType: s.sessionType,
+    slotIndex: a.slotIndex,
+    isMock: _isMockSession(s),
+  );
 }
 
 String _teacherNameForSession(ClassFullDetailInfo detail, SessionInfo session) {

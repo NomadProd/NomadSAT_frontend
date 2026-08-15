@@ -81,7 +81,7 @@ class ClassService {
         'message': data['detail'] ?? 'Failed to create class',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -127,7 +127,7 @@ class ClassService {
         'message': data['detail']?.toString() ?? 'Failed to update schedule',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -223,7 +223,7 @@ class ClassService {
         'sessions_updated': data['sessions_updated'],
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -300,7 +300,7 @@ class ClassService {
         'message': data['message'] ?? data['detail'] ?? 'Failed to create user',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -339,7 +339,7 @@ class ClassService {
         'message': data['message'] ?? data['detail'] ?? 'Failed to update user',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -442,7 +442,7 @@ class ClassService {
         'session_id': data['session_id'],
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -466,7 +466,7 @@ class ClassService {
             data['message'] ?? detailMessage ?? 'Failed to delete session',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -526,7 +526,7 @@ class ClassService {
         'assignment_id': data['assignment_id'],
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -570,7 +570,7 @@ class ClassService {
             data['message'] ?? detailMessage ?? 'Failed to update assignment',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -625,7 +625,7 @@ class ClassService {
         'message': detailMessage ?? 'Failed to copy assignment',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -724,7 +724,7 @@ class ClassService {
         'message': detailMessage?.toString() ?? 'Upload failed. Please try again.',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -752,7 +752,7 @@ class ClassService {
         'status_code': response.statusCode,
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -852,7 +852,7 @@ class ClassService {
             detailMessage?.toString() ?? 'Upload failed. Please try again.',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -880,7 +880,7 @@ class ClassService {
         'status_code': response.statusCode,
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -906,7 +906,7 @@ class ClassService {
             data['message'] ?? detailMessage ?? 'Failed to delete assignment',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -979,7 +979,7 @@ class ClassService {
         'result_id': data['result_id'],
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -1018,7 +1018,7 @@ class ClassService {
         'result_id': data['result_id'],
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -1246,7 +1246,7 @@ class ClassService {
         'message': detailMessage ?? 'Upload failed. Please try again.',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -1443,7 +1443,7 @@ class ClassService {
         'message': detailMessage ?? 'Upload failed. Please try again.',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -1536,7 +1536,7 @@ class ClassService {
         'result_id': data['result_id'],
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -1577,7 +1577,7 @@ class ClassService {
         'result_id': data['result_id'],
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -1653,7 +1653,7 @@ class ClassService {
             data['message'] ?? data['detail'] ?? 'Failed to update attendance',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -1699,7 +1699,7 @@ class ClassService {
             data['message'] ?? detailMessage ?? 'Failed to update session',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -1720,7 +1720,7 @@ class ClassService {
         'message': data['message'] ?? data['detail'] ?? 'Failed to add student',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 

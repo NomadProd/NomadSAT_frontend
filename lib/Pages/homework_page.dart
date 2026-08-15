@@ -4,6 +4,8 @@ import 'package:flutter_web/Pages/homework_detail_page.dart';
 import 'package:flutter_web/Pages/mock_result_detail_page.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
+import 'package:flutter_web/Services/api_json.dart';
+import 'package:flutter_web/Utils/assignment_title.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
@@ -78,50 +80,20 @@ class _HomeworkPageState extends State<HomeworkPage>
   }
 
   Future<_HomeworkPageData> _loadHomework() async {
-    final user = await _authService.fetchMe();
-    final classes = await _classService.fetchClasses();
-    final items = <_HomeworkItem>[];
-
-    for (final classInfo in classes) {
-      final detail = await _classService.fetchClassFullDetail(
-        classInfo.classId,
-      );
-      final sessionsById = {for (final s in detail.sessions) s.sessionId: s};
-
-      for (final assignment in detail.assignments) {
-        if (assignment.studentId != user.userId) continue;
-        final session = sessionsById[assignment.sessionId];
-        if (session == null) continue;
-
-        HomeworkResultInfo? homeworkResult;
-        MockResultInfo? mockResult;
-        if (session.sessionType.toLowerCase() == 'mock') {
-          final results = await _classService.fetchMockResultsByAssignment(
-            assignment.assignmentId,
-          );
-          mockResult = results
-              .where((r) => r.studentId == user.userId)
-              .firstOrNull;
-        } else {
-          final results = await _classService.fetchHomeworkResultsByAssignment(
-            assignment.assignmentId,
-          );
-          homeworkResult = results
-              .where((r) => r.studentId == user.userId)
-              .firstOrNull;
-        }
-
-        items.add(
-          _HomeworkItem(
-            classInfo: classInfo,
-            session: session,
-            assignment: assignment,
-            result: homeworkResult,
-            mockResult: mockResult,
-          ),
-        );
-      }
-    }
+    late final UserInfo user;
+    late final List<ClassFullDetailInfo> details;
+    await Future.wait([
+      _authService.fetchMe().then((value) {
+        user = value;
+      }),
+      _classService.fetchStudentHomeClassDetails().then((value) {
+        details = value;
+      }),
+    ]);
+    final classItems = await Future.wait(
+      details.map((detail) => _loadHomeworkForClass(user.userId, detail)),
+    );
+    final items = [for (final list in classItems) ...list];
 
     final toDo =
         items.where((i) => !i.isCompleted && i.isSubmissionOpen).toList()
@@ -130,6 +102,65 @@ class _HomeworkPageState extends State<HomeworkPage>
       ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
 
     return _HomeworkPageData(user: user, toDo: toDo, completed: completed);
+  }
+
+  Future<List<_HomeworkItem>> _loadHomeworkForClass(
+    int userId,
+    ClassFullDetailInfo detail,
+  ) async {
+    final classInfo = ClassInfo(
+      classId: detail.classId,
+      className: detail.className,
+      verbalTeacherId: detail.verbalTeacher?.userId,
+      mathTeacherId: detail.mathTeacher?.userId,
+      verbalTeacherName: detail.verbalTeacher?.name,
+      verbalTeacherSurname: detail.verbalTeacher?.surname,
+      mathTeacherName: detail.mathTeacher?.name,
+      mathTeacherSurname: detail.mathTeacher?.surname,
+    );
+    final sessionsById = {for (final s in detail.sessions) s.sessionId: s};
+    final userAssignments = [
+      for (final assignment in detail.assignments)
+        if (assignment.studentId == userId) assignment,
+    ];
+    final userAssignmentIds = {
+      for (final assignment in userAssignments) assignment.assignmentId,
+    };
+
+    late final List<HomeworkResultInfo> homeworkResults;
+    late final List<MockResultInfo> mockResults;
+    await Future.wait([
+      _classService.fetchHomeworkResultsByClass(detail.classId).then((value) {
+        homeworkResults = value;
+      }),
+      _classService.fetchMockResultsByClass(detail.classId).then((value) {
+        mockResults = value;
+      }),
+    ]);
+
+    final homeworkByAssignment = <int, HomeworkResultInfo>{};
+    for (final result in homeworkResults) {
+      if (!userAssignmentIds.contains(result.assignmentId)) continue;
+      homeworkByAssignment.putIfAbsent(result.assignmentId, () => result);
+    }
+
+    final mockByAssignment = <int, MockResultInfo>{};
+    for (final result in mockResults) {
+      if (!userAssignmentIds.contains(result.assignmentId)) continue;
+      mockByAssignment.putIfAbsent(result.assignmentId, () => result);
+    }
+
+    return [
+      for (final assignment in userAssignments)
+        if (sessionsById[assignment.sessionId] != null)
+          _HomeworkItem(
+            classInfo: classInfo,
+            session: sessionsById[assignment.sessionId]!,
+            assignment: assignment,
+            result: homeworkByAssignment[assignment.assignmentId],
+            mockResult: mockByAssignment[assignment.assignmentId],
+          ),
+    ];
   }
 
   Future<void> _openDetails(_HomeworkItem item) async {
@@ -196,7 +227,7 @@ class _HomeworkPageState extends State<HomeworkPage>
           }
           if (snap.hasError) {
             return _ErrorState(
-              message: snap.error.toString(),
+              message: userFacingError(snap.error!),
               onRetry: _refresh,
             );
           }
@@ -1514,15 +1545,12 @@ class _HomeworkItem {
       ? deadline
       : DateTime.tryParse(result?.submittedAt ?? '') ?? deadline;
 
-  String get title {
-    final custom = (assignment.title ?? '').trim();
-    if (custom.isNotEmpty) return custom;
-    if (isMock) return 'Mock submission';
-    final slot = assignment.slotIndex == null
-        ? ''
-        : ' ${assignment.slotIndex! + 1}';
-    return '${_capitalize(session.sessionType)} homework$slot';
-  }
+  String get title => assignmentDisplayTitle(
+    title: assignment.title,
+    sessionType: session.sessionType,
+    slotIndex: assignment.slotIndex,
+    isMock: isMock,
+  );
 
   Color get subjectColor {
     switch (session.sessionType.toLowerCase()) {

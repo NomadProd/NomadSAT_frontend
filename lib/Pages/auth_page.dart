@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_web/Services/auth_service.dart';
+import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
 class AuthPage extends StatefulWidget {
@@ -290,7 +291,7 @@ class _AuthPageState extends State<AuthPage>
       if (!mounted) return;
       setState(() {
         loading = false;
-        error = e.toString().replaceFirst("Exception: ", "");
+        error = userFacingError(e);
       });
     }
   }

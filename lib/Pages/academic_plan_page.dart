@@ -186,7 +186,7 @@ class AcademicPlanService {
             'Failed to update academic plan',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -218,7 +218,7 @@ class AcademicPlanService {
             data['message'] ?? data['detail'] ?? 'Failed to add academic plan',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 
@@ -250,7 +250,7 @@ class AcademicPlanService {
             'Failed to delete academic plan',
       };
     } catch (e) {
-      return {'success': false, 'message': 'Connection failed: $e'};
+      return {'success': false, 'message': userFacingError(e)};
     }
   }
 

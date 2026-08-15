@@ -19,7 +19,7 @@ class AuthService {
       body: jsonEncode({"email": email, "password": password}),
     );
 
-    final data = decodeJsonResponse(response);
+    final data = decodeJsonResponse(response, handleUnauthorized: false);
 
     if (response.statusCode == 200) {
       final user = UserInfo.fromJson(data);
@@ -28,7 +28,7 @@ class AuthService {
       return user;
     }
 
-    throw Exception(data["detail"] ?? "Login failed");
+    throw Exception(apiDetailMessage(data, "Login failed"));
   }
 
   Future<Map<String, dynamic>> register(
@@ -51,7 +51,7 @@ class AuthService {
         }),
       );
 
-      final data = decodeJsonResponse(response);
+      final data = decodeJsonResponse(response, handleUnauthorized: false);
 
       if (response.statusCode == 200) {
         return {
@@ -64,10 +64,10 @@ class AuthService {
 
       return {
         "success": false,
-        "message": data["detail"] ?? "Registration failed",
+        "message": apiDetailMessage(data, "Registration failed"),
       };
     } catch (e) {
-      return {"success": false, "message": "Connection failed: $e"};
+      return {"success": false, "message": userFacingError(e)};
     }
   }
 
@@ -96,7 +96,7 @@ class AuthService {
     }
 
     final data = decodeJsonResponse(response);
-    throw Exception(data["detail"] ?? "Failed to load user");
+    throw Exception(apiDetailMessage(data, "Failed to load user"));
   }
 
   Future<void> logout() async {

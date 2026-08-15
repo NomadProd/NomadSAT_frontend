@@ -10,6 +10,7 @@ import 'package:flutter_web/screens/admin/class_list_screen.dart';
 import 'package:flutter_web/screens/admin/homework_result_detail_screen.dart';
 import 'package:flutter_web/screens/admin/user_list_screen.dart';
 import 'package:flutter_web/Widgets/confirm_dialog.dart';
+import 'package:flutter_web/Services/api_json.dart';
 
 const _kPrimary = Color(0xFF1A4AF0);
 const _kBg = Color(0xFFF0F4FF);
@@ -42,24 +43,53 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
   Future<_ControlPanelData> _load() async {
     final user = await _authService.fetchMe();
     final role = user.role.toLowerCase();
-    final classes = await _classService.fetchClasses(archived: false);
-    final details = await Future.wait(
-      classes.map((classInfo) {
-        return _classService.fetchClassFullDetail(classInfo.classId);
+    late final List<ClassInfo> classes;
+    late final List<UserInfo> users;
+    await Future.wait([
+      _classService.fetchClasses(archived: false).then((value) {
+        classes = value;
       }),
-    );
-    final users = _canManageUsers(role)
-        ? await _classService.fetchUsers()
-        : _usersFromClassDetails(details);
+      (_canManageUsers(role)
+              ? _classService.fetchUsers()
+              : _loadDirectoryUsers())
+          .then((value) {
+            users = value;
+          }),
+    ]);
 
-    details.sort((a, b) => a.className.compareTo(b.className));
+    classes.sort((a, b) => a.className.compareTo(b.className));
     users.sort((a, b) {
       final roleCompare = a.role.compareTo(b.role);
       if (roleCompare != 0) return roleCompare;
       return a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase());
     });
 
-    return _ControlPanelData(user: user, classes: details, users: users);
+    return _ControlPanelData(user: user, classes: classes, users: users);
+  }
+
+  Future<List<UserInfo>> _loadDirectoryUsers() async {
+    late final List<UserInfo> teachers;
+    late final List<UserInfo> students;
+    await Future.wait([
+      _classService.fetchTeachers().then((value) {
+        teachers = value;
+      }),
+      _classService.fetchStudents().then((value) {
+        students = value;
+      }),
+    ]);
+    return [
+      ...teachers,
+      ...students.map(
+        (student) => UserInfo(
+          userId: student.userId,
+          name: student.name,
+          surname: student.surname,
+          email: student.email,
+          role: student.role.isEmpty ? 'student' : student.role,
+        ),
+      ),
+    ];
   }
 
   void _refresh() {
@@ -100,7 +130,7 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
                       )
                     : snap.hasError
                     ? _ControlPanelError(
-                        message: snap.error.toString(),
+                        message: userFacingError(snap.error!),
                         onRetry: _refresh,
                       )
                     : _ControlPanelContent(
@@ -119,7 +149,7 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
 
 class _ControlPanelData {
   final UserInfo user;
-  final List<ClassFullDetailInfo> classes;
+  final List<ClassInfo> classes;
   final List<UserInfo> users;
 
   const _ControlPanelData({
@@ -186,13 +216,10 @@ class _ControlPanelContent extends StatelessWidget {
           const _EmptyPanel(message: 'No classes found')
         else
           ...data.classes.map(
-            (detail) => Padding(
+            (classInfo) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _ClassDatabaseCard(
-                detail: detail,
-                teachers: data.users
-                    .where((user) => user.role.toLowerCase() == 'teacher')
-                    .toList(),
+                classInfo: classInfo,
                 users: data.users,
                 classService: classService,
                 currentUserRole: data.user.role,
@@ -241,25 +268,12 @@ class _OverviewMetrics extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final sessionCount = data.classes.fold<int>(
-      0,
-      (total, detail) => total + detail.sessions.length,
-    );
-    final assignmentCount = data.classes.fold<int>(
-      0,
-      (total, detail) => total + detail.assignments.length,
-    );
-    final enrollmentCount = data.classes.fold<int>(
-      0,
-      (total, detail) => total + detail.students.length,
-    );
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final narrow = constraints.maxWidth < 720;
         final width = narrow
             ? (constraints.maxWidth - 10) / 2
-            : (constraints.maxWidth - 30) / 4;
+            : (constraints.maxWidth - 10) / 2;
         final cards = [
           _MetricCard(
             label: 'Classes',
@@ -272,24 +286,6 @@ class _OverviewMetrics extends StatelessWidget {
             value: data.users.length.toString(),
             icon: Icons.people_alt_rounded,
             color: _kMentor,
-          ),
-          _MetricCard(
-            label: 'Sessions',
-            value: sessionCount.toString(),
-            icon: Icons.event_rounded,
-            color: _kWarning,
-          ),
-          _MetricCard(
-            label: 'Assignments',
-            value: assignmentCount.toString(),
-            icon: Icons.assignment_rounded,
-            color: _kSuccess,
-          ),
-          _MetricCard(
-            label: 'Enrollments',
-            value: enrollmentCount.toString(),
-            icon: Icons.school_rounded,
-            color: const Color(0xFF00897B),
           ),
         ];
 
@@ -361,17 +357,15 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-class _ClassDatabaseCard extends StatelessWidget {
-  final ClassFullDetailInfo detail;
-  final List<UserInfo> teachers;
+class _ClassDatabaseCard extends StatefulWidget {
+  final ClassInfo classInfo;
   final List<UserInfo> users;
   final ClassService classService;
   final String currentUserRole;
   final VoidCallback onChanged;
 
   const _ClassDatabaseCard({
-    required this.detail,
-    required this.teachers,
+    required this.classInfo,
     required this.users,
     required this.classService,
     required this.currentUserRole,
@@ -379,104 +373,179 @@ class _ClassDatabaseCard extends StatelessWidget {
   });
 
   @override
+  State<_ClassDatabaseCard> createState() => _ClassDatabaseCardState();
+}
+
+class _ClassDatabaseCardState extends State<_ClassDatabaseCard> {
+  bool _expanded = false;
+  bool _loading = false;
+  String? _error;
+  ClassFullDetailInfo? _detail;
+
+  String get _teacherLabel {
+    final info = widget.classInfo;
+    final verbal = '${info.verbalTeacherName ?? ''} ${info.verbalTeacherSurname ?? ''}'
+        .trim();
+    final math = '${info.mathTeacherName ?? ''} ${info.mathTeacherSurname ?? ''}'
+        .trim();
+    return 'ID ${info.classId}  |  Verbal: ${verbal.isEmpty ? '-' : verbal}  |  Math: ${math.isEmpty ? '-' : math}';
+  }
+
+  Future<void> _toggleExpanded() async {
+    final next = !_expanded;
+    setState(() => _expanded = next);
+    if (!next || _detail != null || _loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final detail = await widget.classService.fetchClassFullDetail(
+        widget.classInfo.classId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _detail = detail;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = userFacingError(e);
+        _loading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final detail = _detail;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: _panelDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              _IconBox(icon: Icons.class_rounded, color: _kPrimary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      detail.className,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _kTextDark,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'ID ${detail.classId}  |  Verbal: ${_nameOf(detail.verbalTeacher)}  |  Math: ${_nameOf(detail.mathTeacher)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: _kTextLight,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _InfoChip(label: 'Students', value: detail.students.length),
-              _InfoChip(label: 'Sessions', value: detail.sessions.length),
-              _InfoChip(label: 'Homeworks', value: detail.assignments.length),
-              _InfoChip(
-                label: 'Homework results',
-                value: detail.homeworkResultCount,
-                onTap: () => _showClassTableDialog(
-                  context: context,
-                  detail: detail,
-                  users: users,
-                  classService: classService,
-                  currentUserRole: currentUserRole,
-                  onChanged: onChanged,
-                  category: _ClassTableCategory.homeworkResults,
-                ),
-              ),
-              _InfoChip(
-                label: 'Mock results',
-                value: detail.mockResultCount,
-                onTap: () => _showClassTableDialog(
-                  context: context,
-                  detail: detail,
-                  users: users,
-                  classService: classService,
-                  currentUserRole: currentUserRole,
-                  onChanged: onChanged,
-                  category: _ClassTableCategory.mockResults,
-                ),
-              ),
-              _InfoChip(label: 'Attendance', value: detail.attendance.length),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const _SubLabel('Students'),
-          const SizedBox(height: 8),
-          if (detail.students.isEmpty)
-            const Text(
-              'No enrolled students',
-              style: TextStyle(color: _kTextLight, fontSize: 12),
-            )
-          else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+          InkWell(
+            onTap: _toggleExpanded,
+            child: Row(
               children: [
-                for (final student in detail.students)
-                  _NamePill(
-                    label: student.fullName,
-                    sublabel: 'ID ${student.userId}',
+                _IconBox(icon: Icons.class_rounded, color: _kPrimary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.classInfo.className,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _kTextDark,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _teacherLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _kTextLight,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
+                ),
+                Icon(
+                  _expanded
+                      ? Icons.expand_less_rounded
+                      : Icons.expand_more_rounded,
+                  color: _kTextMid,
+                ),
               ],
             ),
+          ),
+          if (_expanded) ...[
+            const SizedBox(height: 14),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(
+                  child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            else if (_error != null)
+              Text(
+                _error!,
+                style: const TextStyle(color: _kWarning, fontSize: 12),
+              )
+            else if (detail != null) ...[
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _InfoChip(label: 'Students', value: detail.students.length),
+                  _InfoChip(label: 'Sessions', value: detail.sessions.length),
+                  _InfoChip(label: 'Homeworks', value: detail.assignments.length),
+                  _InfoChip(
+                    label: 'Homework results',
+                    value: detail.homeworkResultCount,
+                    onTap: () => _showClassTableDialog(
+                      context: context,
+                      detail: detail,
+                      users: widget.users,
+                      classService: widget.classService,
+                      currentUserRole: widget.currentUserRole,
+                      onChanged: widget.onChanged,
+                      category: _ClassTableCategory.homeworkResults,
+                    ),
+                  ),
+                  _InfoChip(
+                    label: 'Mock results',
+                    value: detail.mockResultCount,
+                    onTap: () => _showClassTableDialog(
+                      context: context,
+                      detail: detail,
+                      users: widget.users,
+                      classService: widget.classService,
+                      currentUserRole: widget.currentUserRole,
+                      onChanged: widget.onChanged,
+                      category: _ClassTableCategory.mockResults,
+                    ),
+                  ),
+                  _InfoChip(label: 'Attendance', value: detail.attendance.length),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const _SubLabel('Students'),
+              const SizedBox(height: 8),
+              if (detail.students.isEmpty)
+                const Text(
+                  'No enrolled students',
+                  style: TextStyle(color: _kTextLight, fontSize: 12),
+                )
+              else
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final student in detail.students)
+                      _NamePill(
+                        label: student.fullName,
+                        sublabel: 'ID ${student.userId}',
+                      ),
+                  ],
+                ),
+            ],
+          ],
         ],
       ),
     );
@@ -682,7 +751,7 @@ Future<void> _showMockResultEditDialog({
   try {
     detail = await classService.fetchMockResult(result.resultId);
   } catch (e) {
-    filesError = e.toString();
+    filesError = userFacingError(e);
   }
 
   if (!context.mounted) return;
@@ -1775,24 +1844,6 @@ bool _canReturnForRevision(String role) {
   return normalized == 'admin' ||
       normalized == 'mentor' ||
       normalized == 'teacher';
-}
-
-List<UserInfo> _usersFromClassDetails(List<ClassFullDetailInfo> details) {
-  final byId = <int, UserInfo>{};
-  for (final detail in details) {
-    for (final student in detail.students) {
-      byId[student.userId] = student;
-    }
-    final verbalTeacher = detail.verbalTeacher;
-    if (verbalTeacher != null) {
-      byId[verbalTeacher.userId] = verbalTeacher;
-    }
-    final mathTeacher = detail.mathTeacher;
-    if (mathTeacher != null) {
-      byId[mathTeacher.userId] = mathTeacher;
-    }
-  }
-  return byId.values.toList();
 }
 
 String _capitalize(String value) {

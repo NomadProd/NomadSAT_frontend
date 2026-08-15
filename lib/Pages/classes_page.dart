@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Services/auth_service.dart';
+import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Pages/class_detail_page.dart';
 import 'package:flutter_web/Pages/control_panel_page.dart';
@@ -82,7 +83,7 @@ class _ClassesPageState extends State<ClassesPage> {
 
           if (snap.hasError) {
             return _ErrorState(
-              message: snap.error.toString(),
+              message: userFacingError(snap.error!),
               onRetry: () => setState(() => _future = _loadAll()),
             );
           }
@@ -555,7 +556,7 @@ class _CreateClassDialogState extends State<_CreateClassDialog> {
               return _DialogMessage(
                 icon: Icons.wifi_off_rounded,
                 title: 'Could not load teachers',
-                message: snap.error.toString(),
+                message: userFacingError(snap.error!),
               );
             }
 

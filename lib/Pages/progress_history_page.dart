@@ -3,7 +3,9 @@ import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/class_service.dart';
+import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Utils/homework_pdf.dart';
+import 'package:flutter_web/Utils/assignment_title.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
 const _kPrimary = TuranColors.primary;
@@ -94,7 +96,7 @@ class _ProgressHistoryPageState extends State<ProgressHistoryPage> {
                       )
                     else if (snap.hasError)
                       _HistoryError(
-                        message: snap.error.toString(),
+                        message: userFacingError(snap.error!),
                         onRetry: () => setState(() => _future = _loadHistory()),
                       )
                     else
@@ -1678,10 +1680,12 @@ void _openExternalLink(String url) {
 }
 
 String _assignmentTitle(AssignmentInfo a, SessionInfo s) {
-  final title = (a.title ?? '').trim();
-  if (title.isNotEmpty) return title;
-  final slot = a.slotIndex == null ? '' : ' ${a.slotIndex! + 1}';
-  return '${_capitalize(s.sessionType)} homework$slot';
+  return assignmentDisplayTitle(
+    title: a.title,
+    sessionType: s.sessionType,
+    slotIndex: a.slotIndex,
+    isMock: s.sessionType.toLowerCase() == 'mock',
+  );
 }
 
 String _capitalize(String value) =>

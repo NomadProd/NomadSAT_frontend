@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/class_service.dart';
+import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/Models/homework_result.dart';
 import 'package:flutter_web/Models/mock_result.dart';
@@ -114,7 +115,12 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
       _mathController.text = existing.mathPoints?.toString() ?? '';
       _analysisController.text = existing.weakAreas ?? '';
       await _reloadResult(existing.resultId);
-    } catch (_) {}
+    } catch (_) {
+      if (!mounted) return;
+      _showBannerError(
+        'Could not load the previous mock result. You can still submit.',
+      );
+    }
   }
 
   Future<int?> _resolveExistingMockResultId() async {
@@ -145,7 +151,7 @@ class _MockResultDetailPageState extends State<MockResultDetailPage>
       setState(() => _result = result);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = userFacingError(e));
     }
   }
 

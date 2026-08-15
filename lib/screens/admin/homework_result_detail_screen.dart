@@ -3,6 +3,7 @@ import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Services/class_service.dart';
+import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 import 'package:flutter_web/Widgets/confirm_dialog.dart';
@@ -182,7 +183,7 @@ class _HomeworkResultDetailScreenState extends State<HomeworkResultDetailScreen>
                 if (snap.hasError) {
                   return Center(
                     child: Text(
-                      snap.error.toString(),
+                      userFacingError(snap.error!),
                       style: const TextStyle(color: TuranColors.error),
                     ),
                   );

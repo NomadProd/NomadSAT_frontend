@@ -11,6 +11,7 @@ import 'package:flutter_web/Pages/academic_plan_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
 import 'package:flutter_web/Utils/homework_pdf.dart';
 import 'package:flutter_web/Utils/assignment_copy.dart';
+import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Widgets/homework_pdf_section.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/Widgets/weekly_schedule_picker.dart';
@@ -431,19 +432,34 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = userFacingError(e);
         _loading = false;
       });
     }
   }
 
   Future<_PageData> _loadAll() async {
-    final user = await authService.fetchMe();
-    final detail = await classService.fetchClassFullDetail(widget.classId);
+    late final UserInfo user;
+    late final ClassFullDetailInfo detail;
+    late final List<HomeworkResultInfo> classHomeworkResults;
+    late final List<MockResultInfo> classMockResults;
+    await Future.wait([
+      authService.fetchMe().then((value) {
+        user = value;
+      }),
+      classService.fetchClassFullDetail(widget.classId).then((value) {
+        detail = value;
+      }),
+      classService.fetchHomeworkResultsByClass(widget.classId).then((value) {
+        classHomeworkResults = value;
+      }),
+      classService.fetchMockResultsByClass(widget.classId).then((value) {
+        classMockResults = value;
+      }),
+    ]);
 
     final role = user.role.toLowerCase();
-    final canManageClass = _isStaffAdmin(role);
-    final canLoadDirectories = canManageClass;
+    final canLoadDirectories = _isStaffAdmin(role);
     final teachersFuture = canLoadDirectories
         ? classService.fetchTeachers()
         : Future.value([
@@ -456,29 +472,44 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
         ? classService.fetchStudents()
         : Future.value(detail.students);
 
+    late final List<UserInfo> teachers;
+    late final List<UserInfo> students;
+    await Future.wait([
+      teachersFuture.then((value) {
+        teachers = value;
+      }),
+      studentsFuture.then((value) {
+        students = value;
+      }),
+    ]);
+    _allStudents = students;
+
+    return _composePageData(
+      user: user,
+      detail: detail,
+      teachers: teachers,
+      classHomeworkResults: classHomeworkResults,
+      classMockResults: classMockResults,
+    );
+  }
+
+  _PageData _composePageData({
+    required UserInfo user,
+    required ClassFullDetailInfo detail,
+    required List<UserInfo> teachers,
+    required List<HomeworkResultInfo> classHomeworkResults,
+    required List<MockResultInfo> classMockResults,
+  }) {
     final sessions = [...detail.sessions]
       ..sort((a, b) => _parseDate(a.date).compareTo(_parseDate(b.date)));
 
     final homeworkResults = <int, List<HomeworkResultInfo>>{};
     final mockResults = <int, List<MockResultInfo>>{};
-    final visibleAssignments =
-        (user.role == 'student'
-                ? detail.assignments.where((a) => a.studentId == user.userId)
-                : detail.assignments)
-            .toList();
-    final visibleAssignmentIds = visibleAssignments
-        .map((a) => a.assignmentId)
-        .toSet();
-
-    final classHomeworkResultsFuture = classService.fetchHomeworkResultsByClass(
-      widget.classId,
-    );
-    final classMockResultsFuture = classService.fetchMockResultsByClass(
-      widget.classId,
-    );
-
-    final classHomeworkResults = await classHomeworkResultsFuture;
-    final classMockResults = await classMockResultsFuture;
+    final visibleAssignmentIds = {
+      for (final assignment in detail.assignments)
+        if (user.role != 'student' || assignment.studentId == user.userId)
+          assignment.assignmentId,
+    };
 
     for (final result in classHomeworkResults) {
       if (!visibleAssignmentIds.contains(result.assignmentId)) continue;
@@ -505,12 +536,10 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       _sessionWeekAnchor = _parseDate(selectedSession.date);
     }
 
-    _allStudents = await studentsFuture;
-
     return _PageData(
       user: user,
       detail: detail,
-      teachers: await teachersFuture,
+      teachers: teachers,
       sessions: sessions,
       homeworkResultsByAssignment: homeworkResults,
       mockResultsByAssignment: mockResults,
@@ -518,16 +547,40 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
   }
 
   Future<void> _reload() async {
+    final current = _pageData;
+    if (current == null) {
+      await _loadInitial();
+      return;
+    }
     try {
-      final data = await _loadAll();
+      late final ClassFullDetailInfo detail;
+      late final List<HomeworkResultInfo> classHomeworkResults;
+      late final List<MockResultInfo> classMockResults;
+      await Future.wait([
+        classService.fetchClassFullDetail(widget.classId).then((value) {
+          detail = value;
+        }),
+        classService.fetchHomeworkResultsByClass(widget.classId).then((value) {
+          classHomeworkResults = value;
+        }),
+        classService.fetchMockResultsByClass(widget.classId).then((value) {
+          classMockResults = value;
+        }),
+      ]);
       if (!mounted) return;
       setState(() {
-        _pageData = data;
+        _pageData = _composePageData(
+          user: current.user,
+          detail: detail,
+          teachers: current.teachers,
+          classHomeworkResults: classHomeworkResults,
+          classMockResults: classMockResults,
+        );
         _error = null;
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = userFacingError(e));
     }
   }
 
@@ -1309,35 +1362,68 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     String? inlineError;
     bool loadingTargets = false;
     bool submitting = false;
+    var targetsRequested = false;
 
     List<SessionInfo> targetSessions = [];
     List<UserInfo> targetStudents = [];
+    final cachedTargets =
+        <int, ({List<SessionInfo> sessions, List<UserInfo> students})>{};
+
+    List<SessionInfo> scopedSessions(List<SessionInfo> sessions) {
+      final filtered = data.user.role.toLowerCase() == 'teacher'
+          ? sessions.where((session) => session.teacherId == data.user.userId)
+          : sessions;
+      return [...filtered]
+        ..sort((a, b) => _sessionDateTime(a).compareTo(_sessionDateTime(b)));
+    }
+
+    cachedTargets[widget.classId] = (
+      sessions: scopedSessions(data.sessions),
+      students: [...data.detail.students]
+        ..sort((a, b) => a.fullName.compareTo(b.fullName)),
+    );
 
     Future<void> loadTargetsForClass(
       int classId,
       void Function(void Function()) setDlg,
     ) async {
+      final cached = cachedTargets[classId];
+      if (cached != null) {
+        setDlg(() {
+          targetSessions = cached.sessions;
+          targetStudents = cached.students;
+          selectedSessionId = targetSessions.any(
+                (session) => session.sessionId == selectedSessionId,
+              )
+              ? selectedSessionId
+              : targetSessions.firstOrNull?.sessionId;
+          selectedStudentId = targetStudents.any(
+                (student) => student.userId == selectedStudentId,
+              )
+              ? selectedStudentId
+              : targetStudents.firstOrNull?.userId;
+          loadingTargets = false;
+          inlineError = null;
+        });
+        return;
+      }
+
       setDlg(() {
         loadingTargets = true;
         inlineError = null;
       });
       try {
-        final sessions = await classService.fetchClassSessions(classId);
         final classDetail = await classService.fetchClassFullDetail(classId);
         if (!mounted) return;
-
-        var scopedSessions = [...sessions];
-        if (data.user.role.toLowerCase() == 'teacher') {
-          scopedSessions = scopedSessions
-              .where((session) => session.teacherId == data.user.userId)
-              .toList();
-        }
-
+        final loaded = (
+          sessions: scopedSessions(classDetail.sessions),
+          students: [...classDetail.students]
+            ..sort((a, b) => a.fullName.compareTo(b.fullName)),
+        );
+        cachedTargets[classId] = loaded;
         setDlg(() {
-          targetSessions = scopedSessions
-            ..sort((a, b) => _sessionDateTime(a).compareTo(_sessionDateTime(b)));
-          targetStudents = [...classDetail.students]
-            ..sort((a, b) => a.fullName.compareTo(b.fullName));
+          targetSessions = loaded.sessions;
+          targetStudents = loaded.students;
           selectedSessionId = targetSessions.any(
                 (session) => session.sessionId == selectedSessionId,
               )
@@ -1357,7 +1443,8 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
           targetStudents = [];
           selectedSessionId = null;
           selectedStudentId = null;
-          inlineError = 'Failed to load class sessions: $e';
+          inlineError =
+              'Failed to load class sessions: ${userFacingError(e)}';
         });
       }
     }
@@ -1366,7 +1453,8 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) {
-          if (targetSessions.isEmpty && !loadingTargets && inlineError == null) {
+          if (!targetsRequested) {
+            targetsRequested = true;
             loadTargetsForClass(selectedClassId, setDlg);
           }
           return _DialogShell(
@@ -2471,8 +2559,12 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
 
   // в”Ђв”Ђв”Ђ Helpers в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
   void _openLink(String? url) {
-    if ((url ?? '').trim().isEmpty) return;
-    html.window.open(url!.trim(), '_blank');
+    final trimmed = (url ?? '').trim();
+    if (trimmed.isEmpty) return;
+    final withScheme = trimmed.startsWith(RegExp(r'https?://'))
+        ? trimmed
+        : 'https://$trimmed';
+    html.window.open(withScheme, '_blank');
   }
 
   void _openHomeworkPdf(String? url) {
