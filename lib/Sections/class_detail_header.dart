@@ -12,6 +12,7 @@ class _DetailHeader extends StatelessWidget {
   final VoidCallback onLogout;
   final VoidCallback onTimetable;
   final VoidCallback onAcademicPlan;
+  final VoidCallback? onDiagnosticResults;
   final String className;
 
   const _DetailHeader({
@@ -20,6 +21,7 @@ class _DetailHeader extends StatelessWidget {
     required this.onLogout,
     required this.onTimetable,
     required this.onAcademicPlan,
+    this.onDiagnosticResults,
     required this.className,
   });
 
@@ -41,6 +43,12 @@ class _DetailHeader extends StatelessWidget {
         label: 'Academic Plan',
         onTap: onAcademicPlan,
       ),
+      if (onDiagnosticResults != null)
+        TuranHeaderAction(
+          icon: Icons.quiz_rounded,
+          label: 'Diagnostic',
+          onTap: onDiagnosticResults!,
+        ),
     ],
   );
 }

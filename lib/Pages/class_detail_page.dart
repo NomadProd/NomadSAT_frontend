@@ -9,6 +9,7 @@ import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Pages/academic_plan_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
+import 'package:flutter_web/screens/shared/diagnostic_class_results_screen.dart';
 import 'package:flutter_web/Utils/homework_pdf.dart';
 import 'package:flutter_web/Utils/assignment_copy.dart';
 import 'package:flutter_web/Services/api_json.dart';
@@ -2680,6 +2681,20 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     );
   }
 
+  void _openDiagnosticResults() {
+    final data = _pageData;
+    if (data == null || !_canOpenStudentProgress(data.user)) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DiagnosticClassResultsScreen(
+          classId: widget.classId,
+          className: widget.className,
+          students: data.detail.students,
+        ),
+      ),
+    );
+  }
+
   List<AssignmentInfo> _studentAssignmentsForSession({
     required int sessionId,
     required int studentId,
@@ -2716,6 +2731,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
           className: widget.className,
           onTimetable: _openTimetablePage,
           onAcademicPlan: _openAcademicPlanPage,
+          onDiagnosticResults: _openDiagnosticResults,
         ),
       ),
       body: _loading
@@ -2822,6 +2838,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                 onStudents: () =>
                     _openStudentsDialog(students: data.detail.students),
                 onSessions: _openSessionsDialog,
+                onDiagnosticResults: canOpenStudentProgress
+                    ? _openDiagnosticResults
+                    : null,
               ),
               const SizedBox(height: 16),
               ...data.detail.students.map((student) {

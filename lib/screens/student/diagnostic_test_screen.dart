@@ -12,6 +12,7 @@ import 'package:flutter_web/Widgets/diagnostic_module_review_view.dart';
 import 'package:flutter_web/Widgets/diagnostic_question_taking_view.dart';
 import 'package:flutter_web/Widgets/math_reference_sheet_panel.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
+import 'package:flutter_web/screens/shared/diagnostic_attempt_review_screen.dart';
 import 'package:flutter_web/screens/student/diagnostic_results_screen.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
@@ -409,6 +410,16 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
               );
             },
             onBackToDashboard: () => Navigator.of(resultsContext).pop(),
+            onReview: () {
+              Navigator.of(resultsContext).push(
+                MaterialPageRoute(
+                  builder: (_) => DiagnosticAttemptReviewScreen(
+                    attemptId: result.id,
+                    showStudentName: false,
+                  ),
+                ),
+              );
+            },
           ),
         ),
       );

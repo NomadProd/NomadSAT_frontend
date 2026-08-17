@@ -8,12 +8,14 @@ class DiagnosticResultsScreen extends StatelessWidget {
   final DiagnosticAttempt attempt;
   final VoidCallback onRetake;
   final VoidCallback? onBackToDashboard;
+  final VoidCallback? onReview;
 
   const DiagnosticResultsScreen({
     super.key,
     required this.attempt,
     required this.onRetake,
     this.onBackToDashboard,
+    this.onReview,
   });
 
   @override
@@ -33,6 +35,7 @@ class DiagnosticResultsScreen extends StatelessWidget {
               attempt: attempt,
               onRetake: onRetake,
               onBackToDashboard: onBackToDashboard ?? () => Navigator.of(context).pop(),
+              onReview: onReview,
             ),
           ),
         ],
@@ -45,12 +48,14 @@ class DiagnosticResultsView extends StatelessWidget {
   final DiagnosticAttempt attempt;
   final VoidCallback onRetake;
   final VoidCallback? onBackToDashboard;
+  final VoidCallback? onReview;
 
   const DiagnosticResultsView({
     super.key,
     required this.attempt,
     required this.onRetake,
     this.onBackToDashboard,
+    this.onReview,
   });
 
   @override
@@ -172,6 +177,24 @@ class DiagnosticResultsView extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (onReview != null)
+                      OutlinedButton.icon(
+                        key: const Key('diagnostic-review-answers'),
+                        onPressed: onReview,
+                        icon: const Icon(Icons.fact_check_outlined, size: 18),
+                        label: const Text('Review answers'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: TuranColors.primary,
+                          side: const BorderSide(color: TuranColors.primary),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
                     OutlinedButton.icon(
                       onPressed: onBackToDashboard,
                       icon: const Icon(Icons.home_rounded, size: 18),

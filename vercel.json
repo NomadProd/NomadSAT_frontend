@@ -1,5 +1,5 @@
 {
-  "buildCommand": "flutter build web --release --dart-define=API_BASE_URL=https://api.turansat.com",
+"buildCommand": "flutter build web --release --dart-define=API_BASE_URL=https://api.turansat.com --dart-define=DESMOS_API_KEY=542ecf4c02af4fa7bbb6b4f945779357"  
   "outputDirectory": "build/web",
   "rewrites": [
     {

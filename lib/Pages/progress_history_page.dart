@@ -2,10 +2,14 @@ import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
+import 'package:flutter_web/Models/diagnostic_attempt.dart';
 import 'package:flutter_web/Services/class_service.dart';
+import 'package:flutter_web/Services/diagnostic_service.dart';
 import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Utils/homework_pdf.dart';
 import 'package:flutter_web/Utils/assignment_title.dart';
+import 'package:flutter_web/Widgets/diagnostic_attempt_result_card.dart';
+import 'package:flutter_web/screens/shared/diagnostic_attempt_review_screen.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
 const _kPrimary = TuranColors.primary;
@@ -29,6 +33,7 @@ class ProgressHistoryPage extends StatefulWidget {
 
 class _ProgressHistoryPageState extends State<ProgressHistoryPage> {
   final _classService = ClassService();
+  final _diagnosticService = DiagnosticService();
   late Future<_ProgressHistoryData> _future;
 
   @override
@@ -72,7 +77,22 @@ class _ProgressHistoryPageState extends State<ProgressHistoryPage> {
     homework.sort((a, b) => b.date.compareTo(a.date));
     mocks.sort((a, b) => b.date.compareTo(a.date));
 
-    return _ProgressHistoryData(homework: homework, mocks: mocks);
+    List<DiagnosticAttemptListItem> diagnostic = const [];
+    try {
+      diagnostic = await _diagnosticService.fetchAttemptsForStudent(
+        widget.student.userId,
+      );
+    } on ApiException catch (error) {
+      if (error.statusCode != 403 && error.statusCode != 404) {
+        rethrow;
+      }
+    }
+
+    return _ProgressHistoryData(
+      homework: homework,
+      mocks: mocks,
+      diagnostic: diagnostic,
+    );
   }
 
   @override
@@ -142,6 +162,8 @@ class _HistoryBodyState extends State<_HistoryBody> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(18, 18, 18, 32),
         children: [
+          _DiagnosticHistorySection(attempts: widget.data.diagnostic),
+          const SizedBox(height: 16),
           _ResultViewSwitch(
             selectedView: _selectedView,
             onChanged: (view) => setState(() => _selectedView = view),
@@ -169,6 +191,62 @@ class _HistoryBodyState extends State<_HistoryBody> {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _DiagnosticHistorySection extends StatelessWidget {
+  final List<DiagnosticAttemptListItem> attempts;
+
+  const _DiagnosticHistorySection({required this.attempts});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Diagnostic Test Results',
+          style: TextStyle(
+            color: _kTextDark,
+            fontWeight: FontWeight.w900,
+            fontSize: 16,
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (attempts.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _kBorder),
+            ),
+            child: const Text(
+              'No diagnostic attempts yet',
+              style: TextStyle(color: _kTextMid, fontWeight: FontWeight.w600),
+            ),
+          )
+        else
+          for (var i = 0; i < attempts.length; i++) ...[
+            DiagnosticAttemptResultCard(
+              attempt: attempts[i],
+              onTap: () {
+                if (attempts[i].isInProgress) return;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => DiagnosticAttemptReviewScreen(
+                      attemptId: attempts[i].attemptId,
+                      showStudentName: false,
+                    ),
+                  ),
+                );
+              },
+            ),
+            if (i != attempts.length - 1) const SizedBox(height: 10),
+          ],
+      ],
     );
   }
 }
@@ -1535,8 +1613,13 @@ class _DotPatternPainter extends CustomPainter {
 class _ProgressHistoryData {
   final List<_HomeworkHistoryItem> homework;
   final List<_MockHistoryItem> mocks;
+  final List<DiagnosticAttemptListItem> diagnostic;
 
-  const _ProgressHistoryData({required this.homework, required this.mocks});
+  const _ProgressHistoryData({
+    required this.homework,
+    required this.mocks,
+    this.diagnostic = const [],
+  });
 
   List<_HomeworkHistoryItem> get verbalHomework => homework
       .where((item) => item.session.sessionType.toLowerCase() == 'verbal')
