@@ -10,7 +10,7 @@
     flutter --version
     flutter config --enable-web
     flutter pub get
-    flutter build web --release --no-tree-shake-icons --dart-define=API_BASE_URL=https://api.turansat.com ${DESMOS_API_KEY:+--dart-define=DESMOS_API_KEY=$DESMOS_API_KEY}
+    flutter build web --release --no-tree-shake-icons --dart-define=API_BASE_URL=https://api.turansat.com ${DESMOS_API_KEY:+--dart-define=DESMOS_API_KEY=542ecf4c02af4fa7bbb6b4f945779357}
   """
   publish = "build/web"
 
