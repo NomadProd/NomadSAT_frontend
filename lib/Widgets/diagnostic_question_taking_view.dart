@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/diagnostic_question.dart';
 import 'package:flutter_web/Widgets/desmos_calculator_panel.dart';
 import 'package:flutter_web/Widgets/diagnostic_math_tools.dart';
+import 'package:flutter_web/Widgets/diagnostic_question_navigator.dart';
 import 'package:flutter_web/Widgets/diagnostic_timer_bar.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
@@ -9,13 +10,19 @@ class DiagnosticQuestionTakingView extends StatelessWidget {
   final Duration remaining;
   final bool isMath;
   final int sectionNumber;
+  final int sectionQuestionCount;
+  final List<DiagnosticQuestion> sectionQuestions;
+  final Set<int> answeredQuestionIds;
   final DiagnosticQuestion question;
   final String? selectedChoice;
   final bool completing;
   final bool calculatorOpen;
   final bool showMathToolsHint;
+  final bool canGoBack;
   final ValueChanged<String> onSelect;
+  final VoidCallback? onBack;
   final VoidCallback? onNext;
+  final ValueChanged<DiagnosticQuestion> onJumpToQuestion;
   final VoidCallback onLeave;
   final VoidCallback onToggleCalculator;
   final VoidCallback onOpenReference;
@@ -26,13 +33,19 @@ class DiagnosticQuestionTakingView extends StatelessWidget {
     required this.remaining,
     required this.isMath,
     required this.sectionNumber,
+    required this.sectionQuestionCount,
+    required this.sectionQuestions,
+    required this.answeredQuestionIds,
     required this.question,
     required this.selectedChoice,
     required this.completing,
     required this.calculatorOpen,
     required this.showMathToolsHint,
+    required this.canGoBack,
     required this.onSelect,
+    required this.onBack,
     required this.onNext,
+    required this.onJumpToQuestion,
     required this.onLeave,
     required this.onToggleCalculator,
     required this.onOpenReference,
@@ -41,73 +54,59 @@ class DiagnosticQuestionTakingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < TuranBreakpoints.desktop;
-    return Column(
-      children: [
-        DiagnosticTimerBar(
-          remaining: remaining,
-          isMath: isMath,
-          sectionNumber: sectionNumber,
-          onLeave: onLeave,
-          actions: [
-            if (isMath)
-              DiagnosticMathToolsBar(
-                calculatorOpen: calculatorOpen,
-                onToggleCalculator: onToggleCalculator,
-                onOpenReference: onOpenReference,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < TuranBreakpoints.tablet;
+        return Column(
+          children: [
+            DiagnosticTimerBar(
+              remaining: remaining,
+              isMath: isMath,
+              onLeave: onLeave,
+              actions: [
+                if (isMath)
+                  DiagnosticMathToolsBar(
+                    calculatorOpen: calculatorOpen,
+                    onToggleCalculator: onToggleCalculator,
+                    onOpenReference: onOpenReference,
+                  ),
+              ],
+            ),
+            if (isMath && showMathToolsHint)
+              DiagnosticMathToolsHint(onDismiss: onDismissHint),
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                clipBehavior: Clip.hardEdge,
+                children: [
+                  _QuestionBody(
+                    compact: compact,
+                    isMath: isMath,
+                    sectionNumber: sectionNumber,
+                    sectionQuestionCount: sectionQuestionCount,
+                    sectionQuestions: sectionQuestions,
+                    answeredQuestionIds: answeredQuestionIds,
+                    question: question,
+                    selectedChoice: selectedChoice,
+                    completing: completing,
+                    canGoBack: canGoBack,
+                    onSelect: onSelect,
+                    onBack: onBack,
+                    onNext: onNext,
+                    onJumpToQuestion: onJumpToQuestion,
+                  ),
+                  if (isMath && calculatorOpen)
+                    Positioned.fill(
+                      child: DesmosCalculatorPanel(
+                        onClose: onToggleCalculator,
+                      ),
+                    ),
+                ],
               ),
+            ),
           ],
-        ),
-        if (isMath && showMathToolsHint)
-          DiagnosticMathToolsHint(onDismiss: onDismissHint),
-        Expanded(
-          child: compact
-              ? Stack(
-                  children: [
-                    _QuestionBody(
-                      compact: compact,
-                      isMath: isMath,
-                      question: question,
-                      selectedChoice: selectedChoice,
-                      completing: completing,
-                      onSelect: onSelect,
-                      onNext: onNext,
-                    ),
-                    if (isMath && calculatorOpen)
-                      Positioned.fill(
-                        child: DesmosCalculatorPanel(
-                          onClose: onToggleCalculator,
-                          expanded: true,
-                        ),
-                      ),
-                  ],
-                )
-              : Row(
-                  children: [
-                    Expanded(
-                      child: _QuestionBody(
-                        compact: compact,
-                        isMath: isMath,
-                        question: question,
-                        selectedChoice: selectedChoice,
-                        completing: completing,
-                        onSelect: onSelect,
-                        onNext: onNext,
-                      ),
-                    ),
-                    if (isMath && calculatorOpen) ...[
-                      const VerticalDivider(width: 1, color: TuranColors.border),
-                      SizedBox(
-                        width: 420,
-                        child: DesmosCalculatorPanel(
-                          onClose: onToggleCalculator,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -115,25 +114,39 @@ class DiagnosticQuestionTakingView extends StatelessWidget {
 class _QuestionBody extends StatelessWidget {
   final bool compact;
   final bool isMath;
+  final int sectionNumber;
+  final int sectionQuestionCount;
+  final List<DiagnosticQuestion> sectionQuestions;
+  final Set<int> answeredQuestionIds;
   final DiagnosticQuestion question;
   final String? selectedChoice;
   final bool completing;
+  final bool canGoBack;
   final ValueChanged<String> onSelect;
+  final VoidCallback? onBack;
   final VoidCallback? onNext;
+  final ValueChanged<DiagnosticQuestion> onJumpToQuestion;
 
   const _QuestionBody({
     required this.compact,
     required this.isMath,
+    required this.sectionNumber,
+    required this.sectionQuestionCount,
+    required this.sectionQuestions,
+    required this.answeredQuestionIds,
     required this.question,
     required this.selectedChoice,
     required this.completing,
+    required this.canGoBack,
     required this.onSelect,
+    required this.onBack,
     required this.onNext,
+    required this.onJumpToQuestion,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isLast = isMath && question.orderIndex == 20;
+    final isLast = isMath && sectionNumber >= sectionQuestionCount;
     return Column(
       children: [
         Expanded(
@@ -201,45 +214,200 @@ class _QuestionBody extends StatelessWidget {
             ],
           ),
         ),
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              compact ? 16 : 24,
-              8,
-              compact ? 16 : 24,
-              16,
-            ),
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: onNext,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: TuranColors.primary,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(48),
-                      elevation: 0,
-                    ),
-                    child: completing
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(isLast ? 'Submit test' : 'Next'),
-                  ),
-                ),
+        Material(
+          color: const Color(0xFF111827),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                compact ? 10 : 16,
+                10,
+                compact ? 10 : 16,
+                12,
               ),
+              child: compact
+                  ? Column(
+                      children: [
+                        Center(
+                          child: _QuestionIndexButton(
+                            sectionNumber: sectionNumber,
+                            sectionQuestionCount: sectionQuestionCount,
+                            onPressed: () => _openQuestionNavigator(context),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _FooterNavButton(
+                                key: const Key('diagnostic-back-button'),
+                                label: 'Back',
+                                emphasized: false,
+                                onPressed: canGoBack ? onBack : null,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _FooterNavButton(
+                                key: const Key('diagnostic-next-button'),
+                                label: isLast ? 'Submit' : 'Next',
+                                emphasized: true,
+                                busy: completing,
+                                onPressed: onNext,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        const Expanded(child: SizedBox.shrink()),
+                        _QuestionIndexButton(
+                          sectionNumber: sectionNumber,
+                          sectionQuestionCount: sectionQuestionCount,
+                          onPressed: () => _openQuestionNavigator(context),
+                        ),
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _FooterNavButton(
+                                  key: const Key('diagnostic-back-button'),
+                                  label: 'Back',
+                                  emphasized: false,
+                                  onPressed: canGoBack ? onBack : null,
+                                ),
+                                const SizedBox(width: 8),
+                                _FooterNavButton(
+                                  key: const Key('diagnostic-next-button'),
+                                  label: isLast ? 'Submit' : 'Next',
+                                  emphasized: true,
+                                  busy: completing,
+                                  onPressed: onNext,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  void _openQuestionNavigator(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black38,
+      builder: (dialogContext) {
+        return DiagnosticQuestionNavigator(
+          isMath: isMath,
+          questions: sectionQuestions,
+          currentQuestionId: question.id,
+          answeredQuestionIds: answeredQuestionIds,
+          onSelect: (item) {
+            Navigator.of(dialogContext).pop();
+            onJumpToQuestion(item);
+          },
+          onClose: () => Navigator.of(dialogContext).pop(),
+        );
+      },
+    );
+  }
+}
+
+class _QuestionIndexButton extends StatelessWidget {
+  final int sectionNumber;
+  final int sectionQuestionCount;
+  final VoidCallback onPressed;
+
+  const _QuestionIndexButton({
+    required this.sectionNumber,
+    required this.sectionQuestionCount,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black,
+      borderRadius: BorderRadius.circular(TuranRadius.pill),
+      child: InkWell(
+        key: const Key('diagnostic-question-index-button'),
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(TuranRadius.pill),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Question $sectionNumber of $sectionQuestionCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FooterNavButton extends StatelessWidget {
+  final String label;
+  final bool emphasized;
+  final bool busy;
+  final VoidCallback? onPressed;
+
+  const _FooterNavButton({
+    super.key,
+    required this.label,
+    required this.emphasized,
+    this.busy = false,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null && !busy;
+    return ElevatedButton(
+      onPressed: enabled ? onPressed : null,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: emphasized ? TuranColors.primary : const Color(0xFF9BB0D1),
+        disabledBackgroundColor: emphasized
+            ? TuranColors.primary.withValues(alpha: 0.45)
+            : const Color(0xFF6B7C99),
+        foregroundColor: Colors.white,
+        disabledForegroundColor: Colors.white70,
+        minimumSize: const Size(72, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        elevation: 0,
+        shape: const StadiumBorder(),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: busy
+          ? const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            )
+          : Text(label),
     );
   }
 }

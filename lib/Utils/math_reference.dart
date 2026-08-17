@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+const kMathReferenceAsset = 'assets/math/sat_math_reference.png';
+
 class MathReferenceItem {
   final String text;
   final IconData icon;

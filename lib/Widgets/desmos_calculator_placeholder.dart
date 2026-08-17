@@ -12,6 +12,9 @@ class DesmosCalculatorPlaceholder extends StatelessWidget {
         child: Text(
           'Desmos graphing calculator',
           key: Key('desmos-calculator-embed'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
           style: TextStyle(
             color: TuranColors.textMid,
             fontWeight: FontWeight.w600,

@@ -9,7 +9,7 @@ Future<void> showMathReferenceSheet(BuildContext context) {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: TuranColors.surface,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -21,10 +21,12 @@ Future<void> showMathReferenceSheet(BuildContext context) {
   }
   return showDialog<void>(
     context: context,
+    barrierColor: Colors.black.withValues(alpha: 0.72),
     builder: (context) => const Dialog(
-      insetPadding: EdgeInsets.all(24),
+      backgroundColor: Colors.white,
+      insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       child: SizedBox(
-        width: 560,
+        width: 920,
         height: 640,
         child: MathReferenceSheetPanel(),
       ),
@@ -38,18 +40,18 @@ class MathReferenceSheetPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: TuranColors.surface,
+      color: Colors.white,
       child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
             child: Row(
               children: [
-                const Icon(Icons.menu_book_rounded, color: TuranColors.math),
+                const Icon(Icons.description_outlined, color: TuranColors.textDark),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
-                    'Reference',
+                    'Math Reference',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 18,
@@ -68,32 +70,20 @@ class MathReferenceSheetPanel extends StatelessWidget {
           ),
           const Divider(height: 1, color: TuranColors.border),
           Expanded(
-            child: ListView.separated(
+            child: InteractiveViewer(
               key: const Key('math-reference-sheet'),
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-              itemCount: kMathReferenceItems.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final item = kMathReferenceItems[index];
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(item.icon, size: 20, color: TuranColors.math),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        item.text,
-                        style: const TextStyle(
-                          color: TuranColors.textDark,
-                          fontSize: 15,
-                          height: 1.4,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
+              minScale: 1,
+              maxScale: 3,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                child: Image.asset(
+                  kMathReferenceAsset,
+                  fit: BoxFit.contain,
+                  semanticLabel: kMathReferenceItems
+                      .map((item) => item.text)
+                      .join('. '),
+                ),
+              ),
             ),
           ),
         ],

@@ -25,3 +25,4 @@ flutter:
   assets:
     - assets/brand/turan_symbol.png
     - assets/brand/turan_pattern.png
+    - assets/math/sat_math_reference.png

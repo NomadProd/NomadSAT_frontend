@@ -5,6 +5,7 @@ import 'package:flutter_web/Models/diagnostic_question.dart';
 import 'package:flutter_web/Utils/desmos_config.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/Utils/math_reference.dart';
+import 'package:flutter_web/Widgets/diagnostic_module_break_view.dart';
 import 'package:flutter_web/Widgets/diagnostic_question_taking_view.dart';
 import 'package:flutter_web/Widgets/diagnostic_timer_bar.dart';
 import 'package:flutter_web/Widgets/math_reference_sheet_panel.dart';
@@ -123,7 +124,6 @@ void main() {
                 DiagnosticTimerBar(
                   remaining: const Duration(minutes: 11, seconds: 40),
                   isMath: false,
-                  sectionNumber: 4,
                 ),
                 Expanded(
                   child: DiagnosticResultsView(
@@ -142,7 +142,7 @@ void main() {
     await pumpAt(const Size(390, 844));
     expect(tester.takeException(), isNull);
     expect(find.text('11:40'), findsOneWidget);
-    expect(find.text('Question 4 of 10 — Reading & Writing'), findsOneWidget);
+    expect(find.text('Reading & Writing'), findsWidgets);
 
     await pumpAt(const Size(1280, 800));
     expect(tester.takeException(), isNull);
@@ -242,12 +242,12 @@ void main() {
     await tester.tap(find.byKey(const Key('diagnostic-calculator-button')));
     await tester.pump();
     expect(find.text('12:05'), findsOneWidget);
-    expect(find.text('Calculator'), findsOneWidget);
+    expect(find.text('Graphing Calculator'), findsOneWidget);
     expect(find.text('Math stem'), findsOneWidget);
     await tester.tap(find.byKey(const Key('desmos-calculator-close')));
     await tester.pump();
     expect(find.text('12:05'), findsOneWidget);
-    expect(find.text('Calculator'), findsNothing);
+    expect(find.text('Graphing Calculator'), findsNothing);
     expect(find.text('Math stem'), findsOneWidget);
   });
 
@@ -276,9 +276,9 @@ void main() {
       const MaterialApp(home: Scaffold(body: MathReferenceSheetPanel())),
     );
     expect(kMathReferenceItems, hasLength(15));
-    for (final item in kMathReferenceItems) {
-      expect(find.text(item.text), findsOneWidget);
-    }
+    expect(find.byKey(const Key('math-reference-sheet')), findsOneWidget);
+    expect(find.image(const AssetImage(kMathReferenceAsset)), findsOneWidget);
+    expect(find.text('Math Reference'), findsOneWidget);
     expect(find.textContaining('quadratic'), findsNothing);
     expect(find.textContaining('logarithm'), findsNothing);
     expect(find.textContaining('sin'), findsNothing);
@@ -299,14 +299,99 @@ void main() {
 
     await pumpAt(const Size(390, 844), calculatorOpen: true);
     expect(tester.takeException(), isNull);
-    expect(find.text('Calculator'), findsOneWidget);
+    expect(find.text('Graphing Calculator'), findsOneWidget);
 
     await pumpAt(const Size(1280, 800), calculatorOpen: true);
     expect(tester.takeException(), isNull);
     expect(find.text('Math stem'), findsOneWidget);
-    expect(find.text('Calculator'), findsOneWidget);
+    expect(find.text('Graphing Calculator'), findsOneWidget);
 
     addTearDown(() => tester.binding.setSurfaceSize(null));
+  });
+
+  testWidgets('calculator window can be dragged and resized', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _TakingHarness(
+        question: _question(math: true, order: 11),
+        remaining: const Duration(minutes: 10),
+        calculatorOpen: true,
+      ),
+    );
+    await tester.pump();
+
+    final window = find.byKey(const Key('desmos-calculator-window'));
+    final start = tester.getTopLeft(window);
+    final startSize = tester.getSize(window);
+
+    await tester.drag(
+      find.byKey(const Key('desmos-calculator-drag-handle')),
+      const Offset(80, 50),
+    );
+    await tester.pump();
+    expect(tester.getTopLeft(window), start + const Offset(80, 50));
+
+    await tester.drag(
+      find.byKey(const Key('desmos-calculator-resize-handle')),
+      const Offset(60, 40),
+    );
+    await tester.pump();
+    final resized = tester.getSize(window);
+    expect(resized.width, closeTo(startSize.width + 60, 0.5));
+    expect(resized.height, closeTo(startSize.height + 40, 0.5));
+    expect(find.text('Math stem'), findsOneWidget);
+  });
+
+  testWidgets('back button and question list stay in the current module', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final questions = [
+      _question(math: false, order: 1),
+      _question(math: false, order: 2),
+      _question(math: false, order: 3),
+    ];
+    await tester.pumpWidget(
+      _TakingHarness(
+        question: questions[1],
+        remaining: const Duration(minutes: 8),
+        sectionQuestions: questions,
+        answeredQuestionIds: {questions[0].id},
+        canGoBack: true,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('diagnostic-back-button')), findsOneWidget);
+    expect(find.text('Question 2 of 3'), findsOneWidget);
+    expect(find.byKey(const Key('diagnostic-question-list')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('diagnostic-question-index-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('diagnostic-question-list')), findsOneWidget);
+    expect(find.text('Reading & Writing Questions'), findsOneWidget);
+    expect(find.text('Current'), findsOneWidget);
+    expect(find.text('Unanswered'), findsOneWidget);
+    expect(find.byKey(const Key('diagnostic-question-nav-item-1')), findsOneWidget);
+    expect(find.byKey(const Key('diagnostic-question-nav-item-3')), findsOneWidget);
+    expect(find.text('Math'), findsNothing);
+  });
+
+  testWidgets('module break starts math separately', (tester) async {
+    var started = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DiagnosticModuleBreakView(onStartMath: () => started = true),
+        ),
+      ),
+    );
+    expect(find.byKey(const Key('diagnostic-module-break')), findsOneWidget);
+    expect(find.text('Reading & Writing complete'), findsOneWidget);
+    expect(find.textContaining('15-minute timer'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('diagnostic-start-math-button')));
+    expect(started, isTrue);
   });
 }
 
@@ -330,12 +415,18 @@ class _TakingHarness extends StatefulWidget {
   final Duration remaining;
   final bool showHint;
   final bool calculatorOpen;
+  final List<DiagnosticQuestion>? sectionQuestions;
+  final Set<int> answeredQuestionIds;
+  final bool canGoBack;
 
   const _TakingHarness({
     required this.question,
     required this.remaining,
     this.showHint = false,
     this.calculatorOpen = false,
+    this.sectionQuestions,
+    this.answeredQuestionIds = const {},
+    this.canGoBack = false,
   });
 
   @override
@@ -361,6 +452,8 @@ class _TakingHarnessState extends State<_TakingHarness> {
   Widget build(BuildContext context) {
     final question = widget.question;
     final isMath = question.isMath;
+    final sectionQuestions = widget.sectionQuestions ?? [question];
+    final sectionNumber = sectionQuestions.indexWhere((item) => item.id == question.id);
     return MaterialApp(
       home: Builder(
         builder: (dialogContext) {
@@ -368,14 +461,20 @@ class _TakingHarnessState extends State<_TakingHarness> {
             body: DiagnosticQuestionTakingView(
               remaining: widget.remaining,
               isMath: isMath,
-              sectionNumber: isMath ? question.orderIndex - 10 : question.orderIndex,
+              sectionNumber: sectionNumber < 0 ? 1 : sectionNumber + 1,
+              sectionQuestionCount: sectionQuestions.length,
+              sectionQuestions: sectionQuestions,
+              answeredQuestionIds: widget.answeredQuestionIds,
               question: question,
               selectedChoice: null,
               completing: false,
               calculatorOpen: calculatorOpen,
               showMathToolsHint: showHint,
+              canGoBack: widget.canGoBack,
               onSelect: (_) {},
+              onBack: () {},
               onNext: () {},
+              onJumpToQuestion: (_) {},
               onLeave: () {},
               onToggleCalculator: () {
                 setState(() => calculatorOpen = !calculatorOpen);

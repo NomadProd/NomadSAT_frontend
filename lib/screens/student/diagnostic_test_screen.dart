@@ -7,6 +7,7 @@ import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Services/diagnostic_service.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/Widgets/confirm_dialog.dart';
+import 'package:flutter_web/Widgets/diagnostic_module_break_view.dart';
 import 'package:flutter_web/Widgets/diagnostic_question_taking_view.dart';
 import 'package:flutter_web/Widgets/math_reference_sheet_panel.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
@@ -43,6 +44,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
   bool _expiryHandled = false;
   bool _calculatorOpen = false;
   bool _showMathToolsHint = false;
+  bool _showingModuleBreak = false;
 
   @override
   void initState() {
@@ -146,24 +148,52 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       if (i == questions.length - 1) index = i;
     }
     final current = questions[index];
-    final sectionStartedAt = current.isMath
-        ? startedAt.add(const Duration(seconds: kDiagnosticRwSeconds))
-        : startedAt;
+    final hasMathAnswer = questions.any(
+      (question) => question.isMath && saved.containsKey(question.id),
+    );
+    final rwExpired = DateTime.now().difference(startedAt).inSeconds >=
+        kDiagnosticRwSeconds;
+    final allRwAnswered = questions
+        .where((question) => !question.isMath)
+        .every((question) => saved.containsKey(question.id));
+    final inMath = current.isMath || hasMathAnswer;
+    final showBreak = !hasMathAnswer && (allRwAnswered || rwExpired);
+    DateTime sectionStartedAt;
+    if (inMath && !showBreak) {
+      final mathAnswers = existingAnswers.where((answer) {
+        return questions.any(
+          (question) => question.id == answer.questionId && question.isMath,
+        );
+      });
+      DateTime? mathStarted;
+      for (final answer in mathAnswers) {
+        final answeredAt = answer.answeredAt;
+        if (answeredAt == null) continue;
+        if (mathStarted == null || answeredAt.isBefore(mathStarted)) {
+          mathStarted = answeredAt;
+        }
+      }
+      sectionStartedAt = mathStarted ?? DateTime.now();
+    } else {
+      sectionStartedAt = startedAt;
+    }
+    final mathIndex = questions.indexWhere((question) => question.isMath);
     setState(() {
       _attemptId = attemptId;
       _sectionStartedAt = sectionStartedAt;
       _questions = questions;
-      _index = index;
+      _index = showBreak && mathIndex >= 0 ? mathIndex : index;
       _savedChoices
         ..clear()
         ..addAll(saved);
-      _selectedChoice = saved[current.id];
+      _selectedChoice = saved[questions[_index].id];
       _taking = true;
       _starting = false;
       _loading = false;
       _expiryHandled = false;
       _calculatorOpen = false;
-      _showMathToolsHint = current.isMath;
+      _showMathToolsHint = inMath && !showBreak;
+      _showingModuleBreak = showBreak;
     });
     _syncRemaining();
     _timer?.cancel();
@@ -175,13 +205,22 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
   bool get _isMath =>
       _questions.isNotEmpty && _questions[_index].isMath;
 
-  int get _sectionNumber {
-    if (_questions.isEmpty) return 1;
-    final order = _questions[_index].orderIndex;
-    return _isMath ? order - 10 : order;
+  List<DiagnosticQuestion> get _sectionQuestions {
+    return _questions.where((question) => question.isMath == _isMath).toList();
   }
 
+  int get _sectionNumber {
+    final currentId = _questions.isEmpty ? null : _questions[_index].id;
+    final index = _sectionQuestions.indexWhere((question) => question.id == currentId);
+    return index < 0 ? 1 : index + 1;
+  }
+
+  bool get _canGoBack => _sectionNumber > 1;
+
+  Set<int> get _answeredQuestionIds => _savedChoices.keys.toSet();
+
   void _syncRemaining() {
+    if (_showingModuleBreak) return;
     final started = _sectionStartedAt;
     if (started == null || !_taking) return;
     final remaining = diagnosticSectionRemaining(
@@ -204,20 +243,11 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       await _completeTest();
       return;
     }
-    final mathIndex = _questions.indexWhere((question) => question.isMath);
-    if (mathIndex < 0) {
-      await _completeTest();
-      return;
-    }
     setState(() {
-      _index = mathIndex;
-      _selectedChoice = _savedChoices[_questions[mathIndex].id];
-      _sectionStartedAt = DateTime.now();
-      _expiryHandled = false;
+      _showingModuleBreak = true;
       _calculatorOpen = false;
-      _showMathToolsHint = true;
+      _expiryHandled = true;
     });
-    _syncRemaining();
   }
 
   Future<void> _saveCurrentSelection({String? choiceOverride}) async {
@@ -241,37 +271,73 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     }
   }
 
+  Future<void> _goBack() async {
+    await _saveCurrentSelection();
+    if (!mounted || !_canGoBack) return;
+    final section = _sectionQuestions;
+    final currentPos = _sectionNumber - 1;
+    final previous = section[currentPos - 1];
+    final nextIndex = _questions.indexWhere((question) => question.id == previous.id);
+    if (nextIndex < 0) return;
+    setState(() {
+      _index = nextIndex;
+      _selectedChoice = _savedChoices[_questions[nextIndex].id];
+    });
+  }
+
+  Future<void> _jumpToQuestion(DiagnosticQuestion target) async {
+    if (target.isMath != _isMath) return;
+    await _saveCurrentSelection();
+    if (!mounted) return;
+    final nextIndex = _questions.indexWhere((question) => question.id == target.id);
+    if (nextIndex < 0) return;
+    setState(() {
+      _index = nextIndex;
+      _selectedChoice = _savedChoices[_questions[nextIndex].id];
+    });
+  }
+
   Future<void> _goNext() async {
     await _saveCurrentSelection();
     if (!mounted) return;
-    final isLastInSection = _isMath
-        ? _index >= _questions.length - 1
-        : _index >= 9 || (_index + 1 < _questions.length && _questions[_index + 1].isMath);
+    final isLastInSection = _sectionNumber >= _sectionQuestions.length;
     if (_isMath && isLastInSection) {
       await _completeTest();
       return;
     }
     if (!_isMath && isLastInSection) {
-      final mathIndex = _questions.indexWhere((question) => question.isMath);
-      if (mathIndex < 0) {
-        await _completeTest();
-        return;
-      }
       setState(() {
-        _index = mathIndex;
-        _selectedChoice = _savedChoices[_questions[mathIndex].id];
-        _sectionStartedAt = DateTime.now();
-        _expiryHandled = false;
+        _showingModuleBreak = true;
         _calculatorOpen = false;
-        _showMathToolsHint = true;
       });
-      _syncRemaining();
+      return;
+    }
+    final section = _sectionQuestions;
+    final nextQuestion = section[_sectionNumber];
+    final nextIndex = _questions.indexWhere((question) => question.id == nextQuestion.id);
+    if (nextIndex < 0) return;
+    setState(() {
+      _index = nextIndex;
+      _selectedChoice = _savedChoices[_questions[nextIndex].id];
+    });
+  }
+
+  void _startMathModule() {
+    final mathIndex = _questions.indexWhere((question) => question.isMath);
+    if (mathIndex < 0) {
+      unawaited(_completeTest());
       return;
     }
     setState(() {
-      _index += 1;
-      _selectedChoice = _savedChoices[_questions[_index].id];
+      _showingModuleBreak = false;
+      _index = mathIndex;
+      _selectedChoice = _savedChoices[_questions[mathIndex].id];
+      _sectionStartedAt = DateTime.now();
+      _expiryHandled = false;
+      _calculatorOpen = false;
+      _showMathToolsHint = true;
     });
+    _syncRemaining();
   }
 
   Future<void> _completeTest() async {
@@ -348,20 +414,29 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       );
     }
     if (_taking) {
+      if (_showingModuleBreak) {
+        return DiagnosticModuleBreakView(onStartMath: _startMathModule);
+      }
       return DiagnosticQuestionTakingView(
         remaining: _remaining,
         isMath: _isMath,
         sectionNumber: _sectionNumber,
+        sectionQuestionCount: _sectionQuestions.length,
+        sectionQuestions: _sectionQuestions,
+        answeredQuestionIds: _answeredQuestionIds,
         question: _questions[_index],
         selectedChoice: _selectedChoice,
         completing: _completing,
         calculatorOpen: _calculatorOpen,
         showMathToolsHint: _showMathToolsHint,
+        canGoBack: _canGoBack,
         onSelect: (choice) {
           setState(() => _selectedChoice = choice);
           unawaited(_saveCurrentSelection(choiceOverride: choice));
         },
+        onBack: _completing ? null : () => unawaited(_goBack()),
         onNext: _completing ? null : () => unawaited(_goNext()),
+        onJumpToQuestion: (target) => unawaited(_jumpToQuestion(target)),
         onLeave: _confirmLeave,
         onToggleCalculator: () {
           setState(() => _calculatorOpen = !_calculatorOpen);
@@ -447,8 +522,8 @@ class DiagnosticEntryView extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   const _InfoRow(
-                    icon: Icons.block_rounded,
-                    text: 'You cannot go back to a previous question',
+                    icon: Icons.replay_rounded,
+                    text: 'You can go back to any question in the current module',
                   ),
                   if (latestCompleted != null) ...[
                     const SizedBox(height: 16),

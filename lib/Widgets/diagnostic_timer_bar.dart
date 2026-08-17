@@ -5,7 +5,6 @@ import 'package:flutter_web/theme/turan_theme.dart';
 class DiagnosticTimerBar extends StatelessWidget {
   final Duration remaining;
   final bool isMath;
-  final int sectionNumber;
   final VoidCallback? onLeave;
   final List<Widget> actions;
 
@@ -13,7 +12,6 @@ class DiagnosticTimerBar extends StatelessWidget {
     super.key,
     required this.remaining,
     required this.isMath,
-    required this.sectionNumber,
     this.onLeave,
     this.actions = const [],
   });
@@ -61,12 +59,12 @@ class DiagnosticTimerBar extends StatelessWidget {
                     ),
                   Expanded(
                     child: Text(
-                      'Question $sectionNumber of 10 — $sectionLabel',
+                      sectionLabel,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
                       ),
                     ),
                   ),
@@ -76,9 +74,16 @@ class DiagnosticTimerBar extends StatelessWidget {
               ),
               if (actions.isNotEmpty) ...[
                 const SizedBox(height: 4),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: actions,
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: actions,
+                    ),
+                  ),
                 ),
               ],
             ],

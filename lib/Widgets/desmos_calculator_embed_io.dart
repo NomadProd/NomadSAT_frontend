@@ -6,7 +6,14 @@ import 'package:webview_flutter/webview_flutter.dart';
 const _isFlutterTest = bool.fromEnvironment('FLUTTER_TEST');
 
 class DesmosCalculatorEmbed extends StatefulWidget {
-  const DesmosCalculatorEmbed({super.key});
+  final bool ignorePointer;
+
+  const DesmosCalculatorEmbed({
+    super.key,
+    this.ignorePointer = false,
+  });
+
+  static void setIgnorePointer(bool ignore) {}
 
   @override
   State<DesmosCalculatorEmbed> createState() => _DesmosCalculatorEmbedState();
@@ -37,11 +44,17 @@ class _DesmosCalculatorEmbedState extends State<DesmosCalculatorEmbed> {
   Widget build(BuildContext context) {
     final controller = _controller;
     if (_isFlutterTest || _inWidgetTest || controller == null) {
-      return const DesmosCalculatorPlaceholder();
+      return IgnorePointer(
+        ignoring: widget.ignorePointer,
+        child: const DesmosCalculatorPlaceholder(),
+      );
     }
-    return WebViewWidget(
-      key: const Key('desmos-calculator-embed'),
-      controller: controller,
+    return IgnorePointer(
+      ignoring: widget.ignorePointer,
+      child: WebViewWidget(
+        key: const Key('desmos-calculator-embed'),
+        controller: controller,
+      ),
     );
   }
 }
