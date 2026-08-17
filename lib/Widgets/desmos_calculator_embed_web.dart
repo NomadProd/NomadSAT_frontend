@@ -41,7 +41,7 @@ class _DesmosCalculatorEmbedState extends State<DesmosCalculatorEmbed> {
     if (!_registered) {
       ui_web.platformViewRegistry.registerViewFactory(_viewType, (int viewId) {
         final src =
-            'desmos_calculator.html?apiKey=${Uri.encodeQueryComponent(kDesmosApiKey)}';
+            '/desmos_calculator.html?apiKey=${Uri.encodeQueryComponent(kDesmosApiKey)}';
         final iframe = html.IFrameElement()
           ..src = src
           ..style.border = 'none'
