@@ -205,10 +205,11 @@ class DiagnosticService {
         .toList();
   }
 
-  Future<void> saveProgress({
+  Future<DiagnosticProgressSnapshot> saveProgress({
     required int attemptId,
     required int currentQuestionId,
     DateTime? mathStartedAt,
+    bool? pauseTimer,
   }) async {
     final response = await _client.patch(
       Uri.parse('$baseUrl/diagnostic/attempts/$attemptId/progress'),
@@ -217,6 +218,7 @@ class DiagnosticService {
         'current_question_id': currentQuestionId,
         if (mathStartedAt != null)
           'math_started_at': mathStartedAt.toUtc().toIso8601String(),
+        if (pauseTimer != null) 'pause_timer': pauseTimer,
       }),
     );
     final data = decodeJsonResponse(response);
@@ -226,6 +228,9 @@ class DiagnosticService {
         statusCode: response.statusCode,
       );
     }
+    return DiagnosticProgressSnapshot.fromJson(
+      data is Map ? Map<String, dynamic>.from(data) : const <String, dynamic>{},
+    );
   }
 
   Future<void> submitAnswer({

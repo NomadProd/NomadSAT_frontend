@@ -215,11 +215,29 @@ Duration diagnosticSectionRemaining({
   required DateTime now,
   required DateTime sectionStartedAt,
   required bool isMath,
+  int pauseSeconds = 0,
+  DateTime? timerPausedAt,
 }) {
   final limitSeconds = isMath ? kDiagnosticMathSeconds : kDiagnosticRwSeconds;
-  final elapsed = now.difference(sectionStartedAt).inSeconds;
+  final elapsed = diagnosticElapsedSeconds(
+    now: now,
+    sectionStartedAt: sectionStartedAt,
+    pauseSeconds: pauseSeconds,
+    timerPausedAt: timerPausedAt,
+  );
   final remaining = limitSeconds - elapsed;
   return Duration(seconds: remaining < 0 ? 0 : remaining);
+}
+
+int diagnosticElapsedSeconds({
+  required DateTime now,
+  required DateTime sectionStartedAt,
+  int pauseSeconds = 0,
+  DateTime? timerPausedAt,
+}) {
+  final clockNow = timerPausedAt ?? now;
+  final elapsed = clockNow.difference(sectionStartedAt).inSeconds - pauseSeconds;
+  return elapsed < 0 ? 0 : elapsed;
 }
 
 String formatDiagnosticCountdown(Duration remaining) {
@@ -252,6 +270,8 @@ DiagnosticResumeState resolveDiagnosticResume({
   required DateTime now,
   DateTime? mathStartedAt,
   int? currentQuestionId,
+  int pauseSeconds = 0,
+  DateTime? timerPausedAt,
 }) {
   if (questions.isEmpty) {
     return DiagnosticResumeState(
@@ -265,7 +285,13 @@ DiagnosticResumeState resolveDiagnosticResume({
   final rwQuestions = questions.where((question) => !question.isMath).toList();
   final allRwAnswered = rwQuestions.isNotEmpty &&
       rwQuestions.every((question) => savedQuestionIds.contains(question.id));
-  final rwExpired = now.difference(startedAt).inSeconds >= kDiagnosticRwSeconds;
+  final rwElapsed = diagnosticElapsedSeconds(
+    now: now,
+    sectionStartedAt: startedAt,
+    pauseSeconds: mathStartedAt == null ? pauseSeconds : 0,
+    timerPausedAt: mathStartedAt == null ? timerPausedAt : null,
+  );
+  final rwExpired = rwElapsed >= kDiagnosticRwSeconds;
   final inMath = mathStartedAt != null;
   final showBreak = !inMath && (allRwAnswered || rwExpired);
 

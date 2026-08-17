@@ -38,6 +38,8 @@ class DiagnosticAttempt {
   final int? totalRangeHigh;
   final DateTime? mathStartedAt;
   final int? currentQuestionId;
+  final DateTime? timerPausedAt;
+  final int timerPauseSeconds;
   final List<DiagnosticAnswer> answers;
 
   const DiagnosticAttempt({
@@ -55,6 +57,8 @@ class DiagnosticAttempt {
     this.totalRangeHigh,
     this.mathStartedAt,
     this.currentQuestionId,
+    this.timerPausedAt,
+    this.timerPauseSeconds = 0,
     this.answers = const [],
   });
 
@@ -81,6 +85,8 @@ class DiagnosticAttempt {
       totalRangeHigh: json['total_range_high'] as int?,
       mathStartedAt: _parseDateTime(json['math_started_at']),
       currentQuestionId: json['current_question_id'] as int?,
+      timerPausedAt: _parseDateTime(json['timer_paused_at']),
+      timerPauseSeconds: json['timer_pause_seconds'] as int? ?? 0,
       answers: answers,
     );
   }
@@ -332,6 +338,29 @@ class DiagnosticAttemptCreated {
       attemptId: json['attempt_id'] ?? json['id'] ?? 0,
       status: json['status']?.toString() ?? 'in_progress',
       startedAt: _parseDateTime(json['started_at']) ?? DateTime.now(),
+    );
+  }
+}
+
+class DiagnosticProgressSnapshot {
+  final int? currentQuestionId;
+  final DateTime? mathStartedAt;
+  final DateTime? timerPausedAt;
+  final int timerPauseSeconds;
+
+  const DiagnosticProgressSnapshot({
+    this.currentQuestionId,
+    this.mathStartedAt,
+    this.timerPausedAt,
+    this.timerPauseSeconds = 0,
+  });
+
+  factory DiagnosticProgressSnapshot.fromJson(Map<String, dynamic> json) {
+    return DiagnosticProgressSnapshot(
+      currentQuestionId: json['current_question_id'] as int?,
+      mathStartedAt: _parseDateTime(json['math_started_at']),
+      timerPausedAt: _parseDateTime(json['timer_paused_at']),
+      timerPauseSeconds: json['timer_pause_seconds'] as int? ?? 0,
     );
   }
 }

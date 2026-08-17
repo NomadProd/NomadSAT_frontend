@@ -45,6 +45,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
   final Map<int, String> _persistedChoices = {};
   Timer? _timer;
   Duration _remaining = const Duration(seconds: kDiagnosticRwSeconds);
+  int _pauseSeconds = 0;
   bool _expiryHandled = false;
   bool _calculatorOpen = false;
   bool _showMathToolsHint = false;
@@ -121,6 +122,8 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
         existingAnswers: attempt.answers,
         mathStartedAt: attempt.mathStartedAt,
         currentQuestionId: attempt.currentQuestionId,
+        pauseSeconds: attempt.timerPauseSeconds,
+        timerPausedAt: attempt.timerPausedAt,
       );
     } catch (error) {
       if (!mounted) return;
@@ -137,6 +140,8 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     List<DiagnosticAnswer> existingAnswers = const [],
     DateTime? mathStartedAt,
     int? currentQuestionId,
+    int pauseSeconds = 0,
+    DateTime? timerPausedAt,
   }) async {
     final questions = await _service.fetchAttemptQuestions(attemptId);
     if (!mounted) return;
@@ -148,6 +153,16 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
         saved[answer.questionId] = choice;
       }
     }
+    var pause = pauseSeconds;
+    if (timerPausedAt != null && questions.isNotEmpty) {
+      final progress = await _service.saveProgress(
+        attemptId: attemptId,
+        currentQuestionId: currentQuestionId ?? questions.first.id,
+        pauseTimer: false,
+      );
+      if (!mounted) return;
+      pause = progress.timerPauseSeconds;
+    }
     final resume = resolveDiagnosticResume(
       questions: questions,
       savedQuestionIds: saved.keys.toSet(),
@@ -155,10 +170,12 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       now: DateTime.now(),
       mathStartedAt: mathStartedAt,
       currentQuestionId: currentQuestionId,
+      pauseSeconds: pause,
     );
     setState(() {
       _attemptId = attemptId;
       _sectionStartedAt = resume.sectionStartedAt;
+      _pauseSeconds = pause;
       _questions = questions;
       _index = resume.questionIndex;
       _savedChoices
@@ -212,6 +229,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       now: DateTime.now(),
       sectionStartedAt: started,
       isMath: _isMath,
+      pauseSeconds: _pauseSeconds,
     );
     if (!mounted) return;
     setState(() => _remaining = remaining);
@@ -294,6 +312,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
   Future<void> _saveProgress({
     DateTime? mathStartedAt,
     bool reportError = false,
+    bool? pauseTimer,
   }) async {
     final attemptId = _attemptId;
     if (attemptId == null || _questions.isEmpty) return;
@@ -302,6 +321,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
         attemptId: attemptId,
         currentQuestionId: _questions[_index].id,
         mathStartedAt: mathStartedAt,
+        pauseTimer: pauseTimer,
       );
     } catch (error) {
       if (!mounted || !reportError) return;
@@ -384,6 +404,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       _index = mathIndex;
       _selectedChoice = _savedChoices[_questions[mathIndex].id];
       _sectionStartedAt = started;
+      _pauseSeconds = 0;
       _expiryHandled = false;
       _calculatorOpen = false;
       _showMathToolsHint = true;
@@ -442,7 +463,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     );
     if (!leave || !mounted) return;
     await _saveCurrentSelection();
-    await _saveProgress(reportError: true);
+    await _saveProgress(reportError: true, pauseTimer: true);
     if (mounted) Navigator.of(context).pop();
   }
 

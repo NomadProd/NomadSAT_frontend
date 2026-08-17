@@ -85,6 +85,36 @@ void main() {
     expect(formatDiagnosticCountdown(const Duration(seconds: 9)), '00:09');
   });
 
+  test('section timer ignores time spent away after pause', () {
+    final started = DateTime.utc(2026, 8, 15, 12);
+    expect(
+      diagnosticSectionRemaining(
+        now: started.add(const Duration(minutes: 20)),
+        sectionStartedAt: started,
+        isMath: false,
+        pauseSeconds: 10 * 60,
+      ),
+      const Duration(minutes: 2),
+    );
+
+    final questions = [
+      _question(math: false, order: 1),
+      _question(math: false, order: 2),
+      _question(math: true, order: 11),
+    ];
+    final resume = resolveDiagnosticResume(
+      questions: questions,
+      savedQuestionIds: {1},
+      startedAt: started,
+      now: started.add(const Duration(minutes: 20)),
+      currentQuestionId: 2,
+      pauseSeconds: 10 * 60,
+    );
+    expect(resume.showBreak, isFalse);
+    expect(resume.inMath, isFalse);
+    expect(resume.questionIndex, 1);
+  });
+
   test('question bank access is role-gated', () {
     expect(canManageDiagnosticBank('admin'), isTrue);
     expect(canManageDiagnosticBank('mentor'), isTrue);
