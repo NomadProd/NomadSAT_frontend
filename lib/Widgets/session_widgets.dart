@@ -314,6 +314,7 @@ class _SessionMetaCard extends StatelessWidget {
   final VoidCallback? onRemoveMockPdf;
   final VoidCallback? onOpenMockPdf;
   final VoidCallback onStudents, onSessions;
+  final VoidCallback? onDiagnosticResults;
 
   const _SessionMetaCard({
     required this.session,
@@ -330,6 +331,7 @@ class _SessionMetaCard extends StatelessWidget {
     this.onOpenMockPdf,
     required this.onStudents,
     required this.onSessions,
+    this.onDiagnosticResults,
   });
 
   @override
@@ -381,23 +383,33 @@ class _SessionMetaCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (canManageClass)
+              if (canManageClass || onDiagnosticResults != null)
                 SizedBox(
                   width: 220,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _MetaActionButton(
-                        icon: Icons.group_rounded,
-                        label: 'Students',
-                        onTap: onStudents,
-                      ),
-                      const SizedBox(height: 8),
-                      _MetaActionButton(
-                        icon: Icons.calendar_month_rounded,
-                        label: 'Sessions',
-                        onTap: onSessions,
-                      ),
+                      if (canManageClass) ...[
+                        _MetaActionButton(
+                          icon: Icons.group_rounded,
+                          label: 'Students',
+                          onTap: onStudents,
+                        ),
+                        const SizedBox(height: 8),
+                        _MetaActionButton(
+                          icon: Icons.calendar_month_rounded,
+                          label: 'Sessions',
+                          onTap: onSessions,
+                        ),
+                      ],
+                      if (onDiagnosticResults != null) ...[
+                        if (canManageClass) const SizedBox(height: 8),
+                        _MetaActionButton(
+                          icon: Icons.quiz_rounded,
+                          label: 'Diagnostic results',
+                          onTap: onDiagnosticResults!,
+                        ),
+                      ],
                     ],
                   ),
                 ),

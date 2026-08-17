@@ -264,4 +264,83 @@ class DiagnosticService {
     }
     return DiagnosticAttempt.fromJson(Map<String, dynamic>.from(data as Map));
   }
+
+  Future<List<DiagnosticAttemptListItem>> fetchMyAttempts() async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/diagnostic/attempts/me'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    return _parseAttemptList(
+      response,
+      fallback: 'Failed to load diagnostic results',
+    );
+  }
+
+  Future<List<DiagnosticAttemptListItem>> fetchAttemptsForStudent(
+    int studentId,
+  ) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/diagnostic/attempts').replace(
+        queryParameters: {'student_id': '$studentId'},
+      ),
+      headers: {'Content-Type': 'application/json'},
+    );
+    return _parseAttemptList(
+      response,
+      fallback: 'Failed to load diagnostic results',
+    );
+  }
+
+  Future<List<DiagnosticAttemptListItem>> fetchAttemptsForClass(
+    int classId,
+  ) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/diagnostic/attempts').replace(
+        queryParameters: {'class_id': '$classId'},
+      ),
+      headers: {'Content-Type': 'application/json'},
+    );
+    return _parseAttemptList(
+      response,
+      fallback: 'Failed to load class diagnostic results',
+    );
+  }
+
+  Future<DiagnosticAttemptDetail> fetchAttemptDetail(int attemptId) async {
+    final response = await _client.get(
+      Uri.parse('$baseUrl/diagnostic/attempts/$attemptId/detail'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    final data = decodeJsonResponse(response);
+    if (response.statusCode != 200) {
+      throw ApiException(
+        apiDetailMessage(data, 'Failed to load diagnostic review'),
+        statusCode: response.statusCode,
+      );
+    }
+    return DiagnosticAttemptDetail.fromJson(
+      Map<String, dynamic>.from(data as Map),
+    );
+  }
+
+  List<DiagnosticAttemptListItem> _parseAttemptList(
+    http.Response response, {
+    required String fallback,
+  }) {
+    final data = decodeJsonResponse(response);
+    if (response.statusCode != 200) {
+      throw ApiException(
+        apiDetailMessage(data, fallback),
+        statusCode: response.statusCode,
+      );
+    }
+    return (data as List<dynamic>)
+        .whereType<Map>()
+        .map(
+          (item) => DiagnosticAttemptListItem.fromJson(
+            Map<String, dynamic>.from(item),
+          ),
+        )
+        .toList();
+  }
 }

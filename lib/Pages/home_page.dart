@@ -6,7 +6,7 @@ import 'package:flutter_web/Pages/homework_detail_page.dart';
 import 'package:flutter_web/Pages/mock_result_detail_page.dart';
 import 'package:flutter_web/Pages/homework_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
-import 'package:flutter_web/screens/student/diagnostic_test_screen.dart';
+import 'package:flutter_web/screens/student/diagnostic_dashboard_screen.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Services/api_json.dart';
@@ -356,7 +356,7 @@ class _HomePageState extends State<HomePage> with RouteAware {
                           _DiagnosticEntryCard(
                             onStart: () => Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) => const DiagnosticTestScreen(),
+                                builder: (_) => const DiagnosticDashboardScreen(),
                               ),
                             ),
                           ),
@@ -663,7 +663,7 @@ class _DiagnosticEntryCard extends StatelessWidget {
                     ),
                     SizedBox(height: 3),
                     Text(
-                      '20 questions · ~27 minutes · approximate score range',
+                      'View results or take the 20-question diagnostic',
                       style: TextStyle(
                         color: _kTextMid,
                         fontSize: 12,

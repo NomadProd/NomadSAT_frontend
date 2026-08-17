@@ -5,6 +5,8 @@ import 'package:flutter_web/Models/diagnostic_question.dart';
 import 'package:flutter_web/Utils/desmos_config.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/Utils/math_reference.dart';
+import 'package:flutter_web/Widgets/diagnostic_attempt_review_view.dart';
+import 'package:flutter_web/Widgets/diagnostic_attempt_result_card.dart';
 import 'package:flutter_web/Widgets/diagnostic_module_break_view.dart';
 import 'package:flutter_web/Widgets/diagnostic_module_review_view.dart';
 import 'package:flutter_web/Widgets/diagnostic_question_figure.dart';
@@ -718,6 +720,228 @@ void main() {
     expect(resume.inMath, isFalse);
     expect(resume.questionIndex, 1);
   });
+
+  testWidgets('dashboard lists attempts most recent first with score ranges', (
+    tester,
+  ) async {
+    DiagnosticAttemptListItem? opened;
+    final attempts = [
+      _listItem(
+        id: 2,
+        completedAt: DateTime.utc(2026, 8, 16, 10),
+        low: 1280,
+        high: 1440,
+        total: 1360,
+      ),
+      _listItem(
+        id: 1,
+        completedAt: DateTime.utc(2026, 8, 10, 10),
+        low: 1200,
+        high: 1360,
+        total: 1280,
+      ),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DiagnosticAttemptListView(
+            attempts: attempts,
+            onOpen: (item) => opened = item,
+            onRetake: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('1280–1440'), findsOneWidget);
+    expect(find.text('1200–1360'), findsOneWidget);
+    expect(find.byKey(const Key('diagnostic-trend')), findsOneWidget);
+    expect(find.text('+80 points since last attempt'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('diagnostic-attempt-card-2')));
+    expect(opened?.attemptId, 2);
+  });
+
+  testWidgets('empty dashboard shows take-test call to action', (tester) async {
+    var started = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DiagnosticAttemptListView(
+            attempts: const [],
+            onOpen: (_) {},
+            onTakeTest: () => started = true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('diagnostic-take-test')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('diagnostic-take-test')));
+    expect(started, isTrue);
+  });
+
+  testWidgets('review highlights answers and marks unanswered', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: DiagnosticAttemptReviewView(
+            detail: _kReviewDetail,
+            showStudentName: true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('diagnostic-review-student-name')), findsOneWidget);
+    expect(find.text('Ada Lovelace'), findsOneWidget);
+    expect(find.text('1220–1380'), findsOneWidget);
+    expect(find.text('Not answered'), findsOneWidget);
+    expect(
+      find.byKey(const Key('diagnostic-review-unanswered-2')),
+      findsOneWidget,
+    );
+    expect(find.text('C is supported by the passage.'), findsOneWidget);
+  });
+
+  testWidgets('teacher denied review shows access-denied state', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: DiagnosticAttemptReviewDenied(
+            message:
+                'You do not have permission to view this diagnostic attempt.',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('diagnostic-access-denied')), findsOneWidget);
+    expect(find.text('Access denied'), findsOneWidget);
+  });
+
+  testWidgets('dashboard and review fit mobile and desktop', (tester) async {
+    Future<void> pumpAt(Size size) async {
+      await tester.binding.setSurfaceSize(size);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DiagnosticAttemptListView(
+              attempts: [
+                _listItem(
+                  id: 3,
+                  completedAt: DateTime.utc(2026, 8, 16),
+                  studentName: 'Ada',
+                ),
+              ],
+              showStudentName: true,
+              onOpen: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: DiagnosticAttemptReviewView(detail: _kReviewDetail),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    }
+
+    await pumpAt(const Size(390, 844));
+    await pumpAt(const Size(1280, 800));
+    await tester.binding.setSurfaceSize(null);
+  });
+}
+
+const _kReviewDetail = DiagnosticAttemptDetail(
+  attemptId: 11,
+  student: DiagnosticStudentSummary(
+    id: 7,
+    name: 'Ada',
+    surname: 'Lovelace',
+  ),
+  completedAt: null,
+  status: 'completed',
+  rwScaledEstimate: 620,
+  mathScaledEstimate: 680,
+  totalRangeLow: 1220,
+  totalRangeHigh: 1380,
+  answers: [
+    DiagnosticAnswerReview(
+      orderIndex: 1,
+      section: 'reading_writing',
+      domain: 'Craft and Structure',
+      difficulty: 'easy',
+      points: 3,
+      questionText: 'What is the main idea?',
+      choices: [
+        DiagnosticChoice(key: 'A', text: 'Choice A'),
+        DiagnosticChoice(key: 'B', text: 'Choice B'),
+        DiagnosticChoice(key: 'C', text: 'Choice C'),
+        DiagnosticChoice(key: 'D', text: 'Choice D'),
+      ],
+      selectedChoice: 'A',
+      correctChoice: 'C',
+      isCorrect: false,
+      explanation: 'C is supported by the passage.',
+    ),
+    DiagnosticAnswerReview(
+      orderIndex: 2,
+      section: 'math',
+      domain: 'Algebra',
+      difficulty: 'medium',
+      points: 4,
+      questionText: 'Solve for x.',
+      choices: [
+        DiagnosticChoice(key: 'A', text: '1'),
+        DiagnosticChoice(key: 'B', text: '2'),
+        DiagnosticChoice(key: 'C', text: '3'),
+        DiagnosticChoice(key: 'D', text: '4'),
+      ],
+      selectedChoice: null,
+      correctChoice: 'B',
+      isCorrect: null,
+    ),
+  ],
+);
+
+DiagnosticAttemptListItem _listItem({
+  required int id,
+  DateTime? completedAt,
+  int low = 1220,
+  int high = 1380,
+  int rw = 620,
+  int math = 680,
+  int total = 1300,
+  String status = 'completed',
+  String? studentName,
+}) {
+  return DiagnosticAttemptListItem(
+    attemptId: id,
+    studentId: 7,
+    status: status,
+    startedAt: completedAt ?? DateTime.utc(2026, 8, 15, 10),
+    completedAt: status == 'completed' ? completedAt : null,
+    rwScaledEstimate: rw,
+    mathScaledEstimate: math,
+    totalPointEstimate: total,
+    totalRangeLow: low,
+    totalRangeHigh: high,
+    student: studentName == null
+        ? null
+        : DiagnosticStudentSummary(
+            id: 7,
+            name: studentName,
+            surname: 'Student',
+          ),
+  );
 }
 
 DiagnosticQuestion _question({

@@ -4,6 +4,7 @@ import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 import 'package:flutter_web/Widgets/confirm_dialog.dart';
+import 'package:flutter_web/screens/shared/diagnostic_class_results_screen.dart';
 
 class ClassDetailScreen extends StatefulWidget {
   final int classId;
@@ -201,6 +202,18 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                         onEditTeachers: widget.canEditTeachers
                             ? () => _editTeachers(snap.data!)
                             : null,
+                        onOpenDiagnosticResults: () {
+                          final detail = snap.data!;
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => DiagnosticClassResultsScreen(
+                                classId: detail.classId,
+                                className: detail.className,
+                                students: detail.students,
+                              ),
+                            ),
+                          );
+                        },
                       ),
               ),
             ],
@@ -217,11 +230,13 @@ class _ClassDetailBody extends StatelessWidget {
   final Future<void> Function(ClassDetailInfo detail, UserInfo student)
   onRemoveStudent;
   final VoidCallback? onEditTeachers;
+  final VoidCallback onOpenDiagnosticResults;
 
   const _ClassDetailBody({
     required this.detail,
     required this.isAdmin,
     required this.onRemoveStudent,
+    required this.onOpenDiagnosticResults,
     this.onEditTeachers,
   });
 
@@ -246,6 +261,18 @@ class _ClassDetailBody extends StatelessWidget {
                   icon: const Icon(Icons.edit_rounded, size: 16),
                   label: const Text('Edit'),
                 ),
+        ),
+        const SizedBox(height: 16),
+        _InfoCard(
+          title: 'Diagnostic Results',
+          lines: [
+            'View completed diagnostic attempts for students in this class',
+          ],
+          action: TextButton.icon(
+            onPressed: onOpenDiagnosticResults,
+            icon: const Icon(Icons.quiz_rounded, size: 16),
+            label: const Text('Open'),
+          ),
         ),
         const SizedBox(height: 16),
         Text('Students (${students.length})', style: TuranTextStyles.title),
