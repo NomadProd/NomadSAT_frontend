@@ -5,11 +5,13 @@ import 'package:flutter_web/theme/turan_theme.dart';
 class DiagnosticQuestionFigure extends StatelessWidget {
   final String url;
   final double scale;
+  final String alt;
 
   const DiagnosticQuestionFigure({
     super.key,
     required this.url,
     this.scale = kDiagnosticImageScaleDefault,
+    this.alt = 'Question image',
   });
 
   @override
@@ -37,11 +39,14 @@ class DiagnosticQuestionFigure extends StatelessWidget {
                   url,
                   width: figureWidth,
                   fit: BoxFit.fitWidth,
-                  errorBuilder: (context, error, stackTrace) => const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
+                  semanticLabel: alt,
+                  webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+                  errorBuilder: (context, error, stackTrace) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
-                      'Image could not be loaded.',
-                      style: TextStyle(color: TuranColors.error),
+                      alt,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: TuranColors.textMid),
                     ),
                   ),
                 ),

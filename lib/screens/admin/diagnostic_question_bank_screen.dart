@@ -642,6 +642,7 @@ class _DiagnosticQuestionFormScreenState
                           DiagnosticQuestionFigure(
                             url: _imageUrl!,
                             scale: _imageScale,
+                            alt: slot.isMath ? 'Question image' : 'Passage image',
                           ),
                           const SizedBox(height: 10),
                           Text(

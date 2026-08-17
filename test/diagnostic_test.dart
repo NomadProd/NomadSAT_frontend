@@ -473,6 +473,7 @@ void main() {
     );
     expect(find.text('Reading stem'), findsOneWidget);
     expect(find.text('Image could not be loaded.'), findsNothing);
+    expect(find.text('Passage image'), findsNothing);
     expect(find.text('dadada'), findsNothing);
     expect(find.byKey(const Key('diagnostic-question-image')), findsNothing);
   });
@@ -618,6 +619,22 @@ void main() {
       find.byKey(const Key('diagnostic-question-figure-box')),
     );
     expect(full.width, 400);
+  });
+
+  testWidgets('failed figure shows alt instead of an error', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: DiagnosticQuestionFigure(
+            url: 'https://cdn.example.com/missing.png',
+            alt: 'Passage image',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Passage image'), findsOneWidget);
+    expect(find.text('Image could not be loaded.'), findsNothing);
   });
 
   testWidgets('preview shows the question in the student test layout', (tester) async {
