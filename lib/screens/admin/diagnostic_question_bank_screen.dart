@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Models/diagnostic_question.dart';
@@ -6,6 +7,8 @@ import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/diagnostic_service.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/Widgets/confirm_dialog.dart';
+import 'package:flutter_web/Widgets/diagnostic_question_figure.dart';
+import 'package:flutter_web/Widgets/diagnostic_question_preview_screen.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/screens/student/diagnostic_test_screen.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
@@ -320,6 +323,18 @@ class _SlotCard extends StatelessWidget {
                   '${filled ? '' : ' · empty slot'}',
                   style: const TextStyle(color: TuranColors.textMid, fontSize: 13),
                 ),
+                if (question?.questionUrl != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    question!.questionUrl!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: TuranColors.textLight,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -362,7 +377,8 @@ class DiagnosticQuestionFormScreen extends StatefulWidget {
 class _DiagnosticQuestionFormScreenState
     extends State<DiagnosticQuestionFormScreen> {
   final _stemController = TextEditingController();
-  final _imageController = TextEditingController();
+  final _passageController = TextEditingController();
+  final _urlController = TextEditingController();
   final _explanationController = TextEditingController();
   final _choiceControllers = {
     'A': TextEditingController(),
@@ -372,7 +388,11 @@ class _DiagnosticQuestionFormScreenState
   };
   String _correctChoice = 'A';
   bool _saving = false;
+  bool _uploadingImage = false;
   String? _error;
+  String? _imageUrl;
+  String? _imagePublicId;
+  double _imageScale = kDiagnosticImageScaleDefault;
 
   @override
   void initState() {
@@ -380,8 +400,12 @@ class _DiagnosticQuestionFormScreenState
     final question = widget.question;
     if (question != null) {
       _stemController.text = question.questionText;
-      _imageController.text = question.questionImage ?? '';
+      _passageController.text = question.passageText ?? '';
+      _urlController.text = question.questionUrl ?? '';
       _explanationController.text = question.explanation ?? '';
+      _imageUrl = question.questionImage;
+      _imagePublicId = question.questionImagePublicId;
+      _imageScale = clampDiagnosticImageScale(question.imageScale);
       _correctChoice = (question.correctChoice ?? 'A').toUpperCase();
       for (final choice in question.choices) {
         _choiceControllers[choice.key]?.text = choice.text;
@@ -392,12 +416,97 @@ class _DiagnosticQuestionFormScreenState
   @override
   void dispose() {
     _stemController.dispose();
-    _imageController.dispose();
+    _passageController.dispose();
+    _urlController.dispose();
     _explanationController.dispose();
     for (final controller in _choiceControllers.values) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    if (_saving || _uploadingImage) return;
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (picked == null || picked.files.isEmpty) return;
+    setState(() {
+      _uploadingImage = true;
+      _error = null;
+    });
+    try {
+      final uploaded = await widget.service.uploadQuestionImage(picked.files.first);
+      if (!mounted) return;
+      setState(() {
+        _imageUrl = uploaded.url;
+        _imagePublicId = uploaded.publicId;
+        _uploadingImage = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _uploadingImage = false;
+        _error = userFacingError(error);
+      });
+    }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _imageUrl = null;
+      _imagePublicId = null;
+      _imageScale = kDiagnosticImageScaleDefault;
+    });
+  }
+
+  DiagnosticQuestion _draftQuestion() {
+    final slot = widget.slot;
+    return DiagnosticQuestion(
+      id: widget.question?.id ?? 0,
+      section: slot.section,
+      domain: slot.domain,
+      difficulty: slot.difficulty,
+      points: slot.points,
+      orderIndex: slot.orderIndex,
+      passageText: slot.isMath || _passageController.text.trim().isEmpty
+          ? null
+          : _passageController.text.trim(),
+      questionText: _stemController.text.trim().isEmpty
+          ? 'Question text'
+          : _stemController.text.trim(),
+      questionUrl: _urlController.text.trim().isEmpty
+          ? null
+          : _urlController.text.trim(),
+      questionImage: _imageUrl,
+      questionImagePublicId: _imagePublicId,
+      imageScale: _imageScale,
+      choices: [
+        for (final key in ['A', 'B', 'C', 'D'])
+          DiagnosticChoice(
+            key: key,
+            text: _choiceControllers[key]!.text.trim().isEmpty
+                ? key
+                : _choiceControllers[key]!.text.trim(),
+          ),
+      ],
+      correctChoice: _correctChoice,
+      explanation: _explanationController.text.trim().isEmpty
+          ? null
+          : _explanationController.text.trim(),
+    );
+  }
+
+  Future<void> _openPreview() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => DiagnosticQuestionPreviewScreen(
+          question: _draftQuestion(),
+        ),
+      ),
+    );
   }
 
   Future<void> _save() async {
@@ -431,10 +540,16 @@ class _DiagnosticQuestionFormScreenState
       difficulty: slot.difficulty,
       points: slot.points,
       orderIndex: slot.orderIndex,
-      questionText: _stemController.text.trim(),
-      questionImage: _imageController.text.trim().isEmpty
+      passageText: _passageController.text.trim().isEmpty
           ? null
-          : _imageController.text.trim(),
+          : _passageController.text.trim(),
+      questionText: _stemController.text.trim(),
+      questionUrl: _urlController.text.trim().isEmpty
+          ? null
+          : _urlController.text.trim(),
+      questionImage: _imageUrl,
+      questionImagePublicId: _imagePublicId,
+      imageScale: _imageScale,
       choices: [
         for (final key in ['A', 'B', 'C', 'D'])
           DiagnosticChoice(key: key, text: _choiceControllers[key]!.text.trim()),
@@ -497,19 +612,123 @@ class _DiagnosticQuestionFormScreenState
                           ),
                         ),
                         const SizedBox(height: 14),
+                        if (!slot.isMath) ...[
+                          const Text(
+                            'Passage',
+                            style: TextStyle(
+                              color: TuranColors.textMid,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Shown on the left with the image during the test.',
+                            style: TextStyle(
+                              color: TuranColors.textLight,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        Text(
+                          slot.isMath ? 'Question image (optional)' : 'Passage image (optional)',
+                          style: const TextStyle(
+                            color: TuranColors.textMid,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (_imageUrl != null) ...[
+                          DiagnosticQuestionFigure(
+                            url: _imageUrl!,
+                            scale: _imageScale,
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'Image size: ${(_imageScale * 100).round()}% of the ${slot.isMath ? 'question' : 'passage'} pane',
+                            style: const TextStyle(
+                              color: TuranColors.textMid,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Slider(
+                            key: const Key('diagnostic-image-scale-slider'),
+                            value: _imageScale,
+                            min: kDiagnosticImageScaleMin,
+                            max: kDiagnosticImageScaleMax,
+                            divisions: 12,
+                            label: '${(_imageScale * 100).round()}%',
+                            onChanged: (value) {
+                              setState(() {
+                                _imageScale = clampDiagnosticImageScale(value);
+                              });
+                            },
+                          ),
+                          const Text(
+                            'Open a full test preview to check whether the image is too small or too large.',
+                            style: TextStyle(
+                              color: TuranColors.textLight,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: _uploadingImage ? null : _pickImage,
+                              icon: _uploadingImage
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.image_outlined, size: 18),
+                              label: Text(_imageUrl == null ? 'Add image' : 'Replace image'),
+                            ),
+                            if (_imageUrl != null)
+                              TextButton.icon(
+                                onPressed: _uploadingImage ? null : _removeImage,
+                                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                                label: const Text('Remove image'),
+                              ),
+                            OutlinedButton.icon(
+                              key: const Key('diagnostic-question-preview-button'),
+                              onPressed: (_saving || _uploadingImage) ? null : _openPreview,
+                              icon: const Icon(Icons.visibility_outlined, size: 18),
+                              label: const Text('Preview question'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        if (!slot.isMath) ...[
+                          TextField(
+                            controller: _passageController,
+                            maxLines: 8,
+                            decoration: const InputDecoration(
+                              labelText: 'Passage text',
+                              alignLabelWithHint: true,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                         TextField(
                           controller: _stemController,
                           maxLines: 6,
-                          decoration: const InputDecoration(
-                            labelText: 'Question text',
+                          decoration: InputDecoration(
+                            labelText: slot.isMath ? 'Question text' : 'Question / task',
                             alignLabelWithHint: true,
                           ),
                         ),
                         const SizedBox(height: 12),
                         TextField(
-                          controller: _imageController,
+                          controller: _urlController,
                           decoration: const InputDecoration(
-                            labelText: 'Question image URL (optional)',
+                            labelText: 'Question URL (unique)',
+                            helperText:
+                                'SAT / College Board question URL. Not shown to students.',
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -547,8 +766,17 @@ class _DiagnosticQuestionFormScreenState
                           Text(_error!, style: const TextStyle(color: TuranColors.error)),
                         ],
                         const SizedBox(height: 18),
+                        OutlinedButton.icon(
+                          onPressed: (_saving || _uploadingImage) ? null : _openPreview,
+                          icon: const Icon(Icons.visibility_outlined, size: 18),
+                          label: const Text('Preview question'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
                         ElevatedButton(
-                          onPressed: _saving ? null : _save,
+                          onPressed: (_saving || _uploadingImage) ? null : _save,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: TuranColors.primary,
                             foregroundColor: Colors.white,

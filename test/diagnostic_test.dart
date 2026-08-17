@@ -6,6 +6,9 @@ import 'package:flutter_web/Utils/desmos_config.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/Utils/math_reference.dart';
 import 'package:flutter_web/Widgets/diagnostic_module_break_view.dart';
+import 'package:flutter_web/Widgets/diagnostic_module_review_view.dart';
+import 'package:flutter_web/Widgets/diagnostic_question_figure.dart';
+import 'package:flutter_web/Widgets/diagnostic_question_preview_screen.dart';
 import 'package:flutter_web/Widgets/diagnostic_question_taking_view.dart';
 import 'package:flutter_web/Widgets/diagnostic_timer_bar.dart';
 import 'package:flutter_web/Widgets/math_reference_sheet_panel.dart';
@@ -394,6 +397,252 @@ void main() {
     expect(started, isTrue);
   });
 
+  testWidgets('module review shows counts and returns to a question', (tester) async {
+    DiagnosticQuestion? reviewed;
+    var continued = 0;
+    final questions = [
+      _question(math: false, order: 1),
+      _question(math: false, order: 2),
+      _question(math: false, order: 3),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DiagnosticModuleReviewView(
+            remaining: const Duration(minutes: 4, seconds: 12),
+            isMath: false,
+            questions: questions,
+            answeredQuestionIds: {questions[0].id},
+            completing: false,
+            onLeave: () {},
+            onReviewQuestion: (question) => reviewed = question,
+            onContinue: () => continued += 1,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('diagnostic-module-review')), findsOneWidget);
+    expect(find.text('Module Complete!'), findsOneWidget);
+    expect(find.text('Reading & Writing'), findsOneWidget);
+    expect(find.text('1/3 answered'), findsOneWidget);
+    expect(find.text('04:12'), findsOneWidget);
+    expect(find.text('Continue to Math'), findsOneWidget);
+    expect(find.text('End test'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('diagnostic-review-item-2')));
+    expect(reviewed?.id, questions[1].id);
+
+    await tester.tap(find.byKey(const Key('diagnostic-review-continue')));
+    expect(continued, 1);
+  });
+
+  testWidgets('math module review ends the test', (tester) async {
+    var ended = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DiagnosticModuleReviewView(
+            remaining: const Duration(minutes: 2),
+            isMath: true,
+            questions: [_question(math: true, order: 11)],
+            answeredQuestionIds: {11},
+            completing: false,
+            onLeave: () {},
+            onReviewQuestion: (_) {},
+            onContinue: () => ended = true,
+            onOpenReference: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Math'), findsOneWidget);
+    expect(find.text('End test'), findsOneWidget);
+    expect(find.byKey(const Key('diagnostic-reference-button')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('diagnostic-review-continue')));
+    expect(ended, isTrue);
+  });
+
+  testWidgets('question url is not rendered as an image', (tester) async {
+    await tester.pumpWidget(
+      _TakingHarness(
+        question: _question(math: false, order: 5, url: 'dadada'),
+        remaining: const Duration(minutes: 8),
+      ),
+    );
+    expect(find.text('Reading stem'), findsOneWidget);
+    expect(find.text('Image could not be loaded.'), findsNothing);
+    expect(find.text('dadada'), findsNothing);
+    expect(find.byKey(const Key('diagnostic-question-image')), findsNothing);
+  });
+
+  test('question image is separate from the unique question url', () {
+    final question = DiagnosticQuestion.fromJson({
+      'id': 5,
+      'section': 'reading_writing',
+      'domain': 'Information and Ideas',
+      'difficulty': 'hard',
+      'order_index': 5,
+      'passage_text': 'A study of municipalities.',
+      'question_text': 'dadada',
+      'question_url': 'sat-q-5',
+      'question_image': 'https://cdn.example.com/figure.png',
+      'choices': [
+        {'key': 'A', 'text': 'a'},
+        {'key': 'B', 'text': 'b'},
+      ],
+    });
+    expect(question.questionUrl, 'sat-q-5');
+    expect(question.passageText, 'A study of municipalities.');
+    expect(question.questionImage, 'https://cdn.example.com/figure.png');
+    expect(question.imageScale, kDiagnosticImageScaleDefault);
+    expect(question.hasQuestionImage, isTrue);
+    expect(question.toPayload()['image_scale'], kDiagnosticImageScaleDefault);
+  });
+
+  test('image scale is parsed, clamped, and saved', () {
+    final question = DiagnosticQuestion.fromJson({
+      'id': 5,
+      'section': 'reading_writing',
+      'domain': 'Information and Ideas',
+      'difficulty': 'hard',
+      'order_index': 5,
+      'question_text': 'dadada',
+      'image_scale': 0.6,
+      'choices': [
+        {'key': 'A', 'text': 'a'},
+        {'key': 'B', 'text': 'b'},
+      ],
+    });
+    expect(question.imageScale, 0.6);
+    expect(question.toPayload()['image_scale'], 0.6);
+    expect(clampDiagnosticImageScale(1.4), kDiagnosticImageScaleMax);
+    expect(clampDiagnosticImageScale(0.2), kDiagnosticImageScaleMin);
+  });
+
+  testWidgets('reading puts passage and image on the left of the task', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _TakingHarness(
+        question: _question(
+          math: false,
+          order: 5,
+          passage: 'Municipalities responded to inquiries about incentives.',
+          image: 'https://cdn.example.com/figure.png',
+        ),
+        remaining: const Duration(minutes: 8),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('diagnostic-passage-pane')), findsOneWidget);
+    expect(find.byKey(const Key('diagnostic-task-pane')), findsOneWidget);
+    expect(find.text('PASSAGE'), findsOneWidget);
+    expect(find.text('QUESTION'), findsOneWidget);
+    expect(
+      find.text('Municipalities responded to inquiries about incentives.'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('diagnostic-question-text')), findsOneWidget);
+
+    final passage = tester.getTopLeft(find.byKey(const Key('diagnostic-passage-pane')));
+    final task = tester.getTopLeft(find.byKey(const Key('diagnostic-task-pane')));
+    expect(passage.dx, lessThan(task.dx));
+    expect(
+      tester.getTopLeft(find.byKey(const Key('diagnostic-question-image'))).dx,
+      lessThan(tester.getTopLeft(find.byKey(const Key('diagnostic-question-text'))).dx),
+    );
+  });
+
+  testWidgets('math keeps the image above the question in one column', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      _TakingHarness(
+        question: _question(
+          math: true,
+          order: 11,
+          image: 'https://cdn.example.com/figure.png',
+        ),
+        remaining: const Duration(minutes: 10),
+      ),
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('diagnostic-passage-pane')), findsNothing);
+    expect(find.text('PASSAGE'), findsNothing);
+    expect(
+      tester.getTopLeft(find.byKey(const Key('diagnostic-question-image'))).dy,
+      lessThan(tester.getTopLeft(find.byKey(const Key('diagnostic-question-text'))).dy),
+    );
+  });
+
+  testWidgets('figure width follows the image scale', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            child: DiagnosticQuestionFigure(
+              url: 'https://cdn.example.com/figure.png',
+              scale: 0.5,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final box = tester.widget<SizedBox>(
+      find.byKey(const Key('diagnostic-question-figure-box')),
+    );
+    expect(box.width, 200);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            child: DiagnosticQuestionFigure(
+              url: 'https://cdn.example.com/figure.png',
+              scale: 1.0,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final full = tester.widget<SizedBox>(
+      find.byKey(const Key('diagnostic-question-figure-box')),
+    );
+    expect(full.width, 400);
+  });
+
+  testWidgets('preview shows the question in the student test layout', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DiagnosticQuestionPreviewScreen(
+          question: _question(
+            math: false,
+            order: 5,
+            passage: 'Municipalities responded to inquiries about incentives.',
+            image: 'https://cdn.example.com/figure.png',
+            imageScale: 0.9,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('diagnostic-question-preview-banner')), findsOneWidget);
+    expect(find.byKey(const Key('diagnostic-passage-pane')), findsOneWidget);
+    expect(find.text('PASSAGE'), findsOneWidget);
+    expect(find.text('QUESTION'), findsOneWidget);
+  });
+
   test('resume with math start skips break and restores that question', () {
     final questions = [
       _question(math: false, order: 1),
@@ -454,7 +703,14 @@ void main() {
   });
 }
 
-DiagnosticQuestion _question({required bool math, int order = 1}) {
+DiagnosticQuestion _question({
+  required bool math,
+  int order = 1,
+  String? url,
+  String? image,
+  String? passage,
+  double imageScale = kDiagnosticImageScaleDefault,
+}) {
   return DiagnosticQuestion(
     id: order,
     section: math ? 'math' : 'reading_writing',
@@ -462,6 +718,10 @@ DiagnosticQuestion _question({required bool math, int order = 1}) {
     difficulty: 'easy',
     orderIndex: order,
     questionText: math ? 'Math stem' : 'Reading stem',
+    passageText: passage,
+    questionUrl: url,
+    questionImage: image,
+    imageScale: imageScale,
     choices: const [
       DiagnosticChoice(key: 'A', text: 'One'),
       DiagnosticChoice(key: 'B', text: 'Two'),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/diagnostic_question.dart';
 import 'package:flutter_web/Widgets/desmos_calculator_panel.dart';
 import 'package:flutter_web/Widgets/diagnostic_math_tools.dart';
+import 'package:flutter_web/Widgets/diagnostic_question_figure.dart';
 import 'package:flutter_web/Widgets/diagnostic_question_navigator.dart';
 import 'package:flutter_web/Widgets/diagnostic_timer_bar.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
@@ -27,6 +28,7 @@ class DiagnosticQuestionTakingView extends StatelessWidget {
   final VoidCallback onToggleCalculator;
   final VoidCallback onOpenReference;
   final VoidCallback onDismissHint;
+  final bool isPreview;
 
   const DiagnosticQuestionTakingView({
     super.key,
@@ -50,6 +52,7 @@ class DiagnosticQuestionTakingView extends StatelessWidget {
     required this.onToggleCalculator,
     required this.onOpenReference,
     required this.onDismissHint,
+    this.isPreview = false,
   });
 
   @override
@@ -63,6 +66,7 @@ class DiagnosticQuestionTakingView extends StatelessWidget {
               remaining: remaining,
               isMath: isMath,
               onLeave: onLeave,
+              leaveTooltip: isPreview ? 'Close preview' : 'Leave test',
               actions: [
                 if (isMath)
                   DiagnosticMathToolsBar(
@@ -74,6 +78,25 @@ class DiagnosticQuestionTakingView extends StatelessWidget {
             ),
             if (isMath && showMathToolsHint)
               DiagnosticMathToolsHint(onDismiss: onDismissHint),
+            if (isPreview)
+              Material(
+                color: const Color(0xFFE8EEFF),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Text(
+                    isMath
+                        ? 'Preview — this is how students will see this Math question. Close with X. Nothing is saved until you tap Save question.'
+                        : 'Preview — this is how students will see this Reading & Writing question. Close with X. Nothing is saved until you tap Save question.',
+                    key: const Key('diagnostic-question-preview-banner'),
+                    style: const TextStyle(
+                      color: TuranColors.textDark,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ),
             Expanded(
               child: Stack(
                 fit: StackFit.expand,
@@ -146,73 +169,28 @@ class _QuestionBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLast = isMath && sectionNumber >= sectionQuestionCount;
+    final splitReading = !isMath && (question.hasPassage || question.hasQuestionImage);
     return Column(
       children: [
         Expanded(
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              compact ? 16 : 24,
-              16,
-              compact ? 16 : 24,
-              16,
-            ),
-            children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 760),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        question.domain,
-                        style: const TextStyle(
-                          color: TuranColors.textMid,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        question.questionText,
-                        style: const TextStyle(
-                          color: TuranColors.textDark,
-                          fontSize: 17,
-                          height: 1.45,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (question.questionImage != null &&
-                          question.questionImage!.trim().isNotEmpty) ...[
-                        const SizedBox(height: 14),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            question.questionImage!,
-                            fit: BoxFit.contain,
-                            errorBuilder: (context, error, stackTrace) =>
-                                const Text(
-                              'Image could not be loaded.',
-                              style: TextStyle(color: TuranColors.error),
-                            ),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      for (final choice in question.choices) ...[
-                        _ChoiceTile(
-                          choice: choice,
-                          selected: selectedChoice == choice.key,
-                          onTap: () => onSelect(choice.key),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    ],
-                  ),
+          child: splitReading
+              ? (compact
+                  ? _StackedReadingBody(
+                      question: question,
+                      selectedChoice: selectedChoice,
+                      onSelect: onSelect,
+                    )
+                  : _SplitReadingBody(
+                      question: question,
+                      selectedChoice: selectedChoice,
+                      onSelect: onSelect,
+                    ))
+              : _SingleColumnBody(
+                  compact: compact,
+                  question: question,
+                  selectedChoice: selectedChoice,
+                  onSelect: onSelect,
                 ),
-              ),
-            ],
-          ),
         ),
         Material(
           color: const Color(0xFF111827),
@@ -250,7 +228,7 @@ class _QuestionBody extends StatelessWidget {
                             Expanded(
                               child: _FooterNavButton(
                                 key: const Key('diagnostic-next-button'),
-                                label: isLast ? 'Submit' : 'Next',
+                                label: 'Next',
                                 emphasized: true,
                                 busy: completing,
                                 onPressed: onNext,
@@ -283,7 +261,7 @@ class _QuestionBody extends StatelessWidget {
                                 const SizedBox(width: 8),
                                 _FooterNavButton(
                                   key: const Key('diagnostic-next-button'),
-                                  label: isLast ? 'Submit' : 'Next',
+                                  label: 'Next',
                                   emphasized: true,
                                   busy: completing,
                                   onPressed: onNext,
@@ -318,6 +296,301 @@ class _QuestionBody extends StatelessWidget {
           onClose: () => Navigator.of(dialogContext).pop(),
         );
       },
+    );
+  }
+}
+
+class _SplitReadingBody extends StatelessWidget {
+  final DiagnosticQuestion question;
+  final String? selectedChoice;
+  final ValueChanged<String> onSelect;
+
+  const _SplitReadingBody({
+    required this.question,
+    required this.selectedChoice,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          flex: 5,
+          child: _PassagePane(question: question),
+        ),
+        Container(width: 1, color: TuranColors.border),
+        Expanded(
+          flex: 4,
+          child: _TaskPane(
+            question: question,
+            selectedChoice: selectedChoice,
+            onSelect: onSelect,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StackedReadingBody extends StatelessWidget {
+  final DiagnosticQuestion question;
+  final String? selectedChoice;
+  final ValueChanged<String> onSelect;
+
+  const _StackedReadingBody({
+    required this.question,
+    required this.selectedChoice,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      children: [
+        SizedBox(
+          height: 280,
+          child: _PassagePane(question: question),
+        ),
+        Container(height: 1, color: TuranColors.border),
+        _TaskPane(
+          question: question,
+          selectedChoice: selectedChoice,
+          onSelect: onSelect,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          scrollable: false,
+        ),
+      ],
+    );
+  }
+}
+
+class _SingleColumnBody extends StatelessWidget {
+  final bool compact;
+  final DiagnosticQuestion question;
+  final String? selectedChoice;
+  final ValueChanged<String> onSelect;
+
+  const _SingleColumnBody({
+    required this.compact,
+    required this.question,
+    required this.selectedChoice,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        compact ? 16 : 24,
+        16,
+        compact ? 16 : 24,
+        16,
+      ),
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  question.domain,
+                  style: const TextStyle(
+                    color: TuranColors.textMid,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (question.hasQuestionImage) ...[
+                  DiagnosticQuestionFigure(
+                    key: const Key('diagnostic-question-image'),
+                    url: question.questionImage!,
+                    scale: question.imageScale,
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                _QuestionPrompt(text: question.questionText),
+                const SizedBox(height: 16),
+                _ChoiceList(
+                  question: question,
+                  selectedChoice: selectedChoice,
+                  onSelect: onSelect,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PassagePane extends StatelessWidget {
+  final DiagnosticQuestion question;
+
+  const _PassagePane({required this.question});
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      key: const Key('diagnostic-passage-pane'),
+      color: TuranColors.panelBg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 14, 20, 8),
+            child: Text(
+              'PASSAGE',
+              style: TextStyle(
+                color: TuranColors.textMid,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              children: [
+                if (question.hasQuestionImage) ...[
+                  DiagnosticQuestionFigure(
+                    key: const Key('diagnostic-question-image'),
+                    url: question.questionImage!,
+                    scale: question.imageScale,
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                if (question.hasPassage)
+                  Text(
+                    question.passageText!,
+                    key: const Key('diagnostic-passage-text'),
+                    style: const TextStyle(
+                      color: TuranColors.textDark,
+                      fontSize: 16,
+                      height: 1.55,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TaskPane extends StatelessWidget {
+  final DiagnosticQuestion question;
+  final String? selectedChoice;
+  final ValueChanged<String> onSelect;
+  final EdgeInsets padding;
+  final bool scrollable;
+
+  const _TaskPane({
+    required this.question,
+    required this.selectedChoice,
+    required this.onSelect,
+    required this.padding,
+    this.scrollable = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final content = [
+      Text(
+        question.domain,
+        style: const TextStyle(
+          color: TuranColors.textMid,
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+        ),
+      ),
+      const SizedBox(height: 10),
+      const Text(
+        'QUESTION',
+        style: TextStyle(
+          color: TuranColors.textMid,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+          letterSpacing: 1.2,
+        ),
+      ),
+      const SizedBox(height: 8),
+      _QuestionPrompt(text: question.questionText),
+      const SizedBox(height: 16),
+      _ChoiceList(
+        question: question,
+        selectedChoice: selectedChoice,
+        onSelect: onSelect,
+      ),
+    ];
+    return ColoredBox(
+      key: const Key('diagnostic-task-pane'),
+      color: TuranColors.surface,
+      child: scrollable
+          ? ListView(padding: padding, children: content)
+          : Padding(
+              padding: padding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: content,
+              ),
+            ),
+    );
+  }
+}
+
+class _QuestionPrompt extends StatelessWidget {
+  final String text;
+
+  const _QuestionPrompt({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      key: const Key('diagnostic-question-text'),
+      style: const TextStyle(
+        color: TuranColors.textDark,
+        fontSize: 17,
+        height: 1.45,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+}
+
+class _ChoiceList extends StatelessWidget {
+  final DiagnosticQuestion question;
+  final String? selectedChoice;
+  final ValueChanged<String> onSelect;
+
+  const _ChoiceList({
+    required this.question,
+    required this.selectedChoice,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final choice in question.choices) ...[
+          _ChoiceTile(
+            choice: choice,
+            selected: selectedChoice == choice.key,
+            onTap: () => onSelect(choice.key),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ],
     );
   }
 }

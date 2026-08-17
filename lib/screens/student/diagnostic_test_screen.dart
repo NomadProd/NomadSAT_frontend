@@ -8,6 +8,7 @@ import 'package:flutter_web/Services/diagnostic_service.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/Widgets/confirm_dialog.dart';
 import 'package:flutter_web/Widgets/diagnostic_module_break_view.dart';
+import 'package:flutter_web/Widgets/diagnostic_module_review_view.dart';
 import 'package:flutter_web/Widgets/diagnostic_question_taking_view.dart';
 import 'package:flutter_web/Widgets/math_reference_sheet_panel.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
@@ -39,12 +40,15 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
   int _index = 0;
   String? _selectedChoice;
   final Map<int, String> _savedChoices = {};
+  Future<void> _saveChain = Future.value();
+  final Map<int, String> _persistedChoices = {};
   Timer? _timer;
   Duration _remaining = const Duration(seconds: kDiagnosticRwSeconds);
   bool _expiryHandled = false;
   bool _calculatorOpen = false;
   bool _showMathToolsHint = false;
   bool _showingModuleBreak = false;
+  bool _showingModuleReview = false;
 
   @override
   void initState() {
@@ -159,6 +163,9 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       _savedChoices
         ..clear()
         ..addAll(saved);
+      _persistedChoices
+        ..clear()
+        ..addAll(saved);
       _selectedChoice = saved[questions[resume.questionIndex].id];
       _taking = true;
       _starting = false;
@@ -167,6 +174,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       _calculatorOpen = false;
       _showMathToolsHint = resume.inMath && !resume.showBreak;
       _showingModuleBreak = resume.showBreak;
+      _showingModuleReview = false;
     });
     _syncRemaining();
     _timer?.cancel();
@@ -220,6 +228,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       return;
     }
     setState(() {
+      _showingModuleReview = false;
       _showingModuleBreak = true;
       _calculatorOpen = false;
       _expiryHandled = true;
@@ -241,27 +250,39 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     await _saveSelection(
       questionId: _questions[_index].id,
       choice: choiceOverride ?? _selectedChoice,
+      reportError: true,
     );
   }
 
   Future<void> _saveSelection({
     required int questionId,
     String? choice,
+    bool reportError = false,
   }) async {
     final attemptId = _attemptId;
     if (attemptId == null || choice == null || choice.isEmpty) return;
     _savedChoices[questionId] = choice;
+    if (_persistedChoices[questionId] == choice) return;
+
+    final previous = _saveChain;
+    final gate = Completer<void>();
+    _saveChain = gate.future;
     try {
+      await previous;
+      if (_persistedChoices[questionId] == choice) return;
       await _service.submitAnswer(
         attemptId: attemptId,
         questionId: questionId,
         selectedChoice: choice,
       );
+      _persistedChoices[questionId] = choice;
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !reportError) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(userFacingError(error))),
       );
+    } finally {
+      if (!gate.isCompleted) gate.complete();
     }
   }
 
@@ -269,7 +290,10 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     unawaited(_saveProgress(mathStartedAt: mathStartedAt));
   }
 
-  Future<void> _saveProgress({DateTime? mathStartedAt}) async {
+  Future<void> _saveProgress({
+    DateTime? mathStartedAt,
+    bool reportError = false,
+  }) async {
     final attemptId = _attemptId;
     if (attemptId == null || _questions.isEmpty) return;
     try {
@@ -279,7 +303,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
         mathStartedAt: mathStartedAt,
       );
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !reportError) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(userFacingError(error))),
       );
@@ -316,17 +340,11 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
 
   Future<void> _goNext() async {
     final isLastInSection = _sectionNumber >= _sectionQuestions.length;
-    if (_isMath && isLastInSection) {
-      await _saveCurrentSelection();
-      if (!mounted) return;
-      await _completeTest();
-      return;
-    }
     _queueSaveCurrentSelection();
-    if (!_isMath && isLastInSection) {
+    if (isLastInSection) {
       _queueSaveProgress();
       setState(() {
-        _showingModuleBreak = true;
+        _showingModuleReview = true;
         _calculatorOpen = false;
       });
       return;
@@ -337,6 +355,21 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     );
   }
 
+  void _reviewQuestion(DiagnosticQuestion target) {
+    setState(() => _showingModuleReview = false);
+    unawaited(_jumpToQuestion(target));
+  }
+
+  Future<void> _continueFromReview() async {
+    if (_isMath) {
+      await _saveChain;
+      if (!mounted) return;
+      await _completeTest();
+      return;
+    }
+    _startMathModule();
+  }
+
   void _startMathModule() {
     final mathIndex = _questions.indexWhere((question) => question.isMath);
     if (mathIndex < 0) {
@@ -345,6 +378,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     }
     final started = DateTime.now();
     setState(() {
+      _showingModuleReview = false;
       _showingModuleBreak = false;
       _index = mathIndex;
       _selectedChoice = _savedChoices[_questions[mathIndex].id];
@@ -367,14 +401,14 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       _timer?.cancel();
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => DiagnosticResultsScreen(
+          builder: (resultsContext) => DiagnosticResultsScreen(
             attempt: result,
             onRetake: () {
-              Navigator.of(context).pushReplacement(
+              Navigator.of(resultsContext).pushReplacement(
                 MaterialPageRoute(builder: (_) => const DiagnosticTestScreen()),
               );
             },
-            onBackToDashboard: () => Navigator.of(context).pop(),
+            onBackToDashboard: () => Navigator.of(resultsContext).pop(),
           ),
         ),
       );
@@ -397,7 +431,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     );
     if (!leave || !mounted) return;
     await _saveCurrentSelection();
-    await _saveProgress();
+    await _saveProgress(reportError: true);
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -436,6 +470,21 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     if (_taking) {
       if (_showingModuleBreak) {
         return DiagnosticModuleBreakView(onStartMath: _startMathModule);
+      }
+      if (_showingModuleReview) {
+        return DiagnosticModuleReviewView(
+          remaining: _remaining,
+          isMath: _isMath,
+          questions: _sectionQuestions,
+          answeredQuestionIds: _answeredQuestionIds,
+          completing: _completing,
+          onLeave: _confirmLeave,
+          onReviewQuestion: _reviewQuestion,
+          onContinue: () => unawaited(_continueFromReview()),
+          onOpenReference: _isMath
+              ? () => unawaited(showMathReferenceSheet(context))
+              : null,
+        );
       }
       return DiagnosticQuestionTakingView(
         remaining: _remaining,

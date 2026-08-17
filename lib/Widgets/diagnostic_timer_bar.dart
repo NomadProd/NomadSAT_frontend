@@ -6,6 +6,7 @@ class DiagnosticTimerBar extends StatelessWidget {
   final Duration remaining;
   final bool isMath;
   final VoidCallback? onLeave;
+  final String leaveTooltip;
   final List<Widget> actions;
 
   const DiagnosticTimerBar({
@@ -13,6 +14,7 @@ class DiagnosticTimerBar extends StatelessWidget {
     required this.remaining,
     required this.isMath,
     this.onLeave,
+    this.leaveTooltip = 'Leave test',
     this.actions = const [],
   });
 
@@ -55,7 +57,7 @@ class DiagnosticTimerBar extends StatelessWidget {
                     IconButton(
                       onPressed: onLeave,
                       icon: const Icon(Icons.close_rounded, color: Colors.white),
-                      tooltip: 'Leave test',
+                      tooltip: leaveTooltip,
                     ),
                   Expanded(
                     child: Text(

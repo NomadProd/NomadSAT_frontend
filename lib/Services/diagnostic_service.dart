@@ -1,7 +1,9 @@
 import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/browser_client.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter_web/Models/diagnostic_attempt.dart';
 import 'package:flutter_web/Models/diagnostic_question.dart';
 import 'package:flutter_web/Services/api_config.dart';
@@ -62,6 +64,65 @@ class DiagnosticService {
       );
     }
     return DiagnosticQuestion.fromJson(Map<String, dynamic>.from(data as Map));
+  }
+
+  Future<({String url, String publicId})> uploadQuestionImage(PlatformFile file) async {
+    final bytes = file.bytes;
+    if (bytes == null || bytes.isEmpty) {
+      throw const ApiException('Could not read the image. Try selecting it again.');
+    }
+    if (bytes.length > 10 * 1024 * 1024) {
+      throw const ApiException('File size cannot exceed 10mb');
+    }
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/diagnostic/questions/image'),
+    );
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: file.name,
+        contentType: _imageMimeType(file.name),
+      ),
+    );
+    final streamed = await _client.send(request);
+    final response = await http.Response.fromStream(streamed);
+    final data = decodeJsonResponse(response);
+    if (response.statusCode != 200) {
+      throw ApiException(
+        apiDetailMessage(data, 'Failed to upload question image'),
+        statusCode: response.statusCode,
+      );
+    }
+    final map = Map<String, dynamic>.from(data as Map);
+    final url = map['url']?.toString() ?? '';
+    final publicId = map['public_id']?.toString() ?? '';
+    if (url.isEmpty || publicId.isEmpty) {
+      throw const ApiException('Failed to upload question image');
+    }
+    return (url: url, publicId: publicId);
+  }
+
+  MediaType _imageMimeType(String filename) {
+    final ext = filename.contains('.')
+        ? filename.split('.').last.toLowerCase()
+        : '';
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return MediaType('image', 'jpeg');
+      case 'png':
+        return MediaType('image', 'png');
+      case 'gif':
+        return MediaType('image', 'gif');
+      case 'webp':
+        return MediaType('image', 'webp');
+      case 'heic':
+        return MediaType('image', 'heic');
+      default:
+        return MediaType('image', 'jpeg');
+    }
   }
 
   Future<void> deleteQuestion(int questionId) async {
