@@ -393,6 +393,65 @@ void main() {
     await tester.tap(find.byKey(const Key('diagnostic-start-math-button')));
     expect(started, isTrue);
   });
+
+  test('resume with math start skips break and restores that question', () {
+    final questions = [
+      _question(math: false, order: 1),
+      _question(math: false, order: 2),
+      _question(math: true, order: 11),
+      _question(math: true, order: 12),
+    ];
+    final mathStarted = DateTime.utc(2026, 8, 17, 9, 10);
+    final resume = resolveDiagnosticResume(
+      questions: questions,
+      savedQuestionIds: {1, 2},
+      startedAt: DateTime.utc(2026, 8, 17, 9),
+      now: DateTime.utc(2026, 8, 17, 9, 12),
+      mathStartedAt: mathStarted,
+      currentQuestionId: 12,
+    );
+    expect(resume.showBreak, isFalse);
+    expect(resume.inMath, isTrue);
+    expect(resume.sectionStartedAt, mathStarted);
+    expect(resume.questionIndex, 3);
+  });
+
+  test('resume mid reading restores the saved question not the first blank', () {
+    final questions = [
+      _question(math: false, order: 1),
+      _question(math: false, order: 2),
+      _question(math: false, order: 3),
+      _question(math: true, order: 11),
+    ];
+    final started = DateTime.utc(2026, 8, 17, 9);
+    final resume = resolveDiagnosticResume(
+      questions: questions,
+      savedQuestionIds: {1},
+      startedAt: started,
+      now: started.add(const Duration(minutes: 3)),
+      currentQuestionId: 3,
+    );
+    expect(resume.showBreak, isFalse);
+    expect(resume.inMath, isFalse);
+    expect(resume.sectionStartedAt, started);
+    expect(resume.questionIndex, 2);
+  });
+
+  test('resume without math start shows break after reading is done', () {
+    final questions = [
+      _question(math: false, order: 1),
+      _question(math: true, order: 11),
+    ];
+    final resume = resolveDiagnosticResume(
+      questions: questions,
+      savedQuestionIds: {1},
+      startedAt: DateTime.utc(2026, 8, 17, 9),
+      now: DateTime.utc(2026, 8, 17, 9, 5),
+    );
+    expect(resume.showBreak, isTrue);
+    expect(resume.inMath, isFalse);
+    expect(resume.questionIndex, 1);
+  });
 }
 
 DiagnosticQuestion _question({required bool math, int order = 1}) {

@@ -144,6 +144,29 @@ class DiagnosticService {
         .toList();
   }
 
+  Future<void> saveProgress({
+    required int attemptId,
+    required int currentQuestionId,
+    DateTime? mathStartedAt,
+  }) async {
+    final response = await _client.patch(
+      Uri.parse('$baseUrl/diagnostic/attempts/$attemptId/progress'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'current_question_id': currentQuestionId,
+        if (mathStartedAt != null)
+          'math_started_at': mathStartedAt.toUtc().toIso8601String(),
+      }),
+    );
+    final data = decodeJsonResponse(response);
+    if (response.statusCode != 200) {
+      throw ApiException(
+        apiDetailMessage(data, 'Failed to save diagnostic progress'),
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
   Future<void> submitAnswer({
     required int attemptId,
     required int questionId,

@@ -41,7 +41,9 @@ class _DiagnosticQuestionBankScreenState
   }
 
   void _reload() {
-    setState(() => _future = _load());
+    setState(() {
+      _future = _load();
+    });
   }
 
   @override

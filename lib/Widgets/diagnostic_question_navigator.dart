@@ -83,11 +83,6 @@ class DiagnosticQuestionNavigator extends StatelessWidget {
                         dashed: true,
                         label: 'Unanswered',
                       ),
-                      _LegendItem(
-                        icon: Icons.flag_rounded,
-                        iconColor: Color(0xFFD32F2F),
-                        label: 'For Review',
-                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -109,13 +104,11 @@ class DiagnosticQuestionNavigator extends StatelessWidget {
 
 class _LegendItem extends StatelessWidget {
   final IconData? icon;
-  final Color? iconColor;
   final bool dashed;
   final String label;
 
   const _LegendItem({
     this.icon,
-    this.iconColor,
     this.dashed = false,
     required this.label,
   });
@@ -126,7 +119,7 @@ class _LegendItem extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (icon != null)
-          Icon(icon, size: 16, color: iconColor ?? TuranColors.textDark)
+          Icon(icon, size: 16, color: TuranColors.textDark)
         else
           CustomPaint(
             size: const Size(16, 16),

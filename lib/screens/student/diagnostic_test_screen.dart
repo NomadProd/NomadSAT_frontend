@@ -114,6 +114,8 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
         attemptId: attempt.id,
         startedAt: attempt.startedAt,
         existingAnswers: attempt.answers,
+        mathStartedAt: attempt.mathStartedAt,
+        currentQuestionId: attempt.currentQuestionId,
       );
     } catch (error) {
       if (!mounted) return;
@@ -128,6 +130,8 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     required int attemptId,
     required DateTime startedAt,
     List<DiagnosticAnswer> existingAnswers = const [],
+    DateTime? mathStartedAt,
+    int? currentQuestionId,
   }) async {
     final questions = await _service.fetchAttemptQuestions(attemptId);
     if (!mounted) return;
@@ -139,67 +143,39 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
         saved[answer.questionId] = choice;
       }
     }
-    var index = 0;
-    for (var i = 0; i < questions.length; i++) {
-      if (!saved.containsKey(questions[i].id)) {
-        index = i;
-        break;
-      }
-      if (i == questions.length - 1) index = i;
-    }
-    final current = questions[index];
-    final hasMathAnswer = questions.any(
-      (question) => question.isMath && saved.containsKey(question.id),
+    final resume = resolveDiagnosticResume(
+      questions: questions,
+      savedQuestionIds: saved.keys.toSet(),
+      startedAt: startedAt,
+      now: DateTime.now(),
+      mathStartedAt: mathStartedAt,
+      currentQuestionId: currentQuestionId,
     );
-    final rwExpired = DateTime.now().difference(startedAt).inSeconds >=
-        kDiagnosticRwSeconds;
-    final allRwAnswered = questions
-        .where((question) => !question.isMath)
-        .every((question) => saved.containsKey(question.id));
-    final inMath = current.isMath || hasMathAnswer;
-    final showBreak = !hasMathAnswer && (allRwAnswered || rwExpired);
-    DateTime sectionStartedAt;
-    if (inMath && !showBreak) {
-      final mathAnswers = existingAnswers.where((answer) {
-        return questions.any(
-          (question) => question.id == answer.questionId && question.isMath,
-        );
-      });
-      DateTime? mathStarted;
-      for (final answer in mathAnswers) {
-        final answeredAt = answer.answeredAt;
-        if (answeredAt == null) continue;
-        if (mathStarted == null || answeredAt.isBefore(mathStarted)) {
-          mathStarted = answeredAt;
-        }
-      }
-      sectionStartedAt = mathStarted ?? DateTime.now();
-    } else {
-      sectionStartedAt = startedAt;
-    }
-    final mathIndex = questions.indexWhere((question) => question.isMath);
     setState(() {
       _attemptId = attemptId;
-      _sectionStartedAt = sectionStartedAt;
+      _sectionStartedAt = resume.sectionStartedAt;
       _questions = questions;
-      _index = showBreak && mathIndex >= 0 ? mathIndex : index;
+      _index = resume.questionIndex;
       _savedChoices
         ..clear()
         ..addAll(saved);
-      _selectedChoice = saved[questions[_index].id];
+      _selectedChoice = saved[questions[resume.questionIndex].id];
       _taking = true;
       _starting = false;
       _loading = false;
       _expiryHandled = false;
       _calculatorOpen = false;
-      _showMathToolsHint = inMath && !showBreak;
-      _showingModuleBreak = showBreak;
+      _showMathToolsHint = resume.inMath && !resume.showBreak;
+      _showingModuleBreak = resume.showBreak;
     });
     _syncRemaining();
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(milliseconds: 250), (_) {
       _syncRemaining();
     });
+    if (!resume.showBreak) {
+      _queueSaveProgress();
+    }
   }
 
   bool get _isMath =>
@@ -250,17 +226,35 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     });
   }
 
+  void _queueSaveCurrentSelection({String? choiceOverride}) {
+    if (_questions.isEmpty) return;
+    unawaited(
+      _saveSelection(
+        questionId: _questions[_index].id,
+        choice: choiceOverride ?? _selectedChoice,
+      ),
+    );
+  }
+
   Future<void> _saveCurrentSelection({String? choiceOverride}) async {
+    if (_questions.isEmpty) return;
+    await _saveSelection(
+      questionId: _questions[_index].id,
+      choice: choiceOverride ?? _selectedChoice,
+    );
+  }
+
+  Future<void> _saveSelection({
+    required int questionId,
+    String? choice,
+  }) async {
     final attemptId = _attemptId;
-    if (attemptId == null || _questions.isEmpty) return;
-    final question = _questions[_index];
-    final choice = choiceOverride ?? _selectedChoice;
-    if (choice == null || choice.isEmpty) return;
-    _savedChoices[question.id] = choice;
+    if (attemptId == null || choice == null || choice.isEmpty) return;
+    _savedChoices[questionId] = choice;
     try {
       await _service.submitAnswer(
         attemptId: attemptId,
-        questionId: question.id,
+        questionId: questionId,
         selectedChoice: choice,
       );
     } catch (error) {
@@ -271,55 +265,76 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     }
   }
 
-  Future<void> _goBack() async {
-    await _saveCurrentSelection();
-    if (!mounted || !_canGoBack) return;
-    final section = _sectionQuestions;
-    final currentPos = _sectionNumber - 1;
-    final previous = section[currentPos - 1];
-    final nextIndex = _questions.indexWhere((question) => question.id == previous.id);
-    if (nextIndex < 0) return;
+  void _queueSaveProgress({DateTime? mathStartedAt}) {
+    unawaited(_saveProgress(mathStartedAt: mathStartedAt));
+  }
+
+  Future<void> _saveProgress({DateTime? mathStartedAt}) async {
+    final attemptId = _attemptId;
+    if (attemptId == null || _questions.isEmpty) return;
+    try {
+      await _service.saveProgress(
+        attemptId: attemptId,
+        currentQuestionId: _questions[_index].id,
+        mathStartedAt: mathStartedAt,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userFacingError(error))),
+      );
+    }
+  }
+
+  void _showQuestionAt(int nextIndex) {
+    if (nextIndex < 0 || nextIndex >= _questions.length) return;
     setState(() {
       _index = nextIndex;
       _selectedChoice = _savedChoices[_questions[nextIndex].id];
     });
+    _queueSaveProgress();
+  }
+
+  Future<void> _goBack() async {
+    if (!_canGoBack) return;
+    _queueSaveCurrentSelection();
+    final section = _sectionQuestions;
+    final currentPos = _sectionNumber - 1;
+    final previous = section[currentPos - 1];
+    _showQuestionAt(
+      _questions.indexWhere((question) => question.id == previous.id),
+    );
   }
 
   Future<void> _jumpToQuestion(DiagnosticQuestion target) async {
     if (target.isMath != _isMath) return;
-    await _saveCurrentSelection();
-    if (!mounted) return;
-    final nextIndex = _questions.indexWhere((question) => question.id == target.id);
-    if (nextIndex < 0) return;
-    setState(() {
-      _index = nextIndex;
-      _selectedChoice = _savedChoices[_questions[nextIndex].id];
-    });
+    _queueSaveCurrentSelection();
+    _showQuestionAt(
+      _questions.indexWhere((question) => question.id == target.id),
+    );
   }
 
   Future<void> _goNext() async {
-    await _saveCurrentSelection();
-    if (!mounted) return;
     final isLastInSection = _sectionNumber >= _sectionQuestions.length;
     if (_isMath && isLastInSection) {
+      await _saveCurrentSelection();
+      if (!mounted) return;
       await _completeTest();
       return;
     }
+    _queueSaveCurrentSelection();
     if (!_isMath && isLastInSection) {
+      _queueSaveProgress();
       setState(() {
         _showingModuleBreak = true;
         _calculatorOpen = false;
       });
       return;
     }
-    final section = _sectionQuestions;
-    final nextQuestion = section[_sectionNumber];
-    final nextIndex = _questions.indexWhere((question) => question.id == nextQuestion.id);
-    if (nextIndex < 0) return;
-    setState(() {
-      _index = nextIndex;
-      _selectedChoice = _savedChoices[_questions[nextIndex].id];
-    });
+    final nextQuestion = _sectionQuestions[_sectionNumber];
+    _showQuestionAt(
+      _questions.indexWhere((question) => question.id == nextQuestion.id),
+    );
   }
 
   void _startMathModule() {
@@ -328,16 +343,18 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       unawaited(_completeTest());
       return;
     }
+    final started = DateTime.now();
     setState(() {
       _showingModuleBreak = false;
       _index = mathIndex;
       _selectedChoice = _savedChoices[_questions[mathIndex].id];
-      _sectionStartedAt = DateTime.now();
+      _sectionStartedAt = started;
       _expiryHandled = false;
       _calculatorOpen = false;
       _showMathToolsHint = true;
     });
     _syncRemaining();
+    _queueSaveProgress(mathStartedAt: started);
   }
 
   Future<void> _completeTest() async {
@@ -378,7 +395,10 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
       confirmLabel: 'Leave',
       confirmColor: TuranColors.warning,
     );
-    if (leave && mounted) Navigator.of(context).pop();
+    if (!leave || !mounted) return;
+    await _saveCurrentSelection();
+    await _saveProgress();
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override

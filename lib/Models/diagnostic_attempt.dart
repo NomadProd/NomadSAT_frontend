@@ -34,6 +34,8 @@ class DiagnosticAttempt {
   final int? totalPointEstimate;
   final int? totalRangeLow;
   final int? totalRangeHigh;
+  final DateTime? mathStartedAt;
+  final int? currentQuestionId;
   final List<DiagnosticAnswer> answers;
 
   const DiagnosticAttempt({
@@ -49,6 +51,8 @@ class DiagnosticAttempt {
     this.totalPointEstimate,
     this.totalRangeLow,
     this.totalRangeHigh,
+    this.mathStartedAt,
+    this.currentQuestionId,
     this.answers = const [],
   });
 
@@ -73,6 +77,8 @@ class DiagnosticAttempt {
       totalPointEstimate: json['total_point_estimate'] as int?,
       totalRangeLow: json['total_range_low'] as int?,
       totalRangeHigh: json['total_range_high'] as int?,
+      mathStartedAt: _parseDateTime(json['math_started_at']),
+      currentQuestionId: json['current_question_id'] as int?,
       answers: answers,
     );
   }

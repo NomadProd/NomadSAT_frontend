@@ -1,3 +1,5 @@
+import 'package:flutter_web/Models/diagnostic_question.dart';
+
 class DiagnosticSlot {
   final int orderIndex;
   final String section;
@@ -227,4 +229,90 @@ String formatDiagnosticCountdown(Duration remaining) {
   final minuteText = minutes.toString().padLeft(2, '0');
   final secondText = seconds.toString().padLeft(2, '0');
   return '$minuteText:$secondText';
+}
+
+class DiagnosticResumeState {
+  final bool showBreak;
+  final bool inMath;
+  final DateTime sectionStartedAt;
+  final int questionIndex;
+
+  const DiagnosticResumeState({
+    required this.showBreak,
+    required this.inMath,
+    required this.sectionStartedAt,
+    required this.questionIndex,
+  });
+}
+
+DiagnosticResumeState resolveDiagnosticResume({
+  required List<DiagnosticQuestion> questions,
+  required Set<int> savedQuestionIds,
+  required DateTime startedAt,
+  required DateTime now,
+  DateTime? mathStartedAt,
+  int? currentQuestionId,
+}) {
+  if (questions.isEmpty) {
+    return DiagnosticResumeState(
+      showBreak: false,
+      inMath: false,
+      sectionStartedAt: startedAt,
+      questionIndex: 0,
+    );
+  }
+
+  final rwQuestions = questions.where((question) => !question.isMath).toList();
+  final allRwAnswered = rwQuestions.isNotEmpty &&
+      rwQuestions.every((question) => savedQuestionIds.contains(question.id));
+  final rwExpired = now.difference(startedAt).inSeconds >= kDiagnosticRwSeconds;
+  final inMath = mathStartedAt != null;
+  final showBreak = !inMath && (allRwAnswered || rwExpired);
+
+  if (showBreak) {
+    final mathIndex = questions.indexWhere((question) => question.isMath);
+    return DiagnosticResumeState(
+      showBreak: true,
+      inMath: false,
+      sectionStartedAt: startedAt,
+      questionIndex: mathIndex >= 0 ? mathIndex : 0,
+    );
+  }
+
+  return DiagnosticResumeState(
+    showBreak: false,
+    inMath: inMath,
+    sectionStartedAt: mathStartedAt ?? startedAt,
+    questionIndex: diagnosticResumeQuestionIndex(
+      questions: questions,
+      savedQuestionIds: savedQuestionIds,
+      inMath: inMath,
+      currentQuestionId: currentQuestionId,
+    ),
+  );
+}
+
+int diagnosticResumeQuestionIndex({
+  required List<DiagnosticQuestion> questions,
+  required Set<int> savedQuestionIds,
+  required bool inMath,
+  int? currentQuestionId,
+}) {
+  if (currentQuestionId != null) {
+    final savedIndex = questions.indexWhere(
+      (question) => question.id == currentQuestionId && question.isMath == inMath,
+    );
+    if (savedIndex >= 0) return savedIndex;
+  }
+
+  final module = questions.where((question) => question.isMath == inMath).toList();
+  for (final question in module) {
+    if (!savedQuestionIds.contains(question.id)) {
+      return questions.indexWhere((item) => item.id == question.id);
+    }
+  }
+  if (module.isNotEmpty) {
+    return questions.indexWhere((item) => item.id == module.last.id);
+  }
+  return 0;
 }
