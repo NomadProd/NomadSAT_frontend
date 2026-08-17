@@ -204,7 +204,7 @@ class DiagnosticQuestionBankView extends StatelessWidget {
       context,
       title: 'Delete question?',
       body:
-          'Delete question ${question.orderIndex}? This is blocked if students have already answered it.',
+          'Delete question ${question.orderIndex}? Students who already took or are taking the test keep this question. The slot becomes empty so you can add a replacement.',
     );
     if (!confirmed) return;
     try {
