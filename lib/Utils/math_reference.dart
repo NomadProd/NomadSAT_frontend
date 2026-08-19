@@ -2,6 +2,13 @@ import 'package:flutter/material.dart';
 
 const kMathReferenceAsset = 'assets/math/sat_math_reference.png';
 
+/// Desktop dialog and image display caps keep the reference sheet readable
+/// without upscaling the source PNG enough to expose compression artifacts.
+const kMathReferenceDialogWidth = 720.0;
+const kMathReferenceDialogHeight = 520.0;
+const kMathReferenceImageMaxWidth = 580.0;
+const kMathReferenceSheetHeightFactor = 0.78;
+
 class MathReferenceItem {
   final String text;
   final IconData icon;

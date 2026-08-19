@@ -5,6 +5,7 @@ import 'package:flutter_web/theme/turan_theme.dart';
 Future<void> showMathReferenceSheet(BuildContext context) {
   final compact = MediaQuery.sizeOf(context).width < TuranBreakpoints.mobile;
   if (compact) {
+    final sheetHeight = MediaQuery.sizeOf(context).height * kMathReferenceSheetHeightFactor;
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -13,9 +14,9 @@ Future<void> showMathReferenceSheet(BuildContext context) {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (context) => const SizedBox(
-        height: double.infinity,
-        child: MathReferenceSheetPanel(),
+      builder: (context) => SizedBox(
+        height: sheetHeight,
+        child: const MathReferenceSheetPanel(),
       ),
     );
   }
@@ -26,8 +27,8 @@ Future<void> showMathReferenceSheet(BuildContext context) {
       backgroundColor: Colors.white,
       insetPadding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       child: SizedBox(
-        width: 920,
-        height: 640,
+        width: kMathReferenceDialogWidth,
+        height: kMathReferenceDialogHeight,
         child: MathReferenceSheetPanel(),
       ),
     ),
@@ -73,15 +74,24 @@ class MathReferenceSheetPanel extends StatelessWidget {
             child: InteractiveViewer(
               key: const Key('math-reference-sheet'),
               minScale: 1,
-              maxScale: 3,
+              maxScale: 2,
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                child: Image.asset(
-                  kMathReferenceAsset,
-                  fit: BoxFit.contain,
-                  semanticLabel: kMathReferenceItems
-                      .map((item) => item.text)
-                      .join('. '),
+                child: Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: kMathReferenceImageMaxWidth,
+                    ),
+                    child: Image.asset(
+                      kMathReferenceAsset,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.medium,
+                      semanticLabel: kMathReferenceItems
+                          .map((item) => item.text)
+                          .join('. '),
+                    ),
+                  ),
                 ),
               ),
             ),
