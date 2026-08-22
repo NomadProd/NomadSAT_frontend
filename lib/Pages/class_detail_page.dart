@@ -1450,7 +1450,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       }
     }
 
-    final result = await showDialog<bool>(
+    final result = await showDialog<Map<String, dynamic>?>(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) {
@@ -1633,7 +1633,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
             ),
             actions: [
               TextButton(
-                onPressed: submitting ? null : () => Navigator.of(ctx).pop(false),
+                onPressed: submitting ? null : () => Navigator.of(ctx).pop(),
                 child: const Text('Cancel'),
               ),
               const SizedBox(width: 8),
@@ -1674,7 +1674,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                         );
                         if (!ctx.mounted) return;
                         if (copyResult['success'] == true) {
-                          Navigator.of(ctx).pop(true);
+                          Navigator.of(ctx).pop(copyResult);
                           return;
                         }
                         setDlg(() {
@@ -1691,10 +1691,10 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       ),
     );
 
-    if (result == true) {
+    if (result is Map<String, dynamic>) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Assignment copied')),
+        SnackBar(content: Text(_formatCopyAssignmentMessage(result))),
       );
       await _reload();
     }
