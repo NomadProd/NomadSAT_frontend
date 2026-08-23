@@ -1339,6 +1339,14 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final data = _pageData;
     if (data == null) return;
 
+    // Check if source assignment has content before proceeding
+    if (_assignmentIsEmpty(sourceAssignment)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Source assignment has no content to copy.')),
+      );
+      return;
+    }
+
     final dueDateC = TextEditingController(text: sourceAssignment.dueDate ?? '');
     final dueTimeC = TextEditingController(
       text: _compactTime(sourceAssignment.dueTime),
