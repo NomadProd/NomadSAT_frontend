@@ -372,7 +372,7 @@ double _calendarColumnGap(bool compact) => compact ? 6 : 8;
 
 double _calendarRowGap(bool compact) => compact ? 6 : 10;
 
-double _calendarCellAspectRatio(bool compact) => compact ? 1.1 : 1.2;
+double _calendarCellAspectRatio(bool compact) => compact ? 1.0 : 0.92;
 
 class _CalendarSevenColumnRow extends StatelessWidget {
   final double horizontalGap;
@@ -879,9 +879,15 @@ class _CalendarDayCell extends StatelessWidget {
           const SizedBox(height: 3),
           if (hasSessions)
             Expanded(
-              child: Builder(
-                builder: (context) {
-                  final visibleSessions = sessions.take(2).toList();
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final availableH = constraints.maxHeight;
+                  final count = sessions.length;
+                  final showTwoChips = count >= 2 && availableH >= 52;
+                  final visibleCount = showTwoChips ? 2 : 1;
+                  final visibleSessions = sessions.take(visibleCount).toList();
+                  final remaining = count - visibleCount;
+
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -889,7 +895,7 @@ class _CalendarDayCell extends StatelessWidget {
                         Expanded(
                           child: Padding(
                             padding: EdgeInsets.only(
-                              bottom: i < visibleSessions.length - 1 ? 4 : 0,
+                              bottom: (i < visibleSessions.length - 1 || remaining > 0) ? 3 : 0,
                             ),
                             child: _CompactSessionChip(
                               session: visibleSessions[i],
@@ -899,8 +905,8 @@ class _CalendarDayCell extends StatelessWidget {
                             ),
                           ),
                         ),
-                      if (sessions.length > 2)
-                        _MoreSessionsBadge(count: sessions.length - 2),
+                      if (remaining > 0)
+                        _MoreSessionsBadge(count: remaining),
                     ],
                   );
                 },
@@ -947,6 +953,7 @@ class _CompactSessionChip extends StatelessWidget {
     final topic = (session.topic ?? '').trim();
     final typeLabel = _capitalize(session.sessionType);
     final tutorLabel = _compactTeacherName(teacher);
+    final compactTimeStr = _compactTime(session.startTime);
 
     return Tooltip(
       message: [
@@ -957,54 +964,115 @@ class _CompactSessionChip extends StatelessWidget {
       ].join('\n'),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          return Container(
-            width: double.infinity,
-            height: constraints.maxHeight,
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-              border: Border(left: BorderSide(color: color, width: 4)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  typeLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _compactTime(session.startTime),
-                  maxLines: 1,
-                  style: const TextStyle(
-                    color: _kTextMid,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    height: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  tutorLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _kTextDark,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    height: 1.1,
-                  ),
-                ),
-              ],
+          final maxH = constraints.maxHeight;
+          final isTight = maxH < 38;
+          final showTutor = maxH >= 32 && tutorLabel.isNotEmpty;
+
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              width: double.infinity,
+              height: maxH,
+              padding: EdgeInsets.symmetric(
+                horizontal: 5,
+                vertical: isTight ? 2 : 4,
+              ),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(6),
+                border: Border(left: BorderSide(color: color, width: 3.5)),
+              ),
+              child: isTight
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                typeLabel,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: color,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w900,
+                                  height: 1.1,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              compactTimeStr,
+                              maxLines: 1,
+                              style: const TextStyle(
+                                color: _kTextMid,
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                height: 1.1,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (showTutor) ...[
+                          const SizedBox(height: 1),
+                          Text(
+                            tutorLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _kTextDark,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.1,
+                            ),
+                          ),
+                        ],
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          typeLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 1.5),
+                        Text(
+                          compactTimeStr,
+                          maxLines: 1,
+                          style: const TextStyle(
+                            color: _kTextMid,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w700,
+                            height: 1.1,
+                          ),
+                        ),
+                        if (tutorLabel.isNotEmpty) ...[
+                          const SizedBox(height: 1.5),
+                          Text(
+                            tutorLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: _kTextDark,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.1,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
             ),
           );
         },
@@ -1021,17 +1089,17 @@ class _MoreSessionsBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
         color: _kTextLight.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(7),
+        borderRadius: BorderRadius.circular(5),
       ),
       child: Text(
-        '+$count',
+        '+$count more',
         style: const TextStyle(
           color: _kTextMid,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
