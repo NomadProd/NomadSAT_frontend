@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_web/Utils/desmos_config.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
-class DiagnosticMathToolsBar extends StatelessWidget {
+class ExamMathToolsBar extends StatelessWidget {
   final bool calculatorOpen;
   final VoidCallback onToggleCalculator;
   final VoidCallback onOpenReference;
 
-  const DiagnosticMathToolsBar({
+  const ExamMathToolsBar({
     super.key,
     required this.calculatorOpen,
     required this.onToggleCalculator,
@@ -52,10 +52,10 @@ class DiagnosticMathToolsBar extends StatelessWidget {
   }
 }
 
-class DiagnosticMathToolsHint extends StatelessWidget {
+class ExamMathToolsHint extends StatelessWidget {
   final VoidCallback onDismiss;
 
-  const DiagnosticMathToolsHint({super.key, required this.onDismiss});
+  const ExamMathToolsHint({super.key, required this.onDismiss});
 
   @override
   Widget build(BuildContext context) {

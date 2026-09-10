@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
-class DiagnosticTimerBar extends StatelessWidget {
+class ExamTimerBar extends StatelessWidget {
   final Duration remaining;
   final bool isMath;
   final VoidCallback? onLeave;
   final String leaveTooltip;
   final List<Widget> actions;
 
-  const DiagnosticTimerBar({
+  const ExamTimerBar({
     super.key,
     required this.remaining,
     required this.isMath,

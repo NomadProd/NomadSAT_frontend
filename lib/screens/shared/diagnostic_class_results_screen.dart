@@ -4,7 +4,7 @@ import 'package:flutter_web/Models/diagnostic_attempt.dart';
 import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Services/diagnostic_service.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
-import 'package:flutter_web/Widgets/diagnostic_attempt_review_view.dart';
+import 'package:flutter_web/Widgets/exam_attempt_review_view.dart';
 import 'package:flutter_web/screens/student/diagnostic_dashboard_screen.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
@@ -86,7 +86,7 @@ class _DiagnosticClassResultsScreenState
                   final denied = snap.error is ApiException &&
                       ((snap.error as ApiException).statusCode == 403 ||
                           (snap.error as ApiException).statusCode == 404);
-                  return DiagnosticAttemptReviewDenied(
+                  return ExamAttemptReviewDenied(
                     message: denied
                         ? 'You do not have permission to view diagnostic results for this class.'
                         : userFacingError(snap.error!),

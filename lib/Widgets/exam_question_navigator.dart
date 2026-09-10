@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_web/Models/diagnostic_question.dart';
+import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
-class DiagnosticQuestionNavigator extends StatelessWidget {
+class ExamQuestionNavigator extends StatelessWidget {
   final bool isMath;
-  final List<DiagnosticQuestion> questions;
+  final List<ExamQuestion> questions;
   final int currentQuestionId;
   final Set<int> answeredQuestionIds;
-  final ValueChanged<DiagnosticQuestion> onSelect;
+  final ValueChanged<ExamQuestion> onSelect;
   final VoidCallback onClose;
 
-  const DiagnosticQuestionNavigator({
+  const ExamQuestionNavigator({
     super.key,
     required this.isMath,
     required this.questions,
@@ -143,10 +143,10 @@ class _LegendItem extends StatelessWidget {
 }
 
 class _QuestionGrid extends StatelessWidget {
-  final List<DiagnosticQuestion> questions;
+  final List<ExamQuestion> questions;
   final int currentQuestionId;
   final Set<int> answeredQuestionIds;
-  final ValueChanged<DiagnosticQuestion> onSelect;
+  final ValueChanged<ExamQuestion> onSelect;
 
   const _QuestionGrid({
     required this.questions,

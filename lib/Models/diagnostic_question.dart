@@ -1,3 +1,5 @@
+import 'package:flutter_web/Models/exam_question.dart';
+
 class DiagnosticChoice {
   final String key;
   final String text;
@@ -20,15 +22,11 @@ String? _optionalText(dynamic value) {
   return text;
 }
 
-const kDiagnosticImageScaleMin = 0.4;
-const kDiagnosticImageScaleMax = 1.0;
-const kDiagnosticImageScaleDefault = 0.85;
+const kDiagnosticImageScaleMin = kExamImageScaleMin;
+const kDiagnosticImageScaleMax = kExamImageScaleMax;
+const kDiagnosticImageScaleDefault = kExamImageScaleDefault;
 
-double clampDiagnosticImageScale(double? value) {
-  final scale = value ?? kDiagnosticImageScaleDefault;
-  if (scale.isNaN) return kDiagnosticImageScaleDefault;
-  return scale.clamp(kDiagnosticImageScaleMin, kDiagnosticImageScaleMax);
-}
+double clampDiagnosticImageScale(double? value) => clampExamImageScale(value);
 
 double _parseImageScale(dynamic value) {
   if (value is num) return clampDiagnosticImageScale(value.toDouble());
@@ -105,6 +103,24 @@ class DiagnosticQuestion {
       choices: choices,
       correctChoice: json['correct_choice']?.toString(),
       explanation: json['explanation']?.toString(),
+    );
+  }
+
+  ExamQuestion toExamQuestion() {
+    return ExamQuestion(
+      id: id,
+      orderIndex: orderIndex,
+      isMath: isMath,
+      domain: domain,
+      passageText: passageText,
+      questionText: questionText,
+      questionImage: questionImage,
+      imageScale: imageScale,
+      choices: choices
+          .map((choice) => ExamChoice(key: choice.key, text: choice.text))
+          .toList(),
+      correctChoice: correctChoice,
+      explanation: explanation,
     );
   }
 

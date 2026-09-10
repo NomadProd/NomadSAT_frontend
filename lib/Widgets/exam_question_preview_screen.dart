@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_web/Models/diagnostic_question.dart';
-import 'package:flutter_web/Utils/diagnostic_layout.dart';
-import 'package:flutter_web/Widgets/diagnostic_question_taking_view.dart';
+import 'package:flutter_web/Models/exam_question.dart';
+import 'package:flutter_web/Widgets/exam_question_taking_view.dart';
 import 'package:flutter_web/Widgets/math_reference_sheet_panel.dart';
 
-class DiagnosticQuestionPreviewScreen extends StatefulWidget {
-  final DiagnosticQuestion question;
+class ExamQuestionPreviewScreen extends StatefulWidget {
+  final ExamQuestion question;
+  final Duration remaining;
 
-  const DiagnosticQuestionPreviewScreen({
+  const ExamQuestionPreviewScreen({
     super.key,
     required this.question,
+    required this.remaining,
   });
 
   @override
-  State<DiagnosticQuestionPreviewScreen> createState() =>
-      _DiagnosticQuestionPreviewScreenState();
+  State<ExamQuestionPreviewScreen> createState() =>
+      _ExamQuestionPreviewScreenState();
 }
 
-class _DiagnosticQuestionPreviewScreenState
-    extends State<DiagnosticQuestionPreviewScreen> {
+class _ExamQuestionPreviewScreenState
+    extends State<ExamQuestionPreviewScreen> {
   String? _selectedChoice;
   bool _calculatorOpen = false;
   bool _showMathToolsHint = false;
@@ -28,10 +29,8 @@ class _DiagnosticQuestionPreviewScreenState
     final question = widget.question;
     final isMath = question.isMath;
     return Scaffold(
-      body: DiagnosticQuestionTakingView(
-        remaining: Duration(
-          seconds: isMath ? kDiagnosticMathSeconds : kDiagnosticRwSeconds,
-        ),
+      body: ExamQuestionTakingView(
+        remaining: widget.remaining,
         isMath: isMath,
         sectionNumber: 1,
         sectionQuestionCount: 1,

@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/diagnostic_attempt.dart';
 import 'package:flutter_web/Models/diagnostic_question.dart';
+import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Services/diagnostic_service.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/Widgets/confirm_dialog.dart';
-import 'package:flutter_web/Widgets/diagnostic_module_break_view.dart';
-import 'package:flutter_web/Widgets/diagnostic_module_review_view.dart';
-import 'package:flutter_web/Widgets/diagnostic_question_taking_view.dart';
+import 'package:flutter_web/Widgets/exam_module_break_view.dart';
+import 'package:flutter_web/Widgets/exam_module_review_view.dart';
+import 'package:flutter_web/Widgets/exam_question_taking_view.dart';
 import 'package:flutter_web/Widgets/math_reference_sheet_panel.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/screens/shared/diagnostic_attempt_review_screen.dart';
@@ -37,7 +38,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
 
   int? _attemptId;
   DateTime? _sectionStartedAt;
-  List<DiagnosticQuestion> _questions = [];
+  List<ExamQuestion> _questions = [];
   int _index = 0;
   String? _selectedChoice;
   final Map<int, String> _savedChoices = {};
@@ -143,7 +144,9 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     int pauseSeconds = 0,
     DateTime? timerPausedAt,
   }) async {
-    final questions = await _service.fetchAttemptQuestions(attemptId);
+    final questions = (await _service.fetchAttemptQuestions(attemptId))
+        .map((question) => question.toExamQuestion())
+        .toList();
     if (!mounted) return;
     questions.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     final saved = <int, String>{};
@@ -207,7 +210,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
   bool get _isMath =>
       _questions.isNotEmpty && _questions[_index].isMath;
 
-  List<DiagnosticQuestion> get _sectionQuestions {
+  List<ExamQuestion> get _sectionQuestions {
     return _questions.where((question) => question.isMath == _isMath).toList();
   }
 
@@ -351,7 +354,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     );
   }
 
-  Future<void> _jumpToQuestion(DiagnosticQuestion target) async {
+  Future<void> _jumpToQuestion(ExamQuestion target) async {
     if (target.isMath != _isMath) return;
     _queueSaveCurrentSelection();
     _showQuestionAt(
@@ -376,7 +379,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     );
   }
 
-  void _reviewQuestion(DiagnosticQuestion target) {
+  void _reviewQuestion(ExamQuestion target) {
     setState(() => _showingModuleReview = false);
     unawaited(_jumpToQuestion(target));
   }
@@ -501,10 +504,16 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     }
     if (_taking) {
       if (_showingModuleBreak) {
-        return DiagnosticModuleBreakView(onStartMath: _startMathModule);
+        return ExamModuleBreakView(
+          completedModuleLabel: 'Reading & Writing',
+          nextModuleLabel: 'Math',
+          nextQuestionCount: kDiagnosticMathQuestionCount,
+          nextMinutes: kDiagnosticMathSeconds ~/ 60,
+          onStartNextModule: _startMathModule,
+        );
       }
       if (_showingModuleReview) {
-        return DiagnosticModuleReviewView(
+        return ExamModuleReviewView(
           remaining: _remaining,
           isMath: _isMath,
           questions: _sectionQuestions,
@@ -518,7 +527,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
               : null,
         );
       }
-      return DiagnosticQuestionTakingView(
+      return ExamQuestionTakingView(
         remaining: _remaining,
         isMath: _isMath,
         sectionNumber: _sectionNumber,

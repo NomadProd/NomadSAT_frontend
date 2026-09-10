@@ -2,17 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_web/Models/diagnostic_attempt.dart';
 import 'package:flutter_web/Models/diagnostic_question.dart';
+import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/Utils/desmos_config.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/Utils/math_reference.dart';
-import 'package:flutter_web/Widgets/diagnostic_attempt_review_view.dart';
+import 'package:flutter_web/Widgets/exam_attempt_review_view.dart';
 import 'package:flutter_web/Widgets/diagnostic_attempt_result_card.dart';
-import 'package:flutter_web/Widgets/diagnostic_module_break_view.dart';
-import 'package:flutter_web/Widgets/diagnostic_module_review_view.dart';
-import 'package:flutter_web/Widgets/diagnostic_question_figure.dart';
-import 'package:flutter_web/Widgets/diagnostic_question_preview_screen.dart';
-import 'package:flutter_web/Widgets/diagnostic_question_taking_view.dart';
-import 'package:flutter_web/Widgets/diagnostic_timer_bar.dart';
+import 'package:flutter_web/Widgets/exam_module_break_view.dart';
+import 'package:flutter_web/Widgets/exam_module_review_view.dart';
+import 'package:flutter_web/Widgets/exam_question_figure.dart';
+import 'package:flutter_web/Widgets/exam_question_preview_screen.dart';
+import 'package:flutter_web/Widgets/exam_question_taking_view.dart';
+import 'package:flutter_web/Widgets/exam_timer_bar.dart';
 import 'package:flutter_web/Widgets/math_reference_sheet_panel.dart';
 import 'package:flutter_web/screens/student/diagnostic_results_screen.dart';
 
@@ -156,7 +157,7 @@ void main() {
           home: Scaffold(
             body: Column(
               children: [
-                DiagnosticTimerBar(
+                ExamTimerBar(
                   remaining: const Duration(minutes: 11, seconds: 40),
                   isMath: false,
                 ),
@@ -418,7 +419,13 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: DiagnosticModuleBreakView(onStartMath: () => started = true),
+          body: ExamModuleBreakView(
+            completedModuleLabel: 'Reading & Writing',
+            nextModuleLabel: 'Math',
+            nextQuestionCount: kDiagnosticMathQuestionCount,
+            nextMinutes: kDiagnosticMathSeconds ~/ 60,
+            onStartNextModule: () => started = true,
+          ),
         ),
       ),
     );
@@ -430,7 +437,7 @@ void main() {
   });
 
   testWidgets('module review shows counts and returns to a question', (tester) async {
-    DiagnosticQuestion? reviewed;
+    ExamQuestion? reviewed;
     var continued = 0;
     final questions = [
       _question(math: false, order: 1),
@@ -440,7 +447,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: DiagnosticModuleReviewView(
+          body: ExamModuleReviewView(
             remaining: const Duration(minutes: 4, seconds: 12),
             isMath: false,
             questions: questions,
@@ -474,7 +481,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: DiagnosticModuleReviewView(
+          body: ExamModuleReviewView(
             remaining: const Duration(minutes: 2),
             isMath: true,
             questions: [_question(math: true, order: 11)],
@@ -619,7 +626,7 @@ void main() {
         home: Scaffold(
           body: SizedBox(
             width: 400,
-            child: DiagnosticQuestionFigure(
+            child: ExamQuestionFigure(
               url: 'https://cdn.example.com/figure.png',
               scale: 0.5,
             ),
@@ -638,7 +645,7 @@ void main() {
         home: Scaffold(
           body: SizedBox(
             width: 400,
-            child: DiagnosticQuestionFigure(
+            child: ExamQuestionFigure(
               url: 'https://cdn.example.com/figure.png',
               scale: 1.0,
             ),
@@ -657,7 +664,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: DiagnosticQuestionFigure(
+          body: ExamQuestionFigure(
             url: 'https://cdn.example.com/missing.png',
             alt: 'Passage image',
           ),
@@ -674,7 +681,8 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       MaterialApp(
-        home: DiagnosticQuestionPreviewScreen(
+        home: ExamQuestionPreviewScreen(
+          remaining: const Duration(minutes: 12),
           question: _question(
             math: false,
             order: 5,
@@ -813,10 +821,10 @@ void main() {
 
   testWidgets('review highlights answers and marks unanswered', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
         home: Scaffold(
-          body: DiagnosticAttemptReviewView(
-            detail: _kReviewDetail,
+          body: ExamAttemptReviewView(
+            detail: _kReviewDetail.toExamReview(),
             showStudentName: true,
           ),
         ),
@@ -838,7 +846,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: DiagnosticAttemptReviewDenied(
+          body: ExamAttemptReviewDenied(
             message:
                 'You do not have permission to view this diagnostic attempt.',
           ),
@@ -874,9 +882,9 @@ void main() {
       expect(tester.takeException(), isNull);
 
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: Scaffold(
-            body: DiagnosticAttemptReviewView(detail: _kReviewDetail),
+            body: ExamAttemptReviewView(detail: _kReviewDetail.toExamReview()),
           ),
         ),
       );
@@ -974,7 +982,7 @@ DiagnosticAttemptListItem _listItem({
   );
 }
 
-DiagnosticQuestion _question({
+DiagnosticQuestion _diagnosticQuestion({
   required bool math,
   int order = 1,
   String? url,
@@ -1000,12 +1008,30 @@ DiagnosticQuestion _question({
   );
 }
 
+ExamQuestion _question({
+  required bool math,
+  int order = 1,
+  String? url,
+  String? image,
+  String? passage,
+  double imageScale = kDiagnosticImageScaleDefault,
+}) {
+  return _diagnosticQuestion(
+    math: math,
+    order: order,
+    url: url,
+    image: image,
+    passage: passage,
+    imageScale: imageScale,
+  ).toExamQuestion();
+}
+
 class _TakingHarness extends StatefulWidget {
-  final DiagnosticQuestion question;
+  final ExamQuestion question;
   final Duration remaining;
   final bool showHint;
   final bool calculatorOpen;
-  final List<DiagnosticQuestion>? sectionQuestions;
+  final List<ExamQuestion>? sectionQuestions;
   final Set<int> answeredQuestionIds;
   final bool canGoBack;
 
@@ -1048,7 +1074,7 @@ class _TakingHarnessState extends State<_TakingHarness> {
       home: Builder(
         builder: (dialogContext) {
           return Scaffold(
-            body: DiagnosticQuestionTakingView(
+            body: ExamQuestionTakingView(
               remaining: widget.remaining,
               isMath: isMath,
               sectionNumber: sectionNumber < 0 ? 1 : sectionNumber + 1,

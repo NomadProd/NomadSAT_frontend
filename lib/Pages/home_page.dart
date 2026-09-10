@@ -7,6 +7,7 @@ import 'package:flutter_web/Pages/mock_result_detail_page.dart';
 import 'package:flutter_web/Pages/homework_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
 import 'package:flutter_web/screens/student/diagnostic_dashboard_screen.dart';
+import 'package:flutter_web/screens/student/practice_test_list_screen.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Services/api_json.dart';
@@ -353,7 +354,26 @@ class _HomePageState extends State<HomePage> with RouteAware {
                         children: [
                           _GreetingCard(user: data.user),
                           const SizedBox(height: 14),
-                          _DiagnosticEntryCard(
+                          _EntryCard(
+                            key: const Key('home-practice-tests-card'),
+                            icon: Icons.assignment_rounded,
+                            title: 'Practice tests',
+                            subtitle:
+                                'Full-length practice tests shared with your group',
+                            onStart: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const StudentPracticeTestListScreen(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          _EntryCard(
+                            key: const Key('home-diagnostic-card'),
+                            icon: Icons.quiz_rounded,
+                            title: 'Digital SAT diagnostic',
+                            subtitle:
+                                'View results or take the 20-question diagnostic',
                             onStart: () => Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => const DiagnosticDashboardScreen(),
@@ -614,10 +634,19 @@ class _GreetingCard extends StatelessWidget {
 }
 
 // РІвЂќР‚РІвЂќР‚РІвЂќР‚ Dashboard row РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚РІвЂќР‚
-class _DiagnosticEntryCard extends StatelessWidget {
+class _EntryCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
   final VoidCallback onStart;
 
-  const _DiagnosticEntryCard({required this.onStart});
+  const _EntryCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onStart,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -643,28 +672,25 @@ class _DiagnosticEntryCard extends StatelessWidget {
                   color: const Color(0xFFE8EEFF),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.quiz_rounded,
-                  color: _kPrimary,
-                ),
+                child: Icon(icon, color: _kPrimary),
               ),
               const SizedBox(width: 14),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Digital SAT diagnostic',
-                      style: TextStyle(
+                      title,
+                      style: const TextStyle(
                         color: _kTextDark,
                         fontWeight: FontWeight.w800,
                         fontSize: 15,
                       ),
                     ),
-                    SizedBox(height: 3),
+                    const SizedBox(height: 3),
                     Text(
-                      'View results or take the 20-question diagnostic',
-                      style: TextStyle(
+                      subtitle,
+                      style: const TextStyle(
                         color: _kTextMid,
                         fontSize: 12,
                         height: 1.3,

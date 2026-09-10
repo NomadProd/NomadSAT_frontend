@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_web/Models/diagnostic_question.dart';
+import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
-class DiagnosticQuestionFigure extends StatelessWidget {
+class ExamQuestionFigure extends StatelessWidget {
   final String url;
   final double scale;
   final String alt;
 
-  const DiagnosticQuestionFigure({
+  const ExamQuestionFigure({
     super.key,
     required this.url,
-    this.scale = kDiagnosticImageScaleDefault,
+    this.scale = kExamImageScaleDefault,
     this.alt = 'Question image',
   });
 
@@ -21,7 +21,7 @@ class DiagnosticQuestionFigure extends StatelessWidget {
         final available = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : 720.0;
-        final figureWidth = available * clampDiagnosticImageScale(scale);
+        final figureWidth = available * clampExamImageScale(scale);
         return Align(
           alignment: Alignment.topCenter,
           child: SizedBox(

@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_web/Models/diagnostic_attempt.dart';
-import 'package:flutter_web/Models/diagnostic_question.dart';
-import 'package:flutter_web/Widgets/diagnostic_question_figure.dart';
+import 'package:flutter_web/Models/exam_question.dart';
+import 'package:flutter_web/Widgets/exam_question_figure.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
-class DiagnosticAttemptReviewDenied extends StatelessWidget {
+class ExamAttemptReviewDenied extends StatelessWidget {
   final String message;
   final VoidCallback? onRetry;
 
-  const DiagnosticAttemptReviewDenied({
+  const ExamAttemptReviewDenied({
     super.key,
     required this.message,
     this.onRetry,
@@ -53,11 +52,11 @@ class DiagnosticAttemptReviewDenied extends StatelessWidget {
   }
 }
 
-class DiagnosticAttemptReviewView extends StatelessWidget {
-  final DiagnosticAttemptDetail detail;
+class ExamAttemptReviewView extends StatelessWidget {
+  final ExamAttemptReview detail;
   final bool showStudentName;
 
-  const DiagnosticAttemptReviewView({
+  const ExamAttemptReviewView({
     super.key,
     required this.detail,
     this.showStudentName = false,
@@ -101,7 +100,7 @@ class DiagnosticAttemptReviewView extends StatelessWidget {
 }
 
 class _ReviewHeader extends StatelessWidget {
-  final DiagnosticAttemptDetail detail;
+  final ExamAttemptReview detail;
   final bool showStudentName;
 
   const _ReviewHeader({
@@ -154,12 +153,12 @@ class _ReviewHeader extends StatelessWidget {
             children: [
               _ScoreChip(
                 label: 'Reading & Writing',
-                value: '${detail.rwScaledEstimate ?? '—'}',
+                value: '${detail.rwScaled ?? '—'}',
                 color: TuranColors.verbal,
               ),
               _ScoreChip(
                 label: 'Math',
-                value: '${detail.mathScaledEstimate ?? '—'}',
+                value: '${detail.mathScaled ?? '—'}',
                 color: TuranColors.math,
               ),
             ],
@@ -213,7 +212,7 @@ class _DomainCounts {
 }
 
 class _ReviewSummary extends StatelessWidget {
-  final List<DiagnosticAnswerReview> answers;
+  final List<ExamReviewAnswer> answers;
 
   const _ReviewSummary({required this.answers});
 
@@ -285,7 +284,7 @@ class _ReviewSummary extends StatelessWidget {
 }
 
 class _ReviewQuestionCard extends StatelessWidget {
-  final DiagnosticAnswerReview answer;
+  final ExamReviewAnswer answer;
 
   const _ReviewQuestionCard({required this.answer});
 
@@ -344,7 +343,7 @@ class _ReviewQuestionCard extends StatelessWidget {
           ),
           if (answer.hasQuestionImage) ...[
             const SizedBox(height: 12),
-            DiagnosticQuestionFigure(
+            ExamQuestionFigure(
               url: answer.questionImage!,
               scale: answer.imageScale,
             ),
@@ -384,8 +383,8 @@ class _ReviewQuestionCard extends StatelessWidget {
 }
 
 class _ReviewChoiceTile extends StatelessWidget {
-  final DiagnosticAnswerReview answer;
-  final DiagnosticChoice choice;
+  final ExamReviewAnswer answer;
+  final ExamChoice choice;
 
   const _ReviewChoiceTile({
     required this.answer,
@@ -395,7 +394,7 @@ class _ReviewChoiceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected = (answer.selectedChoice ?? '').toUpperCase();
-    final correct = answer.correctChoice.toUpperCase();
+    final correct = (answer.correctChoice ?? '').toUpperCase();
     final key = choice.key.toUpperCase();
     final isSelected = selected.isNotEmpty && key == selected;
     final isCorrect = key == correct;

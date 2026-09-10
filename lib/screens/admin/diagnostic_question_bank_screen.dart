@@ -7,8 +7,8 @@ import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/diagnostic_service.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/Widgets/confirm_dialog.dart';
-import 'package:flutter_web/Widgets/diagnostic_question_figure.dart';
-import 'package:flutter_web/Widgets/diagnostic_question_preview_screen.dart';
+import 'package:flutter_web/Widgets/exam_question_figure.dart';
+import 'package:flutter_web/Widgets/exam_question_preview_screen.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/screens/student/diagnostic_test_screen.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
@@ -502,9 +502,17 @@ class _DiagnosticQuestionFormScreenState
   Future<void> _openPreview() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => DiagnosticQuestionPreviewScreen(
-          question: _draftQuestion(),
-        ),
+        builder: (_) {
+          final draft = _draftQuestion();
+          return ExamQuestionPreviewScreen(
+            question: draft.toExamQuestion(),
+            remaining: Duration(
+              seconds: draft.isMath
+                  ? kDiagnosticMathSeconds
+                  : kDiagnosticRwSeconds,
+            ),
+          );
+        },
       ),
     );
   }
@@ -639,7 +647,7 @@ class _DiagnosticQuestionFormScreenState
                         ),
                         const SizedBox(height: 8),
                         if (_imageUrl != null) ...[
-                          DiagnosticQuestionFigure(
+                          ExamQuestionFigure(
                             url: _imageUrl!,
                             scale: _imageScale,
                             alt: slot.isMath ? 'Question image' : 'Passage image',

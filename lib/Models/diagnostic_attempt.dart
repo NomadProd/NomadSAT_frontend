@@ -1,3 +1,4 @@
+import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/Models/diagnostic_question.dart';
 
 class DiagnosticAnswer {
@@ -212,6 +213,26 @@ class DiagnosticAnswerReview {
     this.explanation,
   });
 
+  ExamReviewAnswer toExamReviewAnswer() {
+    return ExamReviewAnswer(
+      orderIndex: orderIndex,
+      isMath: isMath,
+      domain: domain,
+      difficulty: difficulty,
+      questionText: questionText,
+      passageText: passageText,
+      questionImage: questionImage,
+      imageScale: imageScale,
+      choices: choices
+          .map((choice) => ExamChoice(key: choice.key, text: choice.text))
+          .toList(),
+      selectedChoice: selectedChoice,
+      correctChoice: correctChoice,
+      isCorrect: isCorrect,
+      explanation: explanation,
+    );
+  }
+
   bool get isMath => section == 'math';
   bool get isUnanswered =>
       selectedChoice == null || selectedChoice!.trim().isEmpty;
@@ -282,6 +303,17 @@ class DiagnosticAttemptDetail {
     this.totalRangeLow,
     this.totalRangeHigh,
   });
+
+  ExamAttemptReview toExamReview() {
+    return ExamAttemptReview(
+      scoreRangeLabel: scoreRangeLabel,
+      student: ExamStudentSummary(fullName: student.fullName),
+      answers: answers.map((a) => a.toExamReviewAnswer()).toList(),
+      completedAt: completedAt,
+      rwScaled: rwScaledEstimate,
+      mathScaled: mathScaledEstimate,
+    );
+  }
 
   String get scoreRangeLabel {
     final low = totalRangeLow;

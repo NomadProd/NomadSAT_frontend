@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_web/Models/diagnostic_question.dart';
+import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/Widgets/desmos_calculator_panel.dart';
-import 'package:flutter_web/Widgets/diagnostic_math_tools.dart';
-import 'package:flutter_web/Widgets/diagnostic_question_figure.dart';
-import 'package:flutter_web/Widgets/diagnostic_question_navigator.dart';
-import 'package:flutter_web/Widgets/diagnostic_timer_bar.dart';
+import 'package:flutter_web/Widgets/exam_math_tools.dart';
+import 'package:flutter_web/Widgets/exam_question_figure.dart';
+import 'package:flutter_web/Widgets/exam_question_navigator.dart';
+import 'package:flutter_web/Widgets/exam_timer_bar.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
-class DiagnosticQuestionTakingView extends StatelessWidget {
+class ExamQuestionTakingView extends StatelessWidget {
   final Duration remaining;
   final bool isMath;
   final int sectionNumber;
   final int sectionQuestionCount;
-  final List<DiagnosticQuestion> sectionQuestions;
+  final List<ExamQuestion> sectionQuestions;
   final Set<int> answeredQuestionIds;
-  final DiagnosticQuestion question;
+  final ExamQuestion question;
   final String? selectedChoice;
   final bool completing;
   final bool calculatorOpen;
@@ -23,14 +23,14 @@ class DiagnosticQuestionTakingView extends StatelessWidget {
   final ValueChanged<String> onSelect;
   final VoidCallback? onBack;
   final VoidCallback? onNext;
-  final ValueChanged<DiagnosticQuestion> onJumpToQuestion;
+  final ValueChanged<ExamQuestion> onJumpToQuestion;
   final VoidCallback onLeave;
   final VoidCallback onToggleCalculator;
   final VoidCallback onOpenReference;
   final VoidCallback onDismissHint;
   final bool isPreview;
 
-  const DiagnosticQuestionTakingView({
+  const ExamQuestionTakingView({
     super.key,
     required this.remaining,
     required this.isMath,
@@ -62,14 +62,14 @@ class DiagnosticQuestionTakingView extends StatelessWidget {
         final compact = constraints.maxWidth < TuranBreakpoints.tablet;
         return Column(
           children: [
-            DiagnosticTimerBar(
+            ExamTimerBar(
               remaining: remaining,
               isMath: isMath,
               onLeave: onLeave,
               leaveTooltip: isPreview ? 'Close preview' : 'Leave test',
               actions: [
                 if (isMath)
-                  DiagnosticMathToolsBar(
+                  ExamMathToolsBar(
                     calculatorOpen: calculatorOpen,
                     onToggleCalculator: onToggleCalculator,
                     onOpenReference: onOpenReference,
@@ -77,7 +77,7 @@ class DiagnosticQuestionTakingView extends StatelessWidget {
               ],
             ),
             if (isMath && showMathToolsHint)
-              DiagnosticMathToolsHint(onDismiss: onDismissHint),
+              ExamMathToolsHint(onDismiss: onDismissHint),
             if (isPreview)
               Material(
                 color: const Color(0xFFE8EEFF),
@@ -139,16 +139,16 @@ class _QuestionBody extends StatelessWidget {
   final bool isMath;
   final int sectionNumber;
   final int sectionQuestionCount;
-  final List<DiagnosticQuestion> sectionQuestions;
+  final List<ExamQuestion> sectionQuestions;
   final Set<int> answeredQuestionIds;
-  final DiagnosticQuestion question;
+  final ExamQuestion question;
   final String? selectedChoice;
   final bool completing;
   final bool canGoBack;
   final ValueChanged<String> onSelect;
   final VoidCallback? onBack;
   final VoidCallback? onNext;
-  final ValueChanged<DiagnosticQuestion> onJumpToQuestion;
+  final ValueChanged<ExamQuestion> onJumpToQuestion;
 
   const _QuestionBody({
     required this.compact,
@@ -284,7 +284,7 @@ class _QuestionBody extends StatelessWidget {
       context: context,
       barrierColor: Colors.black38,
       builder: (dialogContext) {
-        return DiagnosticQuestionNavigator(
+        return ExamQuestionNavigator(
           isMath: isMath,
           questions: sectionQuestions,
           currentQuestionId: question.id,
@@ -301,7 +301,7 @@ class _QuestionBody extends StatelessWidget {
 }
 
 class _SplitReadingBody extends StatelessWidget {
-  final DiagnosticQuestion question;
+  final ExamQuestion question;
   final String? selectedChoice;
   final ValueChanged<String> onSelect;
 
@@ -336,7 +336,7 @@ class _SplitReadingBody extends StatelessWidget {
 }
 
 class _StackedReadingBody extends StatelessWidget {
-  final DiagnosticQuestion question;
+  final ExamQuestion question;
   final String? selectedChoice;
   final ValueChanged<String> onSelect;
 
@@ -369,7 +369,7 @@ class _StackedReadingBody extends StatelessWidget {
 
 class _SingleColumnBody extends StatelessWidget {
   final bool compact;
-  final DiagnosticQuestion question;
+  final ExamQuestion question;
   final String? selectedChoice;
   final ValueChanged<String> onSelect;
 
@@ -406,7 +406,7 @@ class _SingleColumnBody extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 if (question.hasQuestionImage) ...[
-                  DiagnosticQuestionFigure(
+                  ExamQuestionFigure(
                     key: const Key('diagnostic-question-image'),
                     url: question.questionImage!,
                     scale: question.imageScale,
@@ -431,7 +431,7 @@ class _SingleColumnBody extends StatelessWidget {
 }
 
 class _PassagePane extends StatelessWidget {
-  final DiagnosticQuestion question;
+  final ExamQuestion question;
 
   const _PassagePane({required this.question});
 
@@ -460,7 +460,7 @@ class _PassagePane extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
               children: [
                 if (question.hasQuestionImage) ...[
-                  DiagnosticQuestionFigure(
+                  ExamQuestionFigure(
                     key: const Key('diagnostic-question-image'),
                     url: question.questionImage!,
                     scale: question.imageScale,
@@ -489,7 +489,7 @@ class _PassagePane extends StatelessWidget {
 }
 
 class _TaskPane extends StatelessWidget {
-  final DiagnosticQuestion question;
+  final ExamQuestion question;
   final String? selectedChoice;
   final ValueChanged<String> onSelect;
   final EdgeInsets padding;
@@ -570,7 +570,7 @@ class _QuestionPrompt extends StatelessWidget {
 }
 
 class _ChoiceList extends StatelessWidget {
-  final DiagnosticQuestion question;
+  final ExamQuestion question;
   final String? selectedChoice;
   final ValueChanged<String> onSelect;
 
@@ -582,6 +582,15 @@ class _ChoiceList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Grid-in questions carry no choices; the student's answer arrives through
+    // the same onSelect channel, as typed text instead of a choice key.
+    if (question.isGridIn) {
+      return _GridInField(
+        key: ValueKey('exam-grid-in-${question.id}'),
+        value: selectedChoice ?? '',
+        onChanged: onSelect,
+      );
+    }
     return Column(
       children: [
         for (final choice in question.choices) ...[
@@ -592,6 +601,74 @@ class _ChoiceList extends StatelessWidget {
           ),
           const SizedBox(height: 8),
         ],
+      ],
+    );
+  }
+}
+
+class _GridInField extends StatefulWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  const _GridInField({super.key, required this.value, required this.onChanged});
+
+  @override
+  State<_GridInField> createState() => _GridInFieldState();
+}
+
+class _GridInFieldState extends State<_GridInField> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.value);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleChange(String raw) {
+    final cleaned = sanitizeGridInInput(raw);
+    if (cleaned != _controller.text) {
+      _controller.value = TextEditingValue(
+        text: cleaned,
+        selection: TextSelection.collapsed(offset: cleaned.length),
+      );
+    }
+    widget.onChanged(cleaned);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 240),
+          child: TextField(
+            key: const Key('exam-grid-in-field'),
+            controller: _controller,
+            onChanged: _handleChange,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: TuranColors.textDark,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Your answer',
+              filled: true,
+              fillColor: TuranColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(TuranRadius.md),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Up to 5 characters, or 6 with a minus sign. '
+          'Fractions like 3/4 are fine. No %, \$ or commas.',
+          style: TextStyle(color: TuranColors.textMid, fontSize: 12, height: 1.4),
+        ),
       ],
     );
   }
@@ -688,7 +765,7 @@ class _FooterNavButton extends StatelessWidget {
 }
 
 class _ChoiceTile extends StatelessWidget {
-  final DiagnosticChoice choice;
+  final ExamChoice choice;
   final bool selected;
   final VoidCallback onTap;
 

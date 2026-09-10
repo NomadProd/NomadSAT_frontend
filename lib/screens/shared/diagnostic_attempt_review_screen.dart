@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/diagnostic_attempt.dart';
 import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Services/diagnostic_service.dart';
-import 'package:flutter_web/Widgets/diagnostic_attempt_review_view.dart';
+import 'package:flutter_web/Widgets/exam_attempt_review_view.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
@@ -62,7 +62,7 @@ class _DiagnosticAttemptReviewScreenState
                         ),
                       )
                     : snap.hasError
-                    ? DiagnosticAttemptReviewDenied(
+                    ? ExamAttemptReviewDenied(
                         message: denied
                             ? 'You do not have permission to view this diagnostic attempt.'
                             : userFacingError(snap.error!),
@@ -74,8 +74,8 @@ class _DiagnosticAttemptReviewScreenState
                                 ),
                               ),
                       )
-                    : DiagnosticAttemptReviewView(
-                        detail: snap.data!,
+                    : ExamAttemptReviewView(
+                        detail: snap.data!.toExamReview(),
                         showStudentName: widget.showStudentName,
                       ),
               ),

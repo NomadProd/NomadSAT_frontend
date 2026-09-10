@@ -1,4 +1,4 @@
-import 'package:flutter_web/Models/diagnostic_question.dart';
+import 'package:flutter_web/Models/exam_question.dart';
 
 class DiagnosticSlot {
   final int orderIndex;
@@ -264,7 +264,7 @@ class DiagnosticResumeState {
 }
 
 DiagnosticResumeState resolveDiagnosticResume({
-  required List<DiagnosticQuestion> questions,
+  required List<ExamQuestion> questions,
   required Set<int> savedQuestionIds,
   required DateTime startedAt,
   required DateTime now,
@@ -319,7 +319,7 @@ DiagnosticResumeState resolveDiagnosticResume({
 }
 
 int diagnosticResumeQuestionIndex({
-  required List<DiagnosticQuestion> questions,
+  required List<ExamQuestion> questions,
   required Set<int> savedQuestionIds,
   required bool inMath,
   int? currentQuestionId,

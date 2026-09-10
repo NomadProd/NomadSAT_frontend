@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_web/Models/diagnostic_question.dart';
+import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
@@ -8,21 +8,28 @@ const _answeredFill = Color(0xFFE8F5E9);
 const _unansweredColor = Color(0xFF607D8B);
 const _unansweredFill = Color(0xFFEEF1F4);
 
-class DiagnosticModuleReviewView extends StatelessWidget {
+class ExamModuleReviewView extends StatelessWidget {
   final Duration remaining;
   final bool isMath;
-  final List<DiagnosticQuestion> questions;
+
+  /// Defaults to the section name, and to "End test" on the Math module --
+  /// the two-module diagnostic's wording.
+  final String? moduleLabel;
+  final String? continueLabel;
+  final List<ExamQuestion> questions;
   final Set<int> answeredQuestionIds;
   final bool completing;
   final VoidCallback onLeave;
-  final ValueChanged<DiagnosticQuestion> onReviewQuestion;
+  final ValueChanged<ExamQuestion> onReviewQuestion;
   final VoidCallback onContinue;
   final VoidCallback? onOpenReference;
 
-  const DiagnosticModuleReviewView({
+  const ExamModuleReviewView({
     super.key,
     required this.remaining,
     required this.isMath,
+    this.moduleLabel,
+    this.continueLabel,
     required this.questions,
     required this.answeredQuestionIds,
     required this.completing,
@@ -39,8 +46,11 @@ class DiagnosticModuleReviewView extends StatelessWidget {
         .where((question) => answeredQuestionIds.contains(question.id))
         .length;
     final unansweredCount = questions.length - answeredCount;
-    final sectionLabel = isMath ? 'Math' : 'Reading & Writing';
-    final continueLabel = isMath ? 'End test' : 'Continue to Math';
+    // Which module this is, and whether it is the last one, is the caller's to
+    // say: a section can hold more than one module.
+    final sectionLabel = moduleLabel ?? (isMath ? 'Math' : 'Reading & Writing');
+    final continueLabel =
+        this.continueLabel ?? (isMath ? 'End test' : 'Continue to Math');
 
     return Column(
       children: [
@@ -374,14 +384,14 @@ class _StatusCard extends StatelessWidget {
 }
 
 class _NavigatorCard extends StatelessWidget {
-  final List<DiagnosticQuestion> questions;
+  final List<ExamQuestion> questions;
   final Set<int> answeredQuestionIds;
   final int answeredCount;
   final int unansweredCount;
   final bool compact;
   final String continueLabel;
   final bool completing;
-  final ValueChanged<DiagnosticQuestion> onReviewQuestion;
+  final ValueChanged<ExamQuestion> onReviewQuestion;
   final VoidCallback onContinue;
 
   const _NavigatorCard({
@@ -517,9 +527,9 @@ class _NavigatorCard extends StatelessWidget {
 }
 
 class _ReviewGrid extends StatelessWidget {
-  final List<DiagnosticQuestion> questions;
+  final List<ExamQuestion> questions;
   final Set<int> answeredQuestionIds;
-  final ValueChanged<DiagnosticQuestion> onSelect;
+  final ValueChanged<ExamQuestion> onSelect;
 
   const _ReviewGrid({
     required this.questions,

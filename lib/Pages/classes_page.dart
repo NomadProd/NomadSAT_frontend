@@ -6,6 +6,7 @@ import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Pages/class_detail_page.dart';
 import 'package:flutter_web/Pages/control_panel_page.dart';
 import 'package:flutter_web/screens/admin/diagnostic_question_bank_screen.dart';
+import 'package:flutter_web/screens/admin/practice_test_list_screen.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/Widgets/weekly_schedule_picker.dart';
 
@@ -96,6 +97,8 @@ class _ClassesPageState extends State<ClassesPage> {
               isStaffAdmin || role == 'teacher';
           final canOpenDiagnosticBank =
               isStaffAdmin || role == 'teacher';
+          final canOpenPracticeTests =
+              isStaffAdmin || role == 'teacher';
           final showArchivedSections = isStaffAdmin;
 
           return Column(
@@ -120,6 +123,14 @@ class _ClassesPageState extends State<ClassesPage> {
                     Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const DiagnosticQuestionBankScreen(),
+                      ),
+                    );
+                  },
+                  canOpenPracticeTests: canOpenPracticeTests,
+                  onOpenPracticeTests: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PracticeTestListScreen(),
                       ),
                     );
                   },
@@ -165,6 +176,8 @@ class _ClassesContent extends StatelessWidget {
   final VoidCallback onOpenControlPanel;
   final bool canOpenDiagnosticBank;
   final VoidCallback onOpenDiagnosticBank;
+  final bool canOpenPracticeTests;
+  final VoidCallback onOpenPracticeTests;
 
   const _ClassesContent({
     required this.classes,
@@ -175,11 +188,28 @@ class _ClassesContent extends StatelessWidget {
     required this.onOpenControlPanel,
     required this.canOpenDiagnosticBank,
     required this.onOpenDiagnosticBank,
+    required this.canOpenPracticeTests,
+    required this.onOpenPracticeTests,
   });
 
   @override
   Widget build(BuildContext context) {
     final actionButtons = [
+      if (canOpenPracticeTests)
+        OutlinedButton.icon(
+          key: const Key('open-practice-tests'),
+          onPressed: onOpenPracticeTests,
+          icon: const Icon(Icons.assignment_rounded, size: 18),
+          label: const Text('Practice tests'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF1A4AF0),
+            side: const BorderSide(color: Color(0xFF1A4AF0)),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
       if (canOpenDiagnosticBank)
         OutlinedButton.icon(
           onPressed: onOpenDiagnosticBank,

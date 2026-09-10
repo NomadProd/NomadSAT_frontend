@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
-class DiagnosticModuleBreakView extends StatelessWidget {
-  final VoidCallback onStartMath;
+class ExamModuleBreakView extends StatelessWidget {
+  final String completedModuleLabel;
+  final String nextModuleLabel;
+  final int nextQuestionCount;
+  final int nextMinutes;
+  final VoidCallback onStartNextModule;
 
-  const DiagnosticModuleBreakView({
+  const ExamModuleBreakView({
     super.key,
-    required this.onStartMath,
+    required this.completedModuleLabel,
+    required this.nextModuleLabel,
+    required this.nextQuestionCount,
+    required this.nextMinutes,
+    required this.onStartNextModule,
   });
 
   @override
@@ -29,23 +37,25 @@ class DiagnosticModuleBreakView extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Reading & Writing complete',
+                Text(
+                  '$completedModuleLabel complete',
                   style: TuranTextStyles.title,
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  'That module is finished. Math is a separate module with its own 15-minute timer.',
-                  style: TextStyle(
+                Text(
+                  'That module is finished. $nextModuleLabel is a separate '
+                  'module with its own $nextMinutes-minute timer.',
+                  style: const TextStyle(
                     color: TuranColors.textMid,
                     height: 1.45,
                     fontSize: 14,
                   ),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'Math: 10 questions, 15 minutes',
-                  style: TextStyle(
+                Text(
+                  '$nextModuleLabel: $nextQuestionCount questions, '
+                  '$nextMinutes minutes',
+                  style: const TextStyle(
                     color: TuranColors.textDark,
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
@@ -56,14 +66,14 @@ class DiagnosticModuleBreakView extends StatelessWidget {
                   width: double.infinity,
                   child: ElevatedButton(
                     key: const Key('diagnostic-start-math-button'),
-                    onPressed: onStartMath,
+                    onPressed: onStartNextModule,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: TuranColors.primary,
                       foregroundColor: Colors.white,
                       minimumSize: const Size.fromHeight(48),
                       elevation: 0,
                     ),
-                    child: const Text('Start Math module'),
+                    child: Text('Start $nextModuleLabel'),
                   ),
                 ),
               ],
