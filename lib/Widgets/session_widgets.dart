@@ -314,6 +314,7 @@ class _SessionMetaCard extends StatelessWidget {
   final VoidCallback? onRemoveMockPdf;
   final VoidCallback? onOpenMockPdf;
   final VoidCallback onStudents, onSessions;
+  final bool canManageSessions;
   final VoidCallback? onDiagnosticResults;
 
   const _SessionMetaCard({
@@ -331,6 +332,7 @@ class _SessionMetaCard extends StatelessWidget {
     this.onOpenMockPdf,
     required this.onStudents,
     required this.onSessions,
+    required this.canManageSessions,
     this.onDiagnosticResults,
   });
 
@@ -389,13 +391,14 @@ class _SessionMetaCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (canManageClass) ...[
+                      if (canManageClass)
                         _MetaActionButton(
                           icon: Icons.group_rounded,
                           label: 'Students',
                           onTap: onStudents,
                         ),
-                        const SizedBox(height: 8),
+                      if (canManageSessions) ...[
+                        if (canManageClass) const SizedBox(height: 8),
                         _MetaActionButton(
                           icon: Icons.calendar_month_rounded,
                           label: 'Sessions',
@@ -403,7 +406,8 @@ class _SessionMetaCard extends StatelessWidget {
                         ),
                       ],
                       if (onDiagnosticResults != null) ...[
-                        if (canManageClass) const SizedBox(height: 8),
+                        if (canManageClass || canManageSessions)
+                          const SizedBox(height: 8),
                         _MetaActionButton(
                           icon: Icons.quiz_rounded,
                           label: 'Diagnostic results',
@@ -529,6 +533,7 @@ class _StudentSessionRow extends StatelessWidget {
   final bool canEditPastHomework;
   final void Function(String? url) onOpenLink;
   final VoidCallback? onToggleAttendance;
+  final void Function(MockResultInfo result)? onEditMock;
 
   const _StudentSessionRow({
     required this.student,
@@ -546,6 +551,7 @@ class _StudentSessionRow extends StatelessWidget {
     required this.canEditPastHomework,
     required this.onOpenLink,
     required this.onToggleAttendance,
+    this.onEditMock,
   });
 
   @override
@@ -637,6 +643,7 @@ class _StudentSessionRow extends StatelessWidget {
                         assignments: assignments,
                         mockResultsByAssignment: mockResultsByAssignment,
                         onOpenLink: onOpenLink,
+                        onEditResult: onEditMock,
                       )
                     else
                       _HomeworkPerStudentSection(

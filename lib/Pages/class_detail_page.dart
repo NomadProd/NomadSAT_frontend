@@ -11,9 +11,11 @@ import 'package:flutter_web/Pages/academic_plan_page.dart';
 import 'package:flutter_web/Pages/progress_history_page.dart';
 import 'package:flutter_web/screens/shared/diagnostic_class_results_screen.dart';
 import 'package:flutter_web/Utils/homework_pdf.dart';
+import 'package:flutter_web/Utils/session_permissions.dart';
 import 'package:flutter_web/Utils/assignment_copy.dart';
 import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Widgets/homework_pdf_section.dart';
+import 'package:flutter_web/Widgets/mock_result_edit_dialog.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/Widgets/weekly_schedule_picker.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
@@ -87,6 +89,17 @@ bool _isReviewSession(SessionInfo s) =>
 bool _isStaffAdmin(String role) {
   final normalized = role.toLowerCase();
   return normalized == 'admin' || normalized == 'mentor';
+}
+
+// Review sessions are admin/mentor only, so a tutor is never offered the type.
+List<DropdownMenuItem<String>> _sessionTypeItems({required bool allowReview}) {
+  return [
+    const DropdownMenuItem(value: 'verbal', child: Text('Verbal')),
+    const DropdownMenuItem(value: 'math', child: Text('Math')),
+    const DropdownMenuItem(value: 'mock', child: Text('Mock')),
+    if (allowReview)
+      const DropdownMenuItem(value: 'review', child: Text('Review')),
+  ];
 }
 
 bool _canOpenStudentProgress(UserInfo user) {
@@ -1770,8 +1783,8 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     required List<UserInfo> teachers,
   }) async {
     final d = _pageData;
-    final role = d?.user.role.toLowerCase();
-    if (role != 'admin' && role != 'mentor') return;
+    final role = d?.user.role.toLowerCase() ?? '';
+    if (!canManageSessions(role)) return;
     final dateC = TextEditingController(text: session.date);
     final startC = TextEditingController(text: _compactTime(session.startTime));
     final endC = TextEditingController(text: _compactTime(session.endTime));
@@ -1782,6 +1795,12 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
         sType != 'mock' &&
         sType != 'review') {
       sType = 'verbal';
+    }
+    if (sType == 'review' && !canManageReviewSessions(role)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Only admins and mentors can edit review sessions')),
+      );
+      return;
     }
     String subject =
         (session.subject ?? 'verbal').toLowerCase() == 'math' ? 'math' : 'verbal';
@@ -1849,12 +1868,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                 DropdownButtonFormField<String>(
                   value: sType,
                   decoration: _fieldDeco('Session type'),
-                  items: const [
-                    DropdownMenuItem(value: 'verbal', child: Text('Verbal')),
-                    DropdownMenuItem(value: 'math', child: Text('Math')),
-                    DropdownMenuItem(value: 'mock', child: Text('Mock')),
-                    DropdownMenuItem(value: 'review', child: Text('Review')),
-                  ],
+                  items: _sessionTypeItems(
+                    allowReview: canManageReviewSessions(role),
+                  ),
                   onChanged: (v) {
                     if (v == null) return;
                     setDlg(() {
@@ -1961,7 +1977,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final d = _pageData;
     if (d == null) return;
     final role = d.user.role.toLowerCase();
-    if (role != 'admin' && role != 'mentor') return;
+    if (!canManageSessions(role)) return;
     final dateC = TextEditingController();
     final startC = TextEditingController();
     final endC = TextEditingController();
@@ -2031,12 +2047,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                 DropdownButtonFormField<String>(
                   value: sType,
                   decoration: _fieldDeco('Session type'),
-                  items: const [
-                    DropdownMenuItem(value: 'verbal', child: Text('Verbal')),
-                    DropdownMenuItem(value: 'math', child: Text('Math')),
-                    DropdownMenuItem(value: 'mock', child: Text('Mock')),
-                    DropdownMenuItem(value: 'review', child: Text('Review')),
-                  ],
+                  items: _sessionTypeItems(
+                    allowReview: canManageReviewSessions(role),
+                  ),
                   onChanged: (v) {
                     if (v == null) return;
                     setDlg(() {
@@ -2142,7 +2155,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final d = _pageData;
     if (d == null) return;
     final role = d.user.role.toLowerCase();
-    if (role != 'admin' && role != 'mentor') return;
+    if (!canManageSessions(role)) return;
     final canDelete = _isStaffAdmin(role);
     await showDialog(
       context: context,
@@ -2778,7 +2791,11 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
     final isStaffAdmin = _isStaffAdmin(role);
     final canDeleteHomework = isStaffAdmin || role == 'teacher';
     final canEditPastHomework = isStaffAdmin;
+    // Backend PATCH /mock-results/{id} already allows teacher (own classes),
+    // mentor and admin — so tutors get the same correction pencil.
+    final canEditMockResult = isStaffAdmin || role == 'teacher';
     final canManageClass = isStaffAdmin;
+    final canManageSessionsForRole = canManageSessions(role);
     final canOpenStudentProgress = _canOpenStudentProgress(data.user);
     final selected = data.sessions.firstWhere(
       (s) => s.sessionId == _selectedSessionId,
@@ -2835,6 +2852,7 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                 mathTeacher: data.detail.mathTeacher,
                 teachers: data.teachers,
                 canManageClass: canManageClass,
+                canManageSessions: canManageSessionsForRole,
                 canManageMockPdf: canManageHomeworkPdf(role),
                 uploadingMockPdf: _uploadingMockPdf,
                 mockPdfMessage: _mockPdfMessage,
@@ -2900,6 +2918,14 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
                             sessionId: selected.sessionId,
                             studentId: student.userId,
                             current: att,
+                          )
+                        : null,
+                    onEditMock: canEditMockResult
+                        ? (result) => showMockResultEditDialog(
+                            context: context,
+                            result: result,
+                            classService: classService,
+                            onChanged: _reload,
                           )
                         : null,
                   ),

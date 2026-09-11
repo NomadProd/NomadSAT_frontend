@@ -10,12 +10,14 @@ class _MockInlineSection extends StatelessWidget {
   final List<AssignmentInfo> assignments;
   final Map<int, List<MockResultInfo>> mockResultsByAssignment;
   final void Function(String?) onOpenLink;
+  final void Function(MockResultInfo result)? onEditResult;
 
   const _MockInlineSection({
     required this.student,
     required this.assignments,
     required this.mockResultsByAssignment,
     required this.onOpenLink,
+    this.onEditResult,
   });
 
   @override
@@ -171,6 +173,17 @@ class _MockInlineSection extends StatelessWidget {
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                      if (onEditResult != null)
+                        IconButton(
+                          onPressed: () => onEditResult!(result),
+                          tooltip: 'Edit mock result',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(
+                            Icons.edit_rounded,
+                            size: 18,
+                            color: Colors.white,
                           ),
                         ),
                     ],
