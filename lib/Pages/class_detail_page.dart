@@ -5,6 +5,7 @@ import 'dart:html' as html;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
+import 'package:flutter_web/Utils/calendar_cell_layout.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/class_service.dart';
 import 'package:flutter_web/Pages/academic_plan_page.dart';

@@ -881,10 +881,11 @@ class _CalendarDayCell extends StatelessWidget {
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final availableH = constraints.maxHeight;
                   final count = sessions.length;
-                  final showTwoChips = count >= 2 && availableH >= 52;
-                  final visibleCount = showTwoChips ? 2 : 1;
+                  final visibleCount = calendarVisibleSessionCount(
+                    availableHeight: constraints.maxHeight,
+                    sessionCount: count,
+                  );
                   final visibleSessions = sessions.take(visibleCount).toList();
                   final remaining = count - visibleCount;
 
@@ -895,7 +896,9 @@ class _CalendarDayCell extends StatelessWidget {
                         Expanded(
                           child: Padding(
                             padding: EdgeInsets.only(
-                              bottom: (i < visibleSessions.length - 1 || remaining > 0) ? 3 : 0,
+                              bottom: (i < visibleSessions.length - 1 || remaining > 0)
+                                  ? kCalendarChipGap
+                                  : 0,
                             ),
                             child: _CompactSessionChip(
                               session: visibleSessions[i],
