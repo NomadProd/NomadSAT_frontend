@@ -105,6 +105,7 @@ class _DiagnosticDashboardScreenState extends State<DiagnosticDashboardScreen> {
                       ((snap.error as ApiException).statusCode == 403 ||
                           (snap.error as ApiException).statusCode == 404);
                   return ExamAttemptReviewDenied(
+                    denied: denied,
                     message: denied
                         ? 'You do not have permission to view these diagnostic results.'
                         : userFacingError(snap.error!),

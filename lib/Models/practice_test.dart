@@ -230,6 +230,10 @@ class PracticeTestAttempt {
   final int? mathScaled;
   final int? totalScaled;
 
+  /// Question id -> the student's saved answer (chosen key, or typed response).
+  /// Populated by GET /practice-tests/attempts/{id} so a test can be resumed.
+  final Map<int, String> answers;
+
   const PracticeTestAttempt({
     required this.id,
     required this.testId,
@@ -248,6 +252,7 @@ class PracticeTestAttempt {
     this.rwScaled,
     this.mathScaled,
     this.totalScaled,
+    this.answers = const {},
   });
 
   bool get isCompleted => status == 'completed';
@@ -272,7 +277,22 @@ class PracticeTestAttempt {
       rwScaled: json['rw_scaled'],
       mathScaled: json['math_scaled'],
       totalScaled: json['total_scaled'],
+      answers: _savedAnswers(json['answers']),
     );
+  }
+
+  /// Ignores answers with neither a choice nor typed text: an empty row is a
+  /// question the student has not answered.
+  static Map<int, String> _savedAnswers(dynamic raw) {
+    if (raw is! List) return const {};
+    final saved = <int, String>{};
+    for (final item in raw.whereType<Map>()) {
+      final questionId = item['question_id'];
+      final value = _optionalText(item['selected_choice']) ??
+          _optionalText(item['response_text']);
+      if (questionId is int && value != null) saved[questionId] = value;
+    }
+    return saved;
   }
 }
 

@@ -87,6 +87,7 @@ class _DiagnosticClassResultsScreenState
                       ((snap.error as ApiException).statusCode == 403 ||
                           (snap.error as ApiException).statusCode == 404);
                   return ExamAttemptReviewDenied(
+                    denied: denied,
                     message: denied
                         ? 'You do not have permission to view diagnostic results for this class.'
                         : userFacingError(snap.error!),

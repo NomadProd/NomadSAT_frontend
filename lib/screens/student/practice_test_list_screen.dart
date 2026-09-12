@@ -60,12 +60,27 @@ class _StudentPracticeTestListScreenState
 
   Future<void> _open(PracticeTestInfo test) async {
     final attempt = _attemptsByTest[test.id];
-    if (attempt != null) {
-      // One attempt per test: a taken test opens its review, never a retake.
+    if (attempt != null && attempt.isCompleted) {
+      // One attempt per test: a finished test opens its review, never a retake.
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => PracticeTestReviewScreen(
             attemptId: attempt.id,
+            service: widget.service,
+          ),
+        ),
+      );
+      await _load();
+      return;
+    }
+    if (attempt != null && attempt.isInProgress) {
+      // Resume: the review would refuse an unfinished attempt, leaving the
+      // student locked out of a test they can never submit.
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PracticeTestScreen(
+            testId: test.id,
+            attempt: attempt,
             service: widget.service,
           ),
         ),
@@ -261,7 +276,7 @@ class _StudentTestCard extends StatelessWidget {
                     taken
                         ? 'View your result'
                         : inProgress
-                            ? 'Attempt in progress'
+                            ? 'Continue test'
                             : 'Start test — one attempt only',
                     key: Key('student-practice-state-${test.id}'),
                     style: const TextStyle(

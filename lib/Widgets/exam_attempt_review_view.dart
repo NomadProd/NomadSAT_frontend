@@ -7,10 +7,15 @@ class ExamAttemptReviewDenied extends StatelessWidget {
   final String message;
   final VoidCallback? onRetry;
 
+  /// Whether this really is a permissions failure. An attempt that simply is not
+  /// finished yet is not, and must not be told it lacks permission.
+  final bool denied;
+
   const ExamAttemptReviewDenied({
     super.key,
     required this.message,
     this.onRetry,
+    this.denied = true,
   });
 
   @override
@@ -21,15 +26,17 @@ class ExamAttemptReviewDenied extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.lock_outline_rounded,
-              key: Key('diagnostic-access-denied'),
+            Icon(
+              denied ? Icons.lock_outline_rounded : Icons.info_outline_rounded,
+              key: denied
+                  ? const Key('diagnostic-access-denied')
+                  : const Key('exam-review-unavailable'),
               size: 48,
-              color: TuranColors.error,
+              color: denied ? TuranColors.error : TuranColors.textMid,
             ),
             const SizedBox(height: 12),
             Text(
-              'Access denied',
+              denied ? 'Access denied' : 'Not available yet',
               style: TuranTextStyles.title,
             ),
             const SizedBox(height: 8),

@@ -267,6 +267,17 @@ class PracticeTestService {
     return fetchMyAttempt(attemptId);
   }
 
+  /// The attempt with its saved answers, so a left test can be resumed.
+  /// Unlike [fetchMyAttempt] this carries `answers`; /attempts/me does not.
+  Future<PracticeTestAttempt> fetchAttempt(int attemptId) async {
+    final data = await _send(
+      'GET',
+      '/practice-tests/attempts/$attemptId',
+      failure: 'Failed to load your attempt',
+    );
+    return PracticeTestAttempt.fromJson(Map<String, dynamic>.from(data as Map));
+  }
+
   Future<PracticeTestAttempt> fetchMyAttempt(int attemptId) async {
     final attempts = await fetchMyAttempts();
     return attempts.firstWhere(

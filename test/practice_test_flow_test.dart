@@ -245,8 +245,8 @@ void main() {
     expect(find.text('Module Complete!'), findsOneWidget);
     expect(find.text('End test'), findsNothing);
     await _tapText(tester, 'Continue to Reading & Writing 2');
-    expect(find.text('Reading & Writing 1 complete'), findsOneWidget);
-    await _tapText(tester, 'Start Reading & Writing 2');
+    // Modules inside a section run back to back, Bluebook-style: no break.
+    expect(find.text('Reading & Writing 1 complete'), findsNothing);
     expect(service.moduleAdvances, [11]);
 
     // Reading & Writing module 2 — a different question list, not a repeat.
@@ -265,7 +265,7 @@ void main() {
     await _tapText(tester, 'Math1 two B');
     await _tapText(tester, 'Next');
     await _tapText(tester, 'Continue to Math 2');
-    await _tapText(tester, 'Start Math 2');
+    expect(find.text('Math 1 complete'), findsNothing);
 
     // Math module 2, including the grid-in question.
     await _tapText(tester, 'Math2 one B');

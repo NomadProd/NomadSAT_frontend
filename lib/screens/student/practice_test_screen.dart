@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/Models/practice_test.dart';
 import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Services/practice_test_service.dart';
+import 'package:flutter_web/Utils/exam_timer.dart';
 import 'package:flutter_web/Widgets/exam_module_break_view.dart';
 import 'package:flutter_web/Widgets/exam_module_review_view.dart';
 import 'package:flutter_web/Widgets/exam_question_taking_view.dart';
@@ -20,10 +23,19 @@ enum _Phase { taking, moduleReview, moduleBreak }
 class PracticeTestScreen extends StatefulWidget {
   final int testId;
 
+  /// An attempt already underway, to resume instead of starting a new one.
+  /// Starting a second attempt would 409: one attempt per test.
+  final PracticeTestAttempt? attempt;
+
   /// Injectable so the flow can be driven in tests without a server.
   final PracticeTestService? service;
 
-  const PracticeTestScreen({super.key, required this.testId, this.service});
+  const PracticeTestScreen({
+    super.key,
+    required this.testId,
+    this.attempt,
+    this.service,
+  });
 
   @override
   State<PracticeTestScreen> createState() => _PracticeTestScreenState();
@@ -44,6 +56,12 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   Duration _remaining = Duration.zero;
   Timer? _ticker;
 
+  /// Seconds the student spent out of the test, mirrored from the server so the
+  /// module clock does not run while they are away.
+  int _pauseSeconds = 0;
+  bool _paused = false;
+  AppLifecycleListener? _lifecycle;
+
   bool _loading = true;
   bool _completing = false;
   bool _calculatorOpen = false;
@@ -53,13 +71,51 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   @override
   void initState() {
     super.initState();
+    // Closing or hiding the tab is how students actually leave, not the button.
+    _lifecycle = AppLifecycleListener(
+      onHide: () => unawaited(_setPaused(true)),
+      onPause: () => unawaited(_setPaused(true)),
+      onShow: () => unawaited(_setPaused(false)),
+      onResume: () => unawaited(_setPaused(false)),
+    );
     _start();
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
+    _lifecycle?.dispose();
     super.dispose();
+  }
+
+  /// Stop or restart the module clock, on the server and locally.
+  Future<void> _setPaused(bool paused) async {
+    final attemptId = _attemptId;
+    if (attemptId == null || paused == _paused) return;
+    _paused = paused;
+    if (paused) {
+      _ticker?.cancel();
+    }
+    try {
+      final attempt = await _service.saveProgress(
+        attemptId: attemptId,
+        currentQuestionId: _questions.isEmpty ? null : _questions[_index].id,
+        pauseTimer: paused,
+      );
+      if (!mounted) return;
+      _pauseSeconds = attempt.timerPauseSeconds;
+    } catch (_) {
+      // A failed pause costs accurate time, never the test itself.
+    }
+    if (!paused && mounted) _resumeTicking();
+  }
+
+  void _resumeTicking() {
+    _tick();
+    _ticker?.cancel();
+    if (_remaining > Duration.zero) {
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+    }
   }
 
   PracticeTestModuleInfo get _module => _test!.modules[_moduleIndex];
@@ -74,19 +130,44 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   Future<void> _start() async {
     try {
       final test = await _service.fetchTest(widget.testId);
-      final attempt = await _service.startAttempt(widget.testId);
+      final resuming = widget.attempt;
+      // Resume carries the saved answers; startAttempt would 409 here.
+      var attempt = resuming == null
+          ? await _service.startAttempt(widget.testId)
+          : await _service.fetchAttempt(resuming.id);
+      if (attempt.timerPausedAt != null) {
+        // Coming back from a pause: bank the time away and restart the clock.
+        final resumed = await _service.saveProgress(
+          attemptId: attempt.id,
+          currentQuestionId: attempt.currentQuestionId,
+          pauseTimer: false,
+        );
+        _pauseSeconds = resumed.timerPauseSeconds;
+      } else {
+        _pauseSeconds = attempt.timerPauseSeconds;
+      }
       final questions = await _service.fetchAttemptQuestions(attempt.id);
       if (!mounted) return;
+      final moduleIndex = resuming == null
+          ? 0
+          : test.modules
+              .indexWhere((module) => module.id == attempt.currentModuleId);
       setState(() {
         _test = test;
         _attemptId = attempt.id;
         _questions = questions;
-        _moduleIndex = 0;
+        _moduleIndex = moduleIndex < 0 ? 0 : moduleIndex;
         _index = 0;
+        _answers
+          ..clear()
+          ..addAll(attempt.answers);
         _loading = false;
         _showMathToolsHint = false;
       });
-      _beginModule();
+      _beginModule(
+        resumeFrom: resuming == null ? null : attempt.moduleStartedAt,
+        resumeQuestionId: resuming == null ? null : attempt.currentQuestionId,
+      );
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -96,32 +177,57 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
     }
   }
 
-  void _beginModule() {
-    _moduleStartedAt = DateTime.now();
-    _index = _questions.indexWhere((q) => q.moduleId == _module.id);
+  void _beginModule({DateTime? resumeFrom, int? resumeQuestionId}) {
+    // A resumed module counts from when the server says it started, minus the
+    // seconds the student spent out of the test.
+    _moduleStartedAt = resumeFrom ?? clock.now();
+    _index = resumeQuestionId == null
+        ? -1
+        : _questions.indexWhere((q) => q.id == resumeQuestionId);
+    if (_index < 0) {
+      _index = _questions.indexWhere((q) => q.moduleId == _module.id);
+    }
     if (_index < 0) _index = 0;
+    final left = examModuleRemaining(
+      moduleStartedAt: _moduleStartedAt!,
+      now: clock.now(),
+      timeLimitSeconds: _module.timeLimitSeconds,
+      pauseSeconds: resumeFrom == null ? 0 : _pauseSeconds,
+    );
     setState(() {
-      _phase = _Phase.taking;
-      _showMathToolsHint = _module.isMath;
-      _remaining = Duration(seconds: _module.timeLimitSeconds);
+      // Time ran out while they were away: show this module's review so they
+      // can move on or submit. Deliberately not auto-advanced -- a student
+      // returning hours later must not be fast-forwarded through the rest.
+      _phase = left == Duration.zero ? _Phase.moduleReview : _Phase.taking;
+      _showMathToolsHint = _module.isMath && left > Duration.zero;
+      _remaining = left;
     });
     _ticker?.cancel();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+    if (left > Duration.zero) {
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+    }
   }
 
   void _tick() {
     final startedAt = _moduleStartedAt;
-    if (startedAt == null || !mounted) return;
-    final elapsed = DateTime.now().difference(startedAt).inSeconds;
-    final left = _module.timeLimitSeconds - elapsed;
-    setState(() => _remaining = Duration(seconds: left < 0 ? 0 : left));
-    if (left <= 0) {
+    if (startedAt == null || !mounted || _paused) return;
+    final left = examModuleRemaining(
+      moduleStartedAt: startedAt,
+      now: clock.now(),
+      timeLimitSeconds: _module.timeLimitSeconds,
+      pauseSeconds: _pauseSeconds,
+    );
+    setState(() => _remaining = left);
+    if (left > Duration.zero) return;
+    // Out of time: show the review, then move on by itself a tick later, the
+    // way Bluebook does. The ticker keeps running so that second step happens.
+    if (_phase == _Phase.taking) {
+      setState(() => _phase = _Phase.moduleReview);
+    } else if (_phase == _Phase.moduleReview) {
       _ticker?.cancel();
-      if (_phase == _Phase.taking) {
-        setState(() => _phase = _Phase.moduleReview);
-      } else if (_phase == _Phase.moduleReview) {
-        unawaited(_continueFromReview());
-      }
+      unawaited(_continueFromReview());
+    } else {
+      _ticker?.cancel();
     }
   }
 
@@ -185,11 +291,18 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   }
 
   Future<void> _continueFromReview() async {
-    if (!_isLastModule) {
-      setState(() => _phase = _Phase.moduleBreak);
+    if (_isLastModule) {
+      await _submit();
       return;
     }
-    await _submit();
+    // Bluebook runs the two modules of a section back to back and breaks only
+    // between sections.
+    final next = _test!.modules[_moduleIndex + 1];
+    if (next.section == _module.section) {
+      await _startNextModule();
+      return;
+    }
+    setState(() => _phase = _Phase.moduleBreak);
   }
 
   Future<void> _startNextModule() async {
@@ -211,13 +324,17 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
       _moduleIndex += 1;
       _completing = false;
     });
+    _pauseSeconds = 0;  // the server resets its pause total per module
     _beginModule();
   }
 
   Future<void> _submit() async {
     final attemptId = _attemptId;
     if (attemptId == null) return;
-    setState(() => _completing = true);
+    setState(() {
+      _completing = true;
+      _error = null;
+    });
     try {
       await _service.completeAttempt(attemptId);
       _ticker?.cancel();
@@ -245,7 +362,8 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Leave the test?'),
         content: const Text(
-          'You only get one attempt at this test. The timer keeps running.',
+          'You only get one attempt at this test. Your answers are saved and '
+          'the module timer stops until you come back.',
         ),
         actions: [
           TextButton(
@@ -260,7 +378,9 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
         ],
       ),
     );
-    if (leave == true && mounted) Navigator.of(context).pop();
+    if (leave != true || !mounted) return;
+    await _setPaused(true);
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -319,7 +439,7 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
           onStartNextModule: () => unawaited(_startNextModule()),
         );
       case _Phase.moduleReview:
-        return ExamModuleReviewView(
+        final review = ExamModuleReviewView(
           remaining: _remaining,
           isMath: _module.isMath,
           moduleLabel: _module.label,
@@ -340,6 +460,28 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
           onOpenReference: _module.isMath
               ? () => unawaited(showMathReferenceSheet(context))
               : null,
+        );
+        if (_error == null) return review;
+        // A failed submit must say so: the student is looking at this screen, and
+        // silence reads as a dead button.
+        return Column(
+          children: [
+            Container(
+              key: const Key('practice-test-submit-error'),
+              width: double.infinity,
+              color: TuranColors.error.withValues(alpha: 0.12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: TuranColors.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(child: review),
+          ],
         );
       case _Phase.taking:
         final question = _questions[_index];

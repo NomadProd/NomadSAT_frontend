@@ -63,6 +63,7 @@ class _DiagnosticAttemptReviewScreenState
                       )
                     : snap.hasError
                     ? ExamAttemptReviewDenied(
+                        denied: denied,
                         message: denied
                             ? 'You do not have permission to view this diagnostic attempt.'
                             : userFacingError(snap.error!),

@@ -37,6 +37,11 @@ class ExamQuestionFigure extends StatelessWidget {
                 padding: const EdgeInsets.all(10),
                 child: Image.network(
                   url,
+                  // Keyed by url: WebHtmlElementStrategy.prefer renders this as an
+                  // HTML <img> platform view, and the call sites pass a const key, so
+                  // without this the element is reused and the browser keeps showing
+                  // the previous question's image.
+                  key: ValueKey(url),
                   width: figureWidth,
                   fit: BoxFit.fitWidth,
                   semanticLabel: alt,

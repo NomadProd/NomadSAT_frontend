@@ -64,6 +64,7 @@ class _PracticeTestReviewScreenState extends State<PracticeTestReviewScreen> {
                       )
                     : snap.hasError
                         ? ExamAttemptReviewDenied(
+                            denied: denied,
                             message: denied
                                 ? 'You do not have permission to view this attempt.'
                                 : userFacingError(snap.error!),
