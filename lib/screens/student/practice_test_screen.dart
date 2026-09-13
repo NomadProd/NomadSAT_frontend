@@ -49,6 +49,17 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   List<ExamQuestion> _questions = [];
   final Map<int, String> _answers = {};
 
+  /// What the server has actually acknowledged. An answer only lands here once
+  /// the write came back clean, so anything missing is still owed.
+  final Map<int, String> _persistedAnswers = {};
+
+  /// Saves run one at a time: a grid-in types faster than the network, and
+  /// concurrent writes to one question race and can store a truncated answer.
+  Future<void> _saveChain = Future.value();
+  Timer? _saveDebounce;
+  int? _pendingQuestionId;
+  bool _hasUnsavedAnswer = false;
+
   int _moduleIndex = 0;
   int _index = 0;
   _Phase _phase = _Phase.taking;
@@ -84,6 +95,7 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   @override
   void dispose() {
     _ticker?.cancel();
+    _saveDebounce?.cancel();
     _lifecycle?.dispose();
     super.dispose();
   }
@@ -92,10 +104,6 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   Future<void> _setPaused(bool paused) async {
     final attemptId = _attemptId;
     if (attemptId == null || paused == _paused) return;
-    _paused = paused;
-    if (paused) {
-      _ticker?.cancel();
-    }
     try {
       final attempt = await _service.saveProgress(
         attemptId: attemptId,
@@ -103,11 +111,21 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
         pauseTimer: paused,
       );
       if (!mounted) return;
+      // Only believe the clock is paused once the server says so. Pausing
+      // first and failing after would leave the clock stopped for good.
+      _paused = paused;
       _pauseSeconds = attempt.timerPauseSeconds;
     } catch (_) {
-      // A failed pause costs accurate time, never the test itself.
+      // The server never recorded it, so the clock keeps running -- the
+      // student loses the time away, which beats a frozen timer.
+      if (!mounted) return;
+      _paused = false;
     }
-    if (!paused && mounted) _resumeTicking();
+    if (_paused) {
+      _ticker?.cancel();
+    } else {
+      _resumeTicking();
+    }
   }
 
   void _resumeTicking() {
@@ -231,25 +249,77 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
     }
   }
 
-  Future<void> _recordAnswer(ExamQuestion question, String value) async {
+  void _recordAnswer(ExamQuestion question, String value) {
     setState(() => _answers[question.id] = value);
+    // A grid-in fires on every keystroke, so wait for the typing to stop and
+    // send the finished answer once. A choice has nothing to wait for.
+    _saveDebounce?.cancel();
+    if (!question.isGridIn) {
+      _queueSave(question.id);
+      return;
+    }
+    _pendingQuestionId = question.id;
+    _saveDebounce = Timer(const Duration(milliseconds: 400), () {
+      _pendingQuestionId = null;
+      _queueSave(question.id);
+    });
+  }
+
+  /// Flush a debounced grid-in immediately -- on navigation or submit, the
+  /// student is done typing whether or not the timer has fired.
+  void _flushPendingAnswer() {
+    final pending = _pendingQuestionId;
+    _saveDebounce?.cancel();
+    _saveDebounce = null;
+    _pendingQuestionId = null;
+    if (pending != null) _queueSave(pending);
+  }
+
+  void _queueSave(int questionId) {
+    final previous = _saveChain;
+    _saveChain = previous.then((_) => _saveAnswer(questionId));
+  }
+
+  Future<void> _saveAnswer(int questionId) async {
     final attemptId = _attemptId;
-    if (attemptId == null) return;
+    final value = _answers[questionId];
+    if (attemptId == null || value == null) return;
+    if (_persistedAnswers[questionId] == value) return;
+    final question = _questions.firstWhere((q) => q.id == questionId);
     try {
       await _service.submitAnswer(
         attemptId: attemptId,
-        questionId: question.id,
+        questionId: questionId,
         selectedChoice: question.isGridIn ? null : value,
         responseText: question.isGridIn ? value : null,
       );
+      _persistedAnswers[questionId] = value;
     } catch (_) {
-      // A dropped keystroke must not interrupt the test; the next answer or
-      // the submit call re-sends the state that matters.
+      // Left out of _persistedAnswers on purpose: _resendUnsavedAnswers picks
+      // it up before submit, and until then the student can see it is unsaved.
     }
+    final unsaved = _answers.entries
+        .any((entry) => _persistedAnswers[entry.key] != entry.value);
+    if (mounted && unsaved != _hasUnsavedAnswer) {
+      setState(() => _hasUnsavedAnswer = unsaved);
+    }
+  }
+
+  /// Re-send everything the server never acknowledged. This is what makes
+  /// "the submit call re-sends the state that matters" actually true.
+  Future<void> _resendUnsavedAnswers() async {
+    _flushPendingAnswer();
+    for (final entry in _answers.entries) {
+      if (_persistedAnswers[entry.key] != entry.value) {
+        _queueSave(entry.key);
+      }
+    }
+    await _saveChain;
   }
 
   void _goTo(int index) {
     if (index < 0 || index >= _questions.length) return;
+    _flushPendingAnswer();
     setState(() => _index = index);
     unawaited(_syncPosition(_questions[index].id));
   }
@@ -316,8 +386,16 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
         currentModuleId: next.id,
       );
     } catch (_) {
-      // The client already knows which module comes next; a failed sync here
-      // only costs an accurate resume, not the test itself.
+      // Retry once: if the server keeps the old module, a later resume drops
+      // the student back into a module they have already finished.
+      try {
+        await _service.saveProgress(
+          attemptId: attemptId,
+          currentModuleId: next.id,
+        );
+      } catch (_) {
+        // Out of options; the client still advances so the test can continue.
+      }
     }
     if (!mounted) return;
     setState(() {
@@ -336,6 +414,8 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
       _error = null;
     });
     try {
+      // Nothing is submitted until every answer the student gave is stored.
+      await _resendUnsavedAnswers();
       await _service.completeAttempt(attemptId);
       _ticker?.cancel();
       if (!mounted) return;
@@ -486,7 +566,7 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
       case _Phase.taking:
         final question = _questions[_index];
         final moduleQuestions = _moduleQuestions;
-        return ExamQuestionTakingView(
+        final taking = ExamQuestionTakingView(
           remaining: _remaining,
           isMath: _module.isMath,
           sectionNumber:
@@ -501,7 +581,7 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
           showMathToolsHint: _showMathToolsHint,
           canGoBack:
               moduleQuestions.indexWhere((q) => q.id == question.id) > 0,
-          onSelect: (value) => unawaited(_recordAnswer(question, value)),
+          onSelect: (value) => _recordAnswer(question, value),
           onBack: _completing ? null : _back,
           onNext: _completing ? null : _next,
           onJumpToQuestion: (target) =>
@@ -511,6 +591,28 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
               setState(() => _calculatorOpen = !_calculatorOpen),
           onOpenReference: () => unawaited(showMathReferenceSheet(context)),
           onDismissHint: () => setState(() => _showMathToolsHint = false),
+        );
+        if (!_hasUnsavedAnswer) return taking;
+        // Never let a save that failed look like a saved answer.
+        return Column(
+          children: [
+            Container(
+              key: const Key('practice-test-unsaved'),
+              width: double.infinity,
+              color: TuranColors.warning.withValues(alpha: 0.16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: const Text(
+                'An answer has not saved yet. Keep going — it will be sent '
+                'again before you submit.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: TuranColors.textDark,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(child: taking),
+          ],
         );
     }
   }
