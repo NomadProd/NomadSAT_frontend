@@ -199,16 +199,4 @@ void main() {
     );
     expect(service.completeCalls, 1);
   });
-
-  testWidgets('an unsaved answer is shown to the student', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1280, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await _open(tester, _Service(failSubmitsBefore: 99));
-
-    await tester.enterText(find.byKey(const Key('exam-grid-in-field')), '2/3');
-    await _settleSaves(tester);
-
-    expect(find.byKey(const Key('practice-test-unsaved')), findsOneWidget,
-        reason: 'silence is what let two exams lose answers unnoticed');
-  });
 }

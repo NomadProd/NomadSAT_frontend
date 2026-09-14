@@ -57,7 +57,6 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   Future<void> _saveChain = Future.value();
   Timer? _saveDebounce;
   int? _pendingQuestionId;
-  bool _hasUnsavedAnswer = false;
 
   int _moduleIndex = 0;
   int _index = 0;
@@ -264,7 +263,7 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
       if (error.statusCode == 409) {
         // The module is over, or was left behind. The server will never take
         // this answer, so stop offering it -- retrying at submit would only
-        // fail again and pin the "not saved yet" warning there for good.
+        // fail again for no reason.
         _answers.remove(questionId);
         _persistedAnswers.remove(questionId);
       }
@@ -273,11 +272,6 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
     } catch (_) {
       // Left out of _persistedAnswers on purpose: _resendUnsavedAnswers picks
       // it up before submit, and until then the student can see it is unsaved.
-    }
-    final unsaved = _answers.entries
-        .any((entry) => _persistedAnswers[entry.key] != entry.value);
-    if (mounted && unsaved != _hasUnsavedAnswer) {
-      setState(() => _hasUnsavedAnswer = unsaved);
     }
   }
 
@@ -617,28 +611,7 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
           onOpenReference: () => unawaited(showMathReferenceSheet(context)),
           onDismissHint: () => setState(() => _showMathToolsHint = false),
         );
-        if (!_hasUnsavedAnswer) return taking;
-        // Never let a save that failed look like a saved answer.
-        return Column(
-          children: [
-            Container(
-              key: const Key('practice-test-unsaved'),
-              width: double.infinity,
-              color: TuranColors.warning.withValues(alpha: 0.16),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: const Text(
-                'An answer has not saved yet. Keep going — it will be sent '
-                'again before you submit.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: TuranColors.textDark,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Expanded(child: taking),
-          ],
-        );
+        return taking;
     }
   }
 
