@@ -7,6 +7,26 @@ import 'package:flutter_web/screens/student/practice_test_screen.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
+/// The attempt still running, if any. Only one can be.
+PracticeTestAttempt? inProgressAttempt(List<PracticeTestAttempt> attempts) {
+  for (final attempt in attempts) {
+    if (attempt.isInProgress) return attempt;
+  }
+  return null;
+}
+
+/// The student's best completed attempt -- what a retake is measured against.
+PracticeTestAttempt? bestAttempt(List<PracticeTestAttempt> attempts) {
+  PracticeTestAttempt? best;
+  for (final attempt in attempts) {
+    if (!attempt.isCompleted) continue;
+    if (best == null || (attempt.totalScaled ?? 0) > (best.totalScaled ?? 0)) {
+      best = attempt;
+    }
+  }
+  return best;
+}
+
 class StudentPracticeTestListScreen extends StatefulWidget {
   /// Injectable so the flow can be driven in tests without a server.
   final PracticeTestService? service;
@@ -23,7 +43,7 @@ class _StudentPracticeTestListScreenState
   late final _service = widget.service ?? PracticeTestService();
 
   List<PracticeTestInfo> _tests = [];
-  Map<int, PracticeTestAttempt> _attemptsByTest = {};
+  Map<int, List<PracticeTestAttempt>> _attemptsByTest = {};
   bool _loading = true;
   String? _error;
 
@@ -44,9 +64,10 @@ class _StudentPracticeTestListScreenState
       if (!mounted) return;
       setState(() {
         _tests = tests;
-        _attemptsByTest = {
-          for (final attempt in attempts) attempt.testId: attempt,
-        };
+        _attemptsByTest = {};
+        for (final attempt in attempts) {
+          (_attemptsByTest[attempt.testId] ??= []).add(attempt);
+        }
         _loading = false;
       });
     } catch (error) {
@@ -59,9 +80,10 @@ class _StudentPracticeTestListScreenState
   }
 
   Future<void> _open(PracticeTestInfo test) async {
-    final attempt = _attemptsByTest[test.id];
+    final attempts = _attemptsByTest[test.id] ?? const <PracticeTestAttempt>[];
+    final attempt = inProgressAttempt(attempts) ?? bestAttempt(attempts);
     if (attempt != null && attempt.isCompleted) {
-      // One attempt per test: a finished test opens its review, never a retake.
+      // Opens the best attempt's review; a retake is its own button.
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => PracticeTestReviewScreen(
@@ -88,12 +110,17 @@ class _StudentPracticeTestListScreenState
       await _load();
       return;
     }
+    await _startFresh(test);
+  }
+
+  /// Start a new attempt -- the first, or a retake once the last one is done.
+  Future<void> _startFresh(PracticeTestInfo test) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Start "${test.title}"?'),
         content: Text(
-          'You get one attempt. '
+          'Each attempt is timed and kept in your history. '
           '${test.modules.map((m) => '${m.sectionLabel} '
               '${m.requiredQuestionCount} questions in ${m.minutes} minutes').join('. ')}. '
           'Each module has its own timer and cannot be reopened once finished.',
@@ -177,7 +204,8 @@ class _StudentPracticeTestListScreenState
           final test = _tests[index];
           return _StudentTestCard(
             test: test,
-            attempt: _attemptsByTest[test.id],
+            attempts: _attemptsByTest[test.id] ?? const [],
+            onRetake: () => _startFresh(test),
             onTap: () => _open(test),
           );
         },
@@ -188,19 +216,25 @@ class _StudentPracticeTestListScreenState
 
 class _StudentTestCard extends StatelessWidget {
   final PracticeTestInfo test;
-  final PracticeTestAttempt? attempt;
+  final List<PracticeTestAttempt> attempts;
   final VoidCallback onTap;
+  final VoidCallback onRetake;
 
   const _StudentTestCard({
     required this.test,
-    required this.attempt,
+    required this.attempts,
     required this.onTap,
+    required this.onRetake,
   });
 
   @override
   Widget build(BuildContext context) {
-    final taken = attempt?.isCompleted == true;
-    final inProgress = attempt?.isInProgress == true;
+    final running = inProgressAttempt(attempts);
+    final best = bestAttempt(attempts);
+    final attempt = running ?? best;
+    final completedCount = attempts.where((a) => a.isCompleted).length;
+    final taken = best != null && running == null;
+    final inProgress = running != null;
     return Material(
       color: TuranColors.surface,
       borderRadius: BorderRadius.circular(TuranRadius.lg),
@@ -274,16 +308,28 @@ class _StudentTestCard extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     taken
-                        ? 'View your result'
+                        ? (completedCount > 1
+                            ? 'Best of $completedCount attempts'
+                            : 'View your result')
                         : inProgress
                             ? 'Continue test'
-                            : 'Start test — one attempt only',
+                            : 'Start test',
                     key: Key('student-practice-state-${test.id}'),
                     style: const TextStyle(
                       color: TuranColors.primary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  // A retake only once nothing is still running.
+                  if (taken) ...[
+                    const Spacer(),
+                    TextButton.icon(
+                      key: Key('student-practice-retake-${test.id}'),
+                      onPressed: onRetake,
+                      icon: const Icon(Icons.refresh_rounded, size: 18),
+                      label: const Text('Retake'),
+                    ),
+                  ],
                 ],
               ),
             ],

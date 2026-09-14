@@ -85,7 +85,6 @@ class _Service implements PracticeTestService {
     required int attemptId,
     int? currentQuestionId,
     int? currentModuleId,
-    bool? pauseTimer,
   }) async =>
       const PracticeTestAttempt(
           id: 99, testId: 1, studentId: 42, status: 'in_progress');

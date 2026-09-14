@@ -7,7 +7,6 @@ import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/Models/practice_test.dart';
 import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Services/practice_test_service.dart';
-import 'package:flutter_web/Utils/exam_timer.dart';
 import 'package:flutter_web/Widgets/exam_module_break_view.dart';
 import 'package:flutter_web/Widgets/exam_module_review_view.dart';
 import 'package:flutter_web/Widgets/exam_question_taking_view.dart';
@@ -63,15 +62,22 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   int _moduleIndex = 0;
   int _index = 0;
   _Phase _phase = _Phase.taking;
-  DateTime? _moduleStartedAt;
   Duration _remaining = Duration.zero;
   Timer? _ticker;
 
-  /// Seconds the student spent out of the test, mirrored from the server so the
-  /// module clock does not run while they are away.
-  int _pauseSeconds = 0;
-  bool _paused = false;
-  AppLifecycleListener? _lifecycle;
+  /// When this module runs out, in this device's own terms.
+  ///
+  /// The server says how many seconds are left and this is that answer plus
+  /// the moment we heard it, so a device clock that disagrees with the server
+  /// cannot change the result: only the passage of time here matters, never
+  /// what time this machine thinks it is.
+  DateTime? _deadline;
+
+  /// Ticks since we last told the server we are here. The heartbeat rides the
+  /// countdown rather than owning a timer: a backgrounded tab throttles both
+  /// together, which is exactly what the server's away-detection assumes.
+  int _ticksSinceSync = 0;
+  static const _syncEveryTicks = 20;
 
   bool _loading = true;
   bool _completing = false;
@@ -82,13 +88,9 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   @override
   void initState() {
     super.initState();
-    // Closing or hiding the tab is how students actually leave, not the button.
-    _lifecycle = AppLifecycleListener(
-      onHide: () => unawaited(_setPaused(true)),
-      onPause: () => unawaited(_setPaused(true)),
-      onShow: () => unawaited(_setPaused(false)),
-      onResume: () => unawaited(_setPaused(false)),
-    );
+    // Nothing listens for the tab being hidden any more. Switching away is not
+    // leaving, and the clock is the server's to stop: while this screen keeps
+    // reporting in, the student is here. Silence is what stops it.
     _start();
   }
 
@@ -96,44 +98,7 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   void dispose() {
     _ticker?.cancel();
     _saveDebounce?.cancel();
-    _lifecycle?.dispose();
     super.dispose();
-  }
-
-  /// Stop or restart the module clock, on the server and locally.
-  Future<void> _setPaused(bool paused) async {
-    final attemptId = _attemptId;
-    if (attemptId == null || paused == _paused) return;
-    try {
-      final attempt = await _service.saveProgress(
-        attemptId: attemptId,
-        currentQuestionId: _questions.isEmpty ? null : _questions[_index].id,
-        pauseTimer: paused,
-      );
-      if (!mounted) return;
-      // Only believe the clock is paused once the server says so. Pausing
-      // first and failing after would leave the clock stopped for good.
-      _paused = paused;
-      _pauseSeconds = attempt.timerPauseSeconds;
-    } catch (_) {
-      // The server never recorded it, so the clock keeps running -- the
-      // student loses the time away, which beats a frozen timer.
-      if (!mounted) return;
-      _paused = false;
-    }
-    if (_paused) {
-      _ticker?.cancel();
-    } else {
-      _resumeTicking();
-    }
-  }
-
-  void _resumeTicking() {
-    _tick();
-    _ticker?.cancel();
-    if (_remaining > Duration.zero) {
-      _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
-    }
   }
 
   PracticeTestModuleInfo get _module => _test!.modules[_moduleIndex];
@@ -153,17 +118,6 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
       var attempt = resuming == null
           ? await _service.startAttempt(widget.testId)
           : await _service.fetchAttempt(resuming.id);
-      if (attempt.timerPausedAt != null) {
-        // Coming back from a pause: bank the time away and restart the clock.
-        final resumed = await _service.saveProgress(
-          attemptId: attempt.id,
-          currentQuestionId: attempt.currentQuestionId,
-          pauseTimer: false,
-        );
-        _pauseSeconds = resumed.timerPauseSeconds;
-      } else {
-        _pauseSeconds = attempt.timerPauseSeconds;
-      }
       final questions = await _service.fetchAttemptQuestions(attempt.id);
       if (!mounted) return;
       final moduleIndex = resuming == null
@@ -183,7 +137,7 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
         _showMathToolsHint = false;
       });
       _beginModule(
-        resumeFrom: resuming == null ? null : attempt.moduleStartedAt,
+        secondsRemaining: attempt.secondsRemaining,
         resumeQuestionId: resuming == null ? null : attempt.currentQuestionId,
       );
     } catch (error) {
@@ -195,23 +149,24 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
     }
   }
 
-  void _beginModule({DateTime? resumeFrom, int? resumeQuestionId}) {
-    // A resumed module counts from when the server says it started, minus the
-    // seconds the student spent out of the test.
-    _moduleStartedAt = resumeFrom ?? clock.now();
+  /// Open a module, with the server's word on how long is left in it.
+  ///
+  /// [secondsRemaining] falling back to the module's full limit only happens
+  /// when the server said nothing; it can then only under-report how generous
+  /// the server is being, and late answers are refused there regardless.
+  void _beginModule({int? secondsRemaining, int? resumeQuestionId}) {
+    _syncDeadline(secondsRemaining ?? _module.timeLimitSeconds);
+    // The saved question only counts if it belongs to the module being opened:
+    // an older attempt can carry a question from the module before this one.
     _index = resumeQuestionId == null
         ? -1
-        : _questions.indexWhere((q) => q.id == resumeQuestionId);
+        : _questions.indexWhere(
+            (q) => q.id == resumeQuestionId && q.moduleId == _module.id);
     if (_index < 0) {
       _index = _questions.indexWhere((q) => q.moduleId == _module.id);
     }
     if (_index < 0) _index = 0;
-    final left = examModuleRemaining(
-      moduleStartedAt: _moduleStartedAt!,
-      now: clock.now(),
-      timeLimitSeconds: _module.timeLimitSeconds,
-      pauseSeconds: resumeFrom == null ? 0 : _pauseSeconds,
-    );
+    final left = _left();
     setState(() {
       // Time ran out while they were away: show this module's review so they
       // can move on or submit. Deliberately not auto-advanced -- a student
@@ -226,16 +181,27 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
     }
   }
 
+  /// Take the server's answer as the new truth about this module's clock.
+  void _syncDeadline(int secondsRemaining) {
+    _deadline = clock.now().add(Duration(seconds: secondsRemaining));
+    _ticksSinceSync = 0;
+  }
+
+  Duration _left() {
+    final deadline = _deadline;
+    if (deadline == null) return Duration.zero;
+    final left = deadline.difference(clock.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
   void _tick() {
-    final startedAt = _moduleStartedAt;
-    if (startedAt == null || !mounted || _paused) return;
-    final left = examModuleRemaining(
-      moduleStartedAt: startedAt,
-      now: clock.now(),
-      timeLimitSeconds: _module.timeLimitSeconds,
-      pauseSeconds: _pauseSeconds,
-    );
+    if (!mounted) return;
+    final left = _left();
     setState(() => _remaining = left);
+    if (++_ticksSinceSync >= _syncEveryTicks) {
+      _ticksSinceSync = 0;
+      unawaited(_syncPosition(_questions.isEmpty ? null : _questions[_index].id));
+    }
     if (left > Duration.zero) return;
     // Out of time: show the review, then move on by itself a tick later, the
     // way Bluebook does. The ticker keeps running so that second step happens.
@@ -294,6 +260,16 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
         responseText: question.isGridIn ? value : null,
       );
       _persistedAnswers[questionId] = value;
+    } on ApiException catch (error) {
+      if (error.statusCode == 409) {
+        // The module is over, or was left behind. The server will never take
+        // this answer, so stop offering it -- retrying at submit would only
+        // fail again and pin the "not saved yet" warning there for good.
+        _answers.remove(questionId);
+        _persistedAnswers.remove(questionId);
+      }
+      // Anything else is worth another try: left out of _persistedAnswers on
+      // purpose, so _resendUnsavedAnswers picks it up before submit.
     } catch (_) {
       // Left out of _persistedAnswers on purpose: _resendUnsavedAnswers picks
       // it up before submit, and until then the student can see it is unsaved.
@@ -324,14 +300,31 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
     unawaited(_syncPosition(_questions[index].id));
   }
 
-  Future<void> _syncPosition(int questionId) async {
+  /// Report in, and take back whatever the server now says about the clock.
+  ///
+  /// This carries the heartbeat as well as the position: while it keeps
+  /// arriving the student counts as present, and the silence when it stops is
+  /// what tells the server they have gone.
+  Future<void> _syncPosition(int? questionId) async {
     final attemptId = _attemptId;
     if (attemptId == null) return;
     try {
-      await _service.saveProgress(
+      final attempt = await _service.saveProgress(
         attemptId: attemptId,
         currentQuestionId: questionId,
       );
+      if (!mounted) return;
+      // The server finished the attempt because its last module ran out. That
+      // can arrive either as the answer to the beat that triggered it, or as a
+      // 409 on the one after.
+      if (attempt.isCompleted) {
+        unawaited(_openReview());
+        return;
+      }
+      final remaining = attempt.secondsRemaining;
+      if (remaining != null) _syncDeadline(remaining);
+    } on ApiException catch (error) {
+      if (error.statusCode == 409) unawaited(_openReview());
     } catch (_) {
       // Position is a convenience for resuming, never a blocker for answering.
     }
@@ -379,22 +372,34 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
     final attemptId = _attemptId;
     if (attemptId == null) return;
     final next = _test!.modules[_moduleIndex + 1];
+    // The module and the question it opens on move together, in one call: a
+    // module id saved without its question leaves the server pointing at a
+    // question of the module the student has just finished.
+    final nextQuestions = _questions.where((q) => q.moduleId == next.id);
+    final firstQuestion =
+        nextQuestions.isEmpty ? null : nextQuestions.first.id;
     setState(() => _completing = true);
+    int? remaining;
     try {
-      await _service.saveProgress(
+      remaining = (await _service.saveProgress(
         attemptId: attemptId,
         currentModuleId: next.id,
-      );
+        currentQuestionId: firstQuestion,
+      ))
+          .secondsRemaining;
     } catch (_) {
       // Retry once: if the server keeps the old module, a later resume drops
       // the student back into a module they have already finished.
       try {
-        await _service.saveProgress(
+        remaining = (await _service.saveProgress(
           attemptId: attemptId,
           currentModuleId: next.id,
-        );
+          currentQuestionId: firstQuestion,
+        ))
+            .secondsRemaining;
       } catch (_) {
-        // Out of options; the client still advances so the test can continue.
+        // Out of options; the client still advances so the test can continue,
+        // and the module's own limit stands in until the next sync corrects it.
       }
     }
     if (!mounted) return;
@@ -402,8 +407,24 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
       _moduleIndex += 1;
       _completing = false;
     });
-    _pauseSeconds = 0;  // the server resets its pause total per module
-    _beginModule();
+    // The new module's clock is whatever the server just started, not a fresh
+    // one invented here.
+    _beginModule(secondsRemaining: remaining);
+  }
+
+  /// Hand the student their score. The test is over by the time this runs.
+  Future<void> _openReview() async {
+    final attemptId = _attemptId;
+    if (attemptId == null || !mounted) return;
+    _ticker?.cancel();
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => PracticeTestReviewScreen(
+          attemptId: attemptId,
+          service: widget.service,
+        ),
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -417,16 +438,20 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
       // Nothing is submitted until every answer the student gave is stored.
       await _resendUnsavedAnswers();
       await _service.completeAttempt(attemptId);
-      _ticker?.cancel();
+      await _openReview();
+      return;
+    } on ApiException catch (error) {
+      // Already completed -- the server finished it when the clock ran out
+      // while this submit was on its way. That is their score, not an error.
+      if (error.statusCode == 409) {
+        await _openReview();
+        return;
+      }
       if (!mounted) return;
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => PracticeTestReviewScreen(
-            attemptId: attemptId,
-            service: widget.service,
-          ),
-        ),
-      );
+      setState(() {
+        _completing = false;
+        _error = userFacingError(error);
+      });
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -442,8 +467,9 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Leave the test?'),
         content: const Text(
-          'You only get one attempt at this test. Your answers are saved and '
-          'the module timer stops until you come back.',
+          'Your answers are saved. The module clock keeps running for a short '
+          'while after you go, so come back soon or you will lose the rest of '
+          'this module.',
         ),
         actions: [
           TextButton(
@@ -459,8 +485,7 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
       ),
     );
     if (leave != true || !mounted) return;
-    await _setPaused(true);
-    if (mounted) Navigator.of(context).pop();
+    Navigator.of(context).pop();
   }
 
   @override

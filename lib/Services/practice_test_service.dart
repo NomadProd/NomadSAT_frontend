@@ -248,27 +248,29 @@ class PracticeTestService {
     );
   }
 
+  /// Tell the server where the student is, and hear back what the clock says.
+  ///
+  /// With no arguments this is the taking screen's heartbeat: it reports only
+  /// that the student is still here, which is what keeps their clock running.
   Future<PracticeTestAttempt> saveProgress({
     required int attemptId,
     int? currentQuestionId,
     int? currentModuleId,
-    bool? pauseTimer,
   }) async {
-    await _send(
+    final data = await _send(
       'PATCH',
       '/practice-tests/attempts/$attemptId/progress',
       body: {
         'current_question_id': currentQuestionId,
         'current_module_id': currentModuleId,
-        'pause_timer': pauseTimer,
       },
       failure: 'Failed to save your progress',
     );
-    return fetchMyAttempt(attemptId);
+    return PracticeTestAttempt.fromJson(Map<String, dynamic>.from(data as Map));
   }
 
   /// The attempt with its saved answers, so a left test can be resumed.
-  /// Unlike [fetchMyAttempt] this carries `answers`; /attempts/me does not.
+  /// Unlike [fetchMyAttempts] this carries `answers`; /attempts/me does not.
   Future<PracticeTestAttempt> fetchAttempt(int attemptId) async {
     final data = await _send(
       'GET',
@@ -276,14 +278,6 @@ class PracticeTestService {
       failure: 'Failed to load your attempt',
     );
     return PracticeTestAttempt.fromJson(Map<String, dynamic>.from(data as Map));
-  }
-
-  Future<PracticeTestAttempt> fetchMyAttempt(int attemptId) async {
-    final attempts = await fetchMyAttempts();
-    return attempts.firstWhere(
-      (attempt) => attempt.id == attemptId,
-      orElse: () => throw const ApiException('Attempt not found'),
-    );
   }
 
   Future<PracticeTestAttempt> completeAttempt(int attemptId) async {

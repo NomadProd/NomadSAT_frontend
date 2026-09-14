@@ -222,8 +222,12 @@ class PracticeTestAttempt {
   final int? currentModuleId;
   final int? currentQuestionId;
   final DateTime? moduleStartedAt;
-  final DateTime? timerPausedAt;
   final int timerPauseSeconds;
+
+  /// What the module clock says, as decided by the server. The screen counts
+  /// down from this; it never works the remaining time out for itself, so a
+  /// device clock that is minutes out changes nothing.
+  final int? secondsRemaining;
   final int? rwRaw;
   final int? mathRaw;
   final int? rwScaled;
@@ -245,8 +249,8 @@ class PracticeTestAttempt {
     this.currentModuleId,
     this.currentQuestionId,
     this.moduleStartedAt,
-    this.timerPausedAt,
     this.timerPauseSeconds = 0,
+    this.secondsRemaining,
     this.rwRaw,
     this.mathRaw,
     this.rwScaled,
@@ -270,8 +274,8 @@ class PracticeTestAttempt {
       currentModuleId: json['current_module_id'],
       currentQuestionId: json['current_question_id'],
       moduleStartedAt: _optionalDate(json['module_started_at']),
-      timerPausedAt: _optionalDate(json['timer_paused_at']),
       timerPauseSeconds: json['timer_pause_seconds'] ?? 0,
+      secondsRemaining: json['seconds_remaining'],
       rwRaw: json['rw_raw'],
       mathRaw: json['math_raw'],
       rwScaled: json['rw_scaled'],

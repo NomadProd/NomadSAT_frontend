@@ -1,5 +1,8 @@
 // Bluebook-style module flow: automatic within a section, and a clock that
 // stops when the student leaves.
+import 'dart:async';
+
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_web/Models/exam_question.dart';
@@ -62,9 +65,13 @@ class _Service implements PracticeTestService {
 
   final PracticeTestAttempt? attempt;
 
-  /// Every pauseTimer value sent to saveProgress, in order.
-  final List<bool> pauseCalls = [];
-  int pauseSecondsToReport = 0;
+  /// What the server says is left in the module, if anything.
+  int? secondsRemainingToReport;
+
+  /// Every (module, question) pair sent to saveProgress, in order.
+  final List<({int? module, int? question})> progress = [];
+  /// When set, saveProgress hangs until this completes -- a slow network.
+  Completer<void>? gate;
 
   @override
   Future<PracticeTestInfo> fetchTest(int testId) async => _test();
@@ -95,13 +102,13 @@ class _Service implements PracticeTestService {
     required int attemptId,
     int? currentQuestionId,
     int? currentModuleId,
-    bool? pauseTimer,
   }) async {
-    if (pauseTimer != null) pauseCalls.add(pauseTimer);
+    progress.add((module: currentModuleId, question: currentQuestionId));
+    if (gate != null) await gate!.future;
     return PracticeTestAttempt(
       id: 99, testId: 1, studentId: 42, status: 'in_progress',
       currentModuleId: currentModuleId,
-      timerPauseSeconds: pauseSecondsToReport,
+      secondsRemaining: secondsRemainingToReport,
     );
   }
 
@@ -136,6 +143,13 @@ Future<void> _finishModule(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+String _timer(WidgetTester tester) => tester
+    .widget<Text>(find.descendant(
+      of: find.byKey(const Key('diagnostic-timer')),
+      matching: find.byType(Text),
+    ))
+    .data!;
+
 void main() {
   setUp(() => TestWidgetsFlutterBinding.ensureInitialized());
 
@@ -150,6 +164,21 @@ void main() {
       expect(find.byKey(const Key('diagnostic-module-break')), findsNothing,
           reason: 'modules inside a section must not stop at an interstitial');
       expect(find.text('RW2 Q1'), findsOneWidget);
+    });
+
+    testWidgets('moving on tells the server which question it landed on',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final service = await _start(tester);
+
+      await _finishModule(tester);
+
+      expect(find.text('RW2 Q1'), findsOneWidget);
+      final move = service.progress.last;
+      expect((move.module, move.question), (_rw2, 3),
+          reason: 'a module id without its question leaves the server pointing '
+              'at a question the student has already finished');
     });
 
     testWidgets('the R&W section still ends with a break', (tester) async {
@@ -181,22 +210,73 @@ void main() {
     });
   });
 
-  group('the clock stops when the student leaves', () {
-    testWidgets('leaving through the dialog pauses it', (tester) async {
+  group('the clock belongs to the server', () {
+    testWidgets('switching tab does not stop it', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await _start(tester);
+      final before = _timer(tester);
+
+      // Away and back again. Nothing about this is leaving the test, and the
+      // clock must not care.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump(const Duration(seconds: 3));
+
+      expect(_timer(tester), isNot(before),
+          reason: 'a switched tab is still sitting the test');
+    });
+
+    testWidgets('it reports in while the test is open', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1280, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final service = await _start(tester);
+      final before = service.progress.length;
 
-      await tester.tap(find.byIcon(Icons.close_rounded));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Leave'));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 25));
 
-      expect(service.pauseCalls, contains(true),
-          reason: 'leaving must stop the module clock');
+      expect(service.progress.length, greaterThan(before),
+          reason: 'silence is how the server learns the student has gone, so '
+              'an open test must keep saying it is here');
     });
 
-    testWidgets('the leave dialog no longer claims the timer keeps running',
+    testWidgets('the server can correct the clock', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final service = await _start(tester);
+      expect(_timer(tester), '32:00');
+
+      // The next heartbeat comes back saying there is far less left.
+      service.secondsRemainingToReport = 90;
+      await tester.pump(const Duration(seconds: 25));
+      await tester.pumpAndSettle();
+
+      // 90s from the sync, less the few ticks since: the point is that half
+      // an hour of client-side certainty gave way to the server's answer.
+      expect(_timer(tester), startsWith('01:'),
+          reason: 'whatever the server says is the time, even mid-module');
+    });
+
+    testWidgets('a resumed module opens on the server\'s clock',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await _start(
+        tester,
+        attempt: const PracticeTestAttempt(
+          id: 99, testId: 1, studentId: 42, status: 'in_progress',
+          currentModuleId: _rw1, currentQuestionId: 1,
+          secondsRemaining: 1320,
+        ),
+      );
+
+      expect(_timer(tester), '22:00');
+    });
+
+    testWidgets('the leave dialog tells the student the clock runs on',
         (tester) async {
       await tester.binding.setSurfaceSize(const Size(1280, 900));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -205,45 +285,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.close_rounded));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('timer keeps running'), findsNothing);
-    });
-
-    testWidgets('hiding the tab pauses, and showing it resumes',
-        (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1280, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      final service = await _start(tester);
-
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
-      await tester.pumpAndSettle();
-      expect(service.pauseCalls, contains(true),
-          reason: 'closing or hiding the tab is how students actually leave');
-
-      // A browser returning from hidden walks back up through inactive.
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-      await tester.pumpAndSettle();
-      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await tester.pumpAndSettle();
-      expect(service.pauseCalls.last, isFalse,
-          reason: 'coming back must restart the clock');
-    });
-
-    testWidgets('resuming a paused attempt banks the paused seconds',
-        (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1280, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      final service = await _start(
-        tester,
-        attempt: PracticeTestAttempt(
-          id: 99, testId: 1, studentId: 42, status: 'in_progress',
-          currentModuleId: _rw1,
-          moduleStartedAt: DateTime.now().subtract(const Duration(minutes: 10)),
-          timerPausedAt: DateTime.now().subtract(const Duration(minutes: 9)),
-        ),
-      );
-
-      expect(service.pauseCalls, contains(false),
-          reason: 'a paused attempt must be un-paused when the student returns');
+      expect(find.textContaining('clock keeps running'), findsOneWidget);
     });
   });
 }

@@ -104,7 +104,6 @@ class _Service implements PracticeTestService {
     required int attemptId,
     int? currentQuestionId,
     int? currentModuleId,
-    bool? pauseTimer,
   }) async =>
       attempt ??
       const PracticeTestAttempt(
@@ -133,7 +132,7 @@ PracticeTestAttempt _inProgress({
   int? currentModuleId = _rw1,
   int? currentQuestionId,
   Map<int, String> answers = const {},
-  DateTime? moduleStartedAt,
+  int? secondsRemaining,
 }) =>
     PracticeTestAttempt(
       id: 99,
@@ -142,7 +141,7 @@ PracticeTestAttempt _inProgress({
       status: 'in_progress',
       currentModuleId: currentModuleId,
       currentQuestionId: currentQuestionId,
-      moduleStartedAt: moduleStartedAt ?? DateTime.now(),
+      secondsRemaining: secondsRemaining,
       answers: answers,
     );
 
@@ -233,6 +232,24 @@ void main() {
     expect(find.text('Question 2 of 3'), findsOneWidget);
   });
 
+  testWidgets('a question saved from a finished module does not reopen',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    // Attempts saved before the module and its question moved together carry
+    // the next module alongside the last question of the previous one.
+    await _openTest(
+      tester,
+      _inProgress(currentModuleId: _rw2, currentQuestionId: 2),
+    );
+
+    expect(find.text('RW1 Q2'), findsNothing,
+        reason: 'that question belongs to a module the student has finished');
+    expect(find.text('RW2 Q1'), findsOneWidget);
+    expect(find.text('Question 1 of 3'), findsOneWidget);
+  });
+
   testWidgets('resuming a module whose time expired opens that module review',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1280, 900));
@@ -240,11 +257,8 @@ void main() {
 
     await _openTest(
       tester,
-      _inProgress(
-        currentModuleId: _math2,
-        // Math 2 allows 35 minutes; this student left 40 minutes ago.
-        moduleStartedAt: DateTime.now().subtract(const Duration(minutes: 40)),
-      ),
+      // The server has already worked out that there is nothing left of it.
+      _inProgress(currentModuleId: _math2, secondsRemaining: 0),
     );
 
     expect(find.byKey(const Key('diagnostic-module-review')), findsOneWidget);

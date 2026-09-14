@@ -44,14 +44,12 @@ List<ExamQuestion> _questions() => const [
 typedef Submitted = ({int questionId, String? choice, String? response});
 
 class _Service implements PracticeTestService {
-  _Service({this.failSubmitsBefore = 0, this.failPause = false});
+  _Service({this.failSubmitsBefore = 0});
 
   /// Throw from submitAnswer until this many calls have been made.
   final int failSubmitsBefore;
-  final bool failPause;
 
   final List<Submitted> submitted = [];
-  final List<bool> pauseCalls = [];
   final List<int> moduleAdvances = [];
   int submitAttempts = 0;
   int completeCalls = 0;
@@ -93,12 +91,7 @@ class _Service implements PracticeTestService {
     required int attemptId,
     int? currentQuestionId,
     int? currentModuleId,
-    bool? pauseTimer,
   }) async {
-    if (pauseTimer != null) {
-      pauseCalls.add(pauseTimer);
-      if (failPause) throw Exception('pause failed');
-    }
     if (currentModuleId != null) moduleAdvances.add(currentModuleId);
     return const PracticeTestAttempt(
         id: 99, testId: 1, studentId: 42, status: 'in_progress');
@@ -217,23 +210,5 @@ void main() {
 
     expect(find.byKey(const Key('practice-test-unsaved')), findsOneWidget,
         reason: 'silence is what let two exams lose answers unnoticed');
-  });
-
-  testWidgets('a failed pause does not freeze the clock', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1280, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    final service = await _open(tester, _Service(failPause: true));
-
-    final before = clock.now();
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
-    await _settleSaves(tester);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await _settleSaves(tester);
-
-    await tester.pump(const Duration(seconds: 5));
-    expect(clock.now().isAfter(before), isTrue);
-    expect(find.textContaining('34:'), findsWidgets,
-        reason: 'the module clock must keep running when a pause call fails');
   });
 }

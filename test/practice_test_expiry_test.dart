@@ -93,7 +93,6 @@ class _Service implements PracticeTestService {
     required int attemptId,
     int? currentQuestionId,
     int? currentModuleId,
-    bool? pauseTimer,
   }) async {
     if (currentModuleId != null) moduleAdvances.add(currentModuleId);
     return const PracticeTestAttempt(
