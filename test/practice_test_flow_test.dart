@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/Models/practice_test.dart';
 import 'package:flutter_web/Services/practice_test_service.dart';
+import 'package:flutter_web/Utils/exam_marks_store.dart';
 import 'package:flutter_web/screens/student/practice_test_list_screen.dart';
 
 /// Four modules, two questions each, so a full run fits in a widget test. The
@@ -212,6 +213,9 @@ Future<void> _tapText(WidgetTester tester, String text) async {
 }
 
 void main() {
+  // Flags outlive the widget tree by design, so each test starts clean.
+  setUp(() => ExamMarksStore.clear('practice-99'));
+
   testWidgets('a student runs all four modules, submits, and sees the review',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1280, 900));
@@ -234,6 +238,17 @@ void main() {
 
     // Reading & Writing module 1.
     expect(find.text('RW1 one'), findsOneWidget);
+    // Practice tests opt into the Bluebook controls; the diagnostic does not.
+    expect(find.byKey(const Key('exam-timer-toggle')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('exam-mark-toggle')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('exam-eliminate-A')));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<Text>(find.text('RW1 one A')).style?.decoration,
+      TextDecoration.lineThrough,
+    );
     await _tapText(tester, 'RW1 one B');
     await _tapText(tester, 'Next');
     expect(find.text('RW1 two'), findsOneWidget);
@@ -242,6 +257,10 @@ void main() {
 
     // Its review offers the next module by name, never "End test".
     expect(find.text('Module Complete!'), findsOneWidget);
+    // The flag's whole job: findable on the last screen before the module
+    // closes.
+    expect(find.byKey(const Key('exam-review-marked-1')), findsOneWidget);
+    expect(find.byKey(const Key('exam-review-marked-2')), findsNothing);
     expect(find.text('End test'), findsNothing);
     await _tapText(tester, 'Continue to Reading & Writing 2');
     // Modules inside a section run back to back, Bluebook-style: no break.
@@ -283,6 +302,59 @@ void main() {
     expect(find.text('B restates the claim.'), findsOneWidget);
   });
 
+  testWidgets('the last module asks before submitting with a gap',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final service = _FakeService();
+    await tester.pumpWidget(_app(service));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('student-practice-card-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('practice-confirm-start')));
+    await tester.pumpAndSettle();
+
+    await _tapText(tester, 'RW1 one B');
+    await _tapText(tester, 'Next');
+    // Left blank, and the module review moves on without a word: this module
+    // is about to close either way.
+    await _tapText(tester, 'Next');
+    expect(find.byKey(const Key('practice-submit-confirm')), findsNothing);
+    await _tapText(tester, 'Continue to Reading & Writing 2');
+
+    await _tapText(tester, 'RW2 one B');
+    await _tapText(tester, 'Next');
+    await _tapText(tester, 'RW2 two B');
+    await _tapText(tester, 'Next');
+    await _tapText(tester, 'Continue to Math 1');
+    await _tapText(tester, 'Start Math 1');
+
+    await _tapText(tester, 'Math1 one B');
+    await _tapText(tester, 'Next');
+    await _tapText(tester, 'Math1 two B');
+    await _tapText(tester, 'Next');
+    await _tapText(tester, 'Continue to Math 2');
+
+    // The grid-in is left empty, so the last module ends one short.
+    await _tapText(tester, 'Math2 one B');
+    await _tapText(tester, 'Next');
+    await _tapText(tester, 'Next');
+    await _tapText(tester, 'Submit test');
+
+    expect(find.byKey(const Key('practice-submit-confirm')), findsOneWidget);
+    expect(find.text('1 question is unanswered'), findsOneWidget);
+
+    await _tapText(tester, 'Go back');
+    expect(service.completed, isFalse);
+    expect(find.text('Submit test'), findsOneWidget);
+
+    await _tapText(tester, 'Submit test');
+    await tester.tap(find.byKey(const Key('practice-submit-anyway')));
+    await tester.pumpAndSettle();
+    expect(service.completed, isTrue);
+  });
+
   testWidgets('the grid-in answer is sent as typed text, not a choice',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(1280, 900));
@@ -317,6 +389,14 @@ void main() {
       ],
     );
     await tester.pumpWidget(_app(service));
+    await tester.pumpAndSettle();
+
+    // The dashboard panels sit above the list now, so in a test-sized viewport
+    // the card starts below the fold.
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('student-practice-card-1')),
+      200,
+    );
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('student-practice-score-1')), findsOneWidget);

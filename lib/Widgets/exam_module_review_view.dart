@@ -18,6 +18,10 @@ class ExamModuleReviewView extends StatelessWidget {
   final String? continueLabel;
   final List<ExamQuestion> questions;
   final Set<int> answeredQuestionIds;
+
+  /// Flagged questions. This screen is the whole point of the flag: the last
+  /// look before the module closes. Empty where marking is not offered.
+  final Set<int> markedQuestionIds;
   final bool completing;
   final VoidCallback onLeave;
   final ValueChanged<ExamQuestion> onReviewQuestion;
@@ -32,6 +36,7 @@ class ExamModuleReviewView extends StatelessWidget {
     this.continueLabel,
     required this.questions,
     required this.answeredQuestionIds,
+    this.markedQuestionIds = const {},
     required this.completing,
     required this.onLeave,
     required this.onReviewQuestion,
@@ -88,6 +93,7 @@ class ExamModuleReviewView extends StatelessWidget {
                       _NavigatorCard(
                         questions: questions,
                         answeredQuestionIds: answeredQuestionIds,
+                        markedQuestionIds: markedQuestionIds,
                         answeredCount: answeredCount,
                         unansweredCount: unansweredCount,
                         compact: compact,
@@ -384,6 +390,7 @@ class _StatusCard extends StatelessWidget {
 }
 
 class _NavigatorCard extends StatelessWidget {
+  final Set<int> markedQuestionIds;
   final List<ExamQuestion> questions;
   final Set<int> answeredQuestionIds;
   final int answeredCount;
@@ -397,6 +404,7 @@ class _NavigatorCard extends StatelessWidget {
   const _NavigatorCard({
     required this.questions,
     required this.answeredQuestionIds,
+    required this.markedQuestionIds,
     required this.answeredCount,
     required this.unansweredCount,
     required this.compact,
@@ -459,6 +467,7 @@ class _NavigatorCard extends StatelessWidget {
           _ReviewGrid(
             questions: questions,
             answeredQuestionIds: answeredQuestionIds,
+            markedQuestionIds: markedQuestionIds,
             onSelect: onReviewQuestion,
           ),
           const SizedBox(height: 16),
@@ -527,6 +536,7 @@ class _NavigatorCard extends StatelessWidget {
 }
 
 class _ReviewGrid extends StatelessWidget {
+  final Set<int> markedQuestionIds;
   final List<ExamQuestion> questions;
   final Set<int> answeredQuestionIds;
   final ValueChanged<ExamQuestion> onSelect;
@@ -534,6 +544,7 @@ class _ReviewGrid extends StatelessWidget {
   const _ReviewGrid({
     required this.questions,
     required this.answeredQuestionIds,
+    required this.markedQuestionIds,
     required this.onSelect,
   });
 
@@ -555,9 +566,11 @@ class _ReviewGrid extends StatelessWidget {
           itemBuilder: (context, index) {
             final item = questions[index];
             final answered = answeredQuestionIds.contains(item.id);
+            final marked = markedQuestionIds.contains(item.id);
             return _ReviewCell(
               number: index + 1,
               answered: answered,
+              marked: marked,
               onTap: () => onSelect(item),
             );
           },
@@ -570,11 +583,13 @@ class _ReviewGrid extends StatelessWidget {
 class _ReviewCell extends StatelessWidget {
   final int number;
   final bool answered;
+  final bool marked;
   final VoidCallback onTap;
 
   const _ReviewCell({
     required this.number,
     required this.answered,
+    required this.marked,
     required this.onTap,
   });
 
@@ -595,13 +610,29 @@ class _ReviewCell extends StatelessWidget {
             border: Border.all(color: color.withValues(alpha: 0.45)),
           ),
           alignment: Alignment.center,
-          child: Text(
-            '$number',
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w800,
-              fontSize: 16,
-            ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Text(
+                '$number',
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+              ),
+              if (marked)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Icon(
+                    Icons.bookmark_rounded,
+                    key: Key('exam-review-marked-$number'),
+                    size: 13,
+                    color: TuranColors.primary,
+                  ),
+                ),
+            ],
           ),
         ),
       ),

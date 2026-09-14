@@ -7,6 +7,10 @@ class ExamQuestionNavigator extends StatelessWidget {
   final List<ExamQuestion> questions;
   final int currentQuestionId;
   final Set<int> answeredQuestionIds;
+
+  /// Flagged questions. Empty where the caller does not offer marking, which
+  /// leaves the grid exactly as it was.
+  final Set<int> markedQuestionIds;
   final ValueChanged<ExamQuestion> onSelect;
   final VoidCallback onClose;
 
@@ -16,6 +20,7 @@ class ExamQuestionNavigator extends StatelessWidget {
     required this.questions,
     required this.currentQuestionId,
     required this.answeredQuestionIds,
+    this.markedQuestionIds = const {},
     required this.onSelect,
     required this.onClose,
   });
@@ -74,15 +79,20 @@ class ExamQuestionNavigator extends StatelessWidget {
                   Wrap(
                     spacing: 18,
                     runSpacing: 8,
-                    children: const [
-                      _LegendItem(
+                    children: [
+                      const _LegendItem(
                         icon: Icons.location_on,
                         label: 'Current',
                       ),
-                      _LegendItem(
+                      const _LegendItem(
                         dashed: true,
                         label: 'Unanswered',
                       ),
+                      if (markedQuestionIds.isNotEmpty)
+                        const _LegendItem(
+                          icon: Icons.bookmark_rounded,
+                          label: 'Marked',
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -90,6 +100,7 @@ class ExamQuestionNavigator extends StatelessWidget {
                     questions: questions,
                     currentQuestionId: currentQuestionId,
                     answeredQuestionIds: answeredQuestionIds,
+                    markedQuestionIds: markedQuestionIds,
                     onSelect: onSelect,
                   ),
                 ],
@@ -146,12 +157,14 @@ class _QuestionGrid extends StatelessWidget {
   final List<ExamQuestion> questions;
   final int currentQuestionId;
   final Set<int> answeredQuestionIds;
+  final Set<int> markedQuestionIds;
   final ValueChanged<ExamQuestion> onSelect;
 
   const _QuestionGrid({
     required this.questions,
     required this.currentQuestionId,
     required this.answeredQuestionIds,
+    required this.markedQuestionIds,
     required this.onSelect,
   });
 
@@ -176,6 +189,7 @@ class _QuestionGrid extends StatelessWidget {
               number: index + 1,
               current: item.id == currentQuestionId,
               answered: answeredQuestionIds.contains(item.id),
+              marked: markedQuestionIds.contains(item.id),
               onTap: () => onSelect(item),
             );
           },
@@ -189,12 +203,14 @@ class _QuestionCell extends StatelessWidget {
   final int number;
   final bool current;
   final bool answered;
+  final bool marked;
   final VoidCallback onTap;
 
   const _QuestionCell({
     required this.number,
     required this.current,
     required this.answered,
+    required this.marked,
     required this.onTap,
   });
 
@@ -218,7 +234,14 @@ class _QuestionCell extends StatelessWidget {
                     size: 14,
                     color: TuranColors.textDark,
                   )
-                : null,
+                : marked
+                    ? Icon(
+                        Icons.bookmark_rounded,
+                        key: Key('exam-nav-marked-$number'),
+                        size: 14,
+                        color: TuranColors.primary,
+                      )
+                    : null,
           ),
           Expanded(
             child: CustomPaint(

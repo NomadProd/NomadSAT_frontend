@@ -7,6 +7,16 @@ import 'package:flutter_web/Widgets/exam_question_navigator.dart';
 import 'package:flutter_web/Widgets/exam_timer_bar.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
+/// The eliminator for the question on screen: which choice keys are struck
+/// out, and how to strike one. Bundled so it threads through the three body
+/// layouts as a single parameter, and so null cleanly means "not offered".
+class ExamEliminator {
+  final Set<String> struck;
+  final ValueChanged<String> onToggle;
+
+  const ExamEliminator({required this.struck, required this.onToggle});
+}
+
 class ExamQuestionTakingView extends StatelessWidget {
   final Duration remaining;
   final bool isMath;
@@ -29,6 +39,22 @@ class ExamQuestionTakingView extends StatelessWidget {
   final VoidCallback onOpenReference;
   final VoidCallback onDismissHint;
   final bool isPreview;
+
+  /// The Bluebook-parity controls. Off by default so the diagnostic and
+  /// the admin preview keep the bar they have; practice tests turn it on.
+  final bool bluebookTools;
+
+  /// Owned by the screen so it outlives a module boundary.
+  final bool timerVisible;
+  final VoidCallback? onToggleTimer;
+
+  /// Flagged questions, for the navigator and for this question's own button.
+  /// A null callback means the caller does not offer marking.
+  final Set<int> markedQuestionIds;
+  final VoidCallback? onToggleMark;
+
+  /// Null where the eliminator is not offered.
+  final ExamEliminator? eliminator;
 
   const ExamQuestionTakingView({
     super.key,
@@ -53,6 +79,12 @@ class ExamQuestionTakingView extends StatelessWidget {
     required this.onOpenReference,
     required this.onDismissHint,
     this.isPreview = false,
+    this.bluebookTools = false,
+    this.timerVisible = true,
+    this.onToggleTimer,
+    this.markedQuestionIds = const {},
+    this.onToggleMark,
+    this.eliminator,
   });
 
   @override
@@ -67,13 +99,21 @@ class ExamQuestionTakingView extends StatelessWidget {
               isMath: isMath,
               onLeave: onLeave,
               leaveTooltip: isPreview ? 'Close preview' : 'Leave test',
+              timerVisible: timerVisible,
+              onToggleTimer: onToggleTimer,
               actions: [
+                if (onToggleMark != null)
+                  ExamMarkForReviewButton(
+                    marked: markedQuestionIds.contains(question.id),
+                    onToggle: onToggleMark!,
+                  ),
                 if (isMath)
                   ExamMathToolsBar(
                     calculatorOpen: calculatorOpen,
                     onToggleCalculator: onToggleCalculator,
                     onOpenReference: onOpenReference,
                   ),
+                if (bluebookTools) const ExamFullscreenButton(),
               ],
             ),
             if (isMath && showMathToolsHint)
@@ -104,6 +144,8 @@ class ExamQuestionTakingView extends StatelessWidget {
                 children: [
                   _QuestionBody(
                     compact: compact,
+                    markedQuestionIds: markedQuestionIds,
+                    eliminator: eliminator,
                     isMath: isMath,
                     sectionNumber: sectionNumber,
                     sectionQuestionCount: sectionQuestionCount,
@@ -136,6 +178,8 @@ class ExamQuestionTakingView extends StatelessWidget {
 
 class _QuestionBody extends StatelessWidget {
   final bool compact;
+  final Set<int> markedQuestionIds;
+  final ExamEliminator? eliminator;
   final bool isMath;
   final int sectionNumber;
   final int sectionQuestionCount;
@@ -152,6 +196,8 @@ class _QuestionBody extends StatelessWidget {
 
   const _QuestionBody({
     required this.compact,
+    required this.markedQuestionIds,
+    required this.eliminator,
     required this.isMath,
     required this.sectionNumber,
     required this.sectionQuestionCount,
@@ -179,17 +225,20 @@ class _QuestionBody extends StatelessWidget {
                       question: question,
                       selectedChoice: selectedChoice,
                       onSelect: onSelect,
+                      eliminator: eliminator,
                     )
                   : _SplitReadingBody(
                       question: question,
                       selectedChoice: selectedChoice,
                       onSelect: onSelect,
+                      eliminator: eliminator,
                     ))
               : _SingleColumnBody(
                   compact: compact,
                   question: question,
                   selectedChoice: selectedChoice,
                   onSelect: onSelect,
+                  eliminator: eliminator,
                 ),
         ),
         Material(
@@ -289,6 +338,7 @@ class _QuestionBody extends StatelessWidget {
           questions: sectionQuestions,
           currentQuestionId: question.id,
           answeredQuestionIds: answeredQuestionIds,
+          markedQuestionIds: markedQuestionIds,
           onSelect: (item) {
             Navigator.of(dialogContext).pop();
             onJumpToQuestion(item);
@@ -301,11 +351,13 @@ class _QuestionBody extends StatelessWidget {
 }
 
 class _SplitReadingBody extends StatelessWidget {
+  final ExamEliminator? eliminator;
   final ExamQuestion question;
   final String? selectedChoice;
   final ValueChanged<String> onSelect;
 
   const _SplitReadingBody({
+    required this.eliminator,
     required this.question,
     required this.selectedChoice,
     required this.onSelect,
@@ -327,6 +379,7 @@ class _SplitReadingBody extends StatelessWidget {
             question: question,
             selectedChoice: selectedChoice,
             onSelect: onSelect,
+            eliminator: eliminator,
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           ),
         ),
@@ -336,11 +389,13 @@ class _SplitReadingBody extends StatelessWidget {
 }
 
 class _StackedReadingBody extends StatelessWidget {
+  final ExamEliminator? eliminator;
   final ExamQuestion question;
   final String? selectedChoice;
   final ValueChanged<String> onSelect;
 
   const _StackedReadingBody({
+    required this.eliminator,
     required this.question,
     required this.selectedChoice,
     required this.onSelect,
@@ -359,6 +414,7 @@ class _StackedReadingBody extends StatelessWidget {
           question: question,
           selectedChoice: selectedChoice,
           onSelect: onSelect,
+          eliminator: eliminator,
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           scrollable: false,
         ),
@@ -368,12 +424,14 @@ class _StackedReadingBody extends StatelessWidget {
 }
 
 class _SingleColumnBody extends StatelessWidget {
+  final ExamEliminator? eliminator;
   final bool compact;
   final ExamQuestion question;
   final String? selectedChoice;
   final ValueChanged<String> onSelect;
 
   const _SingleColumnBody({
+    required this.eliminator,
     required this.compact,
     required this.question,
     required this.selectedChoice,
@@ -420,6 +478,7 @@ class _SingleColumnBody extends StatelessWidget {
                   question: question,
                   selectedChoice: selectedChoice,
                   onSelect: onSelect,
+                  eliminator: eliminator,
                 ),
               ],
             ),
@@ -489,6 +548,7 @@ class _PassagePane extends StatelessWidget {
 }
 
 class _TaskPane extends StatelessWidget {
+  final ExamEliminator? eliminator;
   final ExamQuestion question;
   final String? selectedChoice;
   final ValueChanged<String> onSelect;
@@ -496,6 +556,7 @@ class _TaskPane extends StatelessWidget {
   final bool scrollable;
 
   const _TaskPane({
+    required this.eliminator,
     required this.question,
     required this.selectedChoice,
     required this.onSelect,
@@ -531,6 +592,7 @@ class _TaskPane extends StatelessWidget {
         question: question,
         selectedChoice: selectedChoice,
         onSelect: onSelect,
+        eliminator: eliminator,
       ),
     ];
     return ColoredBox(
@@ -573,11 +635,13 @@ class _ChoiceList extends StatelessWidget {
   final ExamQuestion question;
   final String? selectedChoice;
   final ValueChanged<String> onSelect;
+  final ExamEliminator? eliminator;
 
   const _ChoiceList({
     required this.question,
     required this.selectedChoice,
     required this.onSelect,
+    required this.eliminator,
   });
 
   @override
@@ -597,6 +661,10 @@ class _ChoiceList extends StatelessWidget {
           _ChoiceTile(
             choice: choice,
             selected: selectedChoice == choice.key,
+            struck: eliminator?.struck.contains(choice.key) ?? false,
+            onEliminate: eliminator == null
+                ? null
+                : () => eliminator!.onToggle(choice.key),
             onTap: () => onSelect(choice.key),
           ),
           const SizedBox(height: 8),
@@ -767,12 +835,20 @@ class _FooterNavButton extends StatelessWidget {
 class _ChoiceTile extends StatelessWidget {
   final ExamChoice choice;
   final bool selected;
+
+  /// Eliminated: the student has ruled this one out. It stays tappable --
+  /// striking a choice is a working note, not a lock, and changing your mind
+  /// has to cost one tap rather than two.
+  final bool struck;
+  final VoidCallback? onEliminate;
   final VoidCallback onTap;
 
   const _ChoiceTile({
     required this.choice,
     required this.selected,
     required this.onTap,
+    this.struck = false,
+    this.onEliminate,
   });
 
   @override
@@ -816,14 +892,60 @@ class _ChoiceTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   choice.text,
-                  style: const TextStyle(
-                    color: TuranColors.textDark,
+                  style: TextStyle(
+                    color: struck ? TuranColors.textLight : TuranColors.textDark,
                     fontSize: 15,
                     height: 1.4,
+                    decoration: struck ? TextDecoration.lineThrough : null,
+                    decorationColor: TuranColors.textMid,
+                    decorationThickness: 2,
                   ),
                 ),
               ),
+              if (onEliminate != null) ...[
+                const SizedBox(width: 8),
+                _EliminateButton(
+                  choiceKey: choice.key,
+                  struck: struck,
+                  onPressed: onEliminate!,
+                ),
+              ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bluebook's answer eliminator. Kept alongside each choice rather than behind
+/// a mode switch: one control fewer to find, and the strike is one tap either
+/// way. Lives and dies with the attempt -- nothing is stored or reported.
+class _EliminateButton extends StatelessWidget {
+  final String choiceKey;
+  final bool struck;
+  final VoidCallback onPressed;
+
+  const _EliminateButton({
+    required this.choiceKey,
+    required this.struck,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: struck ? 'Undo eliminate $choiceKey' : 'Eliminate $choiceKey',
+      child: InkResponse(
+        key: Key('exam-eliminate-$choiceKey'),
+        onTap: onPressed,
+        radius: 20,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(
+            struck ? Icons.undo_rounded : Icons.backspace_outlined,
+            size: 18,
+            color: struck ? TuranColors.primary : TuranColors.textLight,
           ),
         ),
       ),

@@ -8,20 +8,6 @@ import 'package:flutter_web/Widgets/exam_question_preview_screen.dart';
 import 'package:flutter_web/Widgets/turan_header.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
-const _rwDomains = [
-  'Craft and Structure',
-  'Information and Ideas',
-  'Standard English Conventions',
-  'Expression of Ideas',
-];
-
-const _mathDomains = [
-  'Algebra',
-  'Advanced Math',
-  'Problem-Solving and Data Analysis',
-  'Geometry and Trigonometry',
-];
-
 const _difficulties = ['easy', 'medium', 'hard'];
 
 class PracticeTestEditorScreen extends StatefulWidget {
@@ -417,7 +403,7 @@ class _QuestionFormState extends State<_QuestionForm> {
 
   late int _slot = widget.slot;
   late String _domain = widget.existing?.domain ??
-      (widget.module.isMath ? _mathDomains.first : _rwDomains.first);
+      (widget.module.isMath ? kMathDomains.first : kRwDomains.first);
   late String _difficulty = widget.existing?.difficulty ?? 'easy';
   late bool _gridIn = widget.existing?.isGridIn ?? false;
   late String _correctChoice = widget.existing?.correctChoice ?? 'A';
@@ -442,7 +428,7 @@ class _QuestionFormState extends State<_QuestionForm> {
   }
 
   List<String> get _domains =>
-      widget.module.isMath ? _mathDomains : _rwDomains;
+      widget.module.isMath ? kMathDomains : kRwDomains;
 
   List<String> get _parsedAnswers => _answers.text
       .split(RegExp(r'[,\n]'))
@@ -675,41 +661,43 @@ class _QuestionFormState extends State<_QuestionForm> {
                     ),
                   )
                 else
-                  Column(
-                    children: [
-                      for (var index = 0; index < _choices.length; index++)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              Radio<String>(
-                                value: String.fromCharCode(65 + index),
-                                groupValue: _correctChoice,
-                                onChanged: (value) => setState(
-                                    () => _correctChoice = value ?? 'A'),
-                              ),
-                              Expanded(
-                                child: TextField(
-                                  key: Key('practice-form-choice-$index'),
-                                  controller: _choices[index],
-                                  decoration: InputDecoration(
-                                    labelText:
-                                        'Choice ${String.fromCharCode(65 + index)}',
+                  RadioGroup<String>(
+                    groupValue: _correctChoice,
+                    onChanged: (value) =>
+                        setState(() => _correctChoice = value ?? 'A'),
+                    child: Column(
+                      children: [
+                        for (var index = 0; index < _choices.length; index++)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Radio<String>(
+                                  value: String.fromCharCode(65 + index),
+                                ),
+                                Expanded(
+                                  child: TextField(
+                                    key: Key('practice-form-choice-$index'),
+                                    controller: _choices[index],
+                                    decoration: InputDecoration(
+                                      labelText:
+                                          'Choice ${String.fromCharCode(65 + index)}',
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                          ),
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Select the radio next to the correct choice.',
+                            style: TextStyle(
+                                color: TuranColors.textMid, fontSize: 12),
                           ),
                         ),
-                      const Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Select the radio next to the correct choice.',
-                          style: TextStyle(
-                              color: TuranColors.textMid, fontSize: 12),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 const SizedBox(height: 12),
                 TextField(

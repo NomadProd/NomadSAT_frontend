@@ -3,6 +3,23 @@
 /// Both the diagnostic and practice tests convert their own API models into
 /// this, so the timer, navigator, taking view and review views are written once.
 /// It carries exactly the fields those widgets read -- nothing more.
+library;
+
+/// The College Board domains, in report order. The admin editor offers these
+/// when tagging a question; the dashboard groups mastery by them.
+const kRwDomains = [
+  'Craft and Structure',
+  'Information and Ideas',
+  'Standard English Conventions',
+  'Expression of Ideas',
+];
+
+const kMathDomains = [
+  'Algebra',
+  'Advanced Math',
+  'Problem-Solving and Data Analysis',
+  'Geometry and Trigonometry',
+];
 
 const kExamImageScaleMin = 0.4;
 const kExamImageScaleMax = 1.0;
@@ -113,11 +130,11 @@ String sanitizeGridInInput(String raw) {
     if ('0123456789./'.contains(ch)) buffer.write(ch);
   }
   final text = buffer.toString();
-  final limit =
-      text.startsWith('-') ? kGridInMaxLengthNegative : kGridInMaxLength;
+  final limit = text.startsWith('-')
+      ? kGridInMaxLengthNegative
+      : kGridInMaxLength;
   return text.length <= limit ? text : text.substring(0, limit);
 }
-
 
 /// One graded question in a completed attempt's review.
 class ExamReviewAnswer {

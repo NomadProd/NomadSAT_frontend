@@ -7,6 +7,8 @@ import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/Models/practice_test.dart';
 import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Services/practice_test_service.dart';
+import 'package:flutter_web/Utils/exam_fullscreen.dart';
+import 'package:flutter_web/Utils/exam_marks_store.dart';
 import 'package:flutter_web/Widgets/exam_module_break_view.dart';
 import 'package:flutter_web/Widgets/exam_module_review_view.dart';
 import 'package:flutter_web/Widgets/exam_question_taking_view.dart';
@@ -78,6 +80,18 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   int _ticksSinceSync = 0;
   static const _syncEveryTicks = 20;
 
+  /// Owned here rather than in the timer bar, which is rebuilt at every module
+  /// boundary and would forget the choice.
+  bool _timerVisible = true;
+
+  /// Flagged questions, kept in the student's own browser: they survive a
+  /// refresh and a resume, never reach the server, and are dropped on submit.
+  final Set<int> _marked = {};
+
+  /// Struck-out choices, per question. Deliberately not stored -- eliminating
+  /// is thinking-out-loud for the question in front of you.
+  final Map<int, Set<String>> _eliminated = {};
+
   bool _loading = true;
   bool _completing = false;
   bool _calculatorOpen = false;
@@ -97,7 +111,26 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
   void dispose() {
     _ticker?.cancel();
     _saveDebounce?.cancel();
+    // Leaving the test must not leave the browser stuck fullscreen on the
+    // list behind it.
+    ExamFullscreen.exit();
     super.dispose();
+  }
+
+  String get _marksKey => 'practice-$_attemptId';
+
+  void _toggleMark(int questionId) {
+    setState(() {
+      if (!_marked.remove(questionId)) _marked.add(questionId);
+    });
+    ExamMarksStore.save(_marksKey, _marked);
+  }
+
+  void _toggleEliminated(int questionId, String choiceKey) {
+    setState(() {
+      final struck = _eliminated.putIfAbsent(questionId, () => {});
+      if (!struck.remove(choiceKey)) struck.add(choiceKey);
+    });
   }
 
   PracticeTestModuleInfo get _module => _test!.modules[_moduleIndex];
@@ -132,6 +165,9 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
         _answers
           ..clear()
           ..addAll(attempt.answers);
+        _marked
+          ..clear()
+          ..addAll(ExamMarksStore.load('practice-${attempt.id}'));
         _loading = false;
         _showMathToolsHint = false;
       });
@@ -347,6 +383,51 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
     ));
   }
 
+  /// The Continue button's path, as opposed to the clock's. A module that ran
+  /// out of time submits itself through `_continueFromReview` directly: asking
+  /// there would be asking about questions that can no longer be answered.
+  Future<void> _continueFromReviewButton() async {
+    if (_isLastModule && !await _confirmUnanswered()) return;
+    await _continueFromReview();
+  }
+
+  /// Counts only this module. The earlier ones cannot be reopened, so naming
+  /// their gaps is friction the student has no way to act on.
+  Future<bool> _confirmUnanswered() async {
+    final answered = _answeredIds;
+    final unanswered = _moduleQuestions
+        .where((question) => !answered.contains(question.id))
+        .length;
+    if (unanswered == 0) return true;
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const Key('practice-submit-confirm'),
+        title: Text(
+          unanswered == 1
+              ? '1 question is unanswered'
+              : '$unanswered questions are unanswered',
+        ),
+        content: const Text(
+          'This is the last module, so submitting now scores the test as it '
+          'stands. Unanswered questions are marked wrong.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Go back'),
+          ),
+          FilledButton(
+            key: const Key('practice-submit-anyway'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Submit anyway'),
+          ),
+        ],
+      ),
+    );
+    return submit == true;
+  }
+
   Future<void> _continueFromReview() async {
     if (_isLastModule) {
       await _submit();
@@ -432,6 +513,9 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
       // Nothing is submitted until every answer the student gave is stored.
       await _resendUnsavedAnswers();
       await _service.completeAttempt(attemptId);
+      // The flags were a scratchpad for sitting the test; nothing reads them
+      // afterwards, so they go with it.
+      ExamMarksStore.clear(_marksKey);
       await _openReview();
       return;
     } on ApiException catch (error) {
@@ -547,6 +631,7 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
               : 'Continue to ${_test!.modules[_moduleIndex + 1].label}',
           questions: _moduleQuestions,
           answeredQuestionIds: _answeredIds,
+          markedQuestionIds: _marked,
           completing: _completing,
           onLeave: () => unawaited(_confirmLeave()),
           onReviewQuestion: (question) {
@@ -555,7 +640,7 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
               _index = _questions.indexWhere((q) => q.id == question.id);
             });
           },
-          onContinue: () => unawaited(_continueFromReview()),
+          onContinue: () => unawaited(_continueFromReviewButton()),
           onOpenReference: _module.isMath
               ? () => unawaited(showMathReferenceSheet(context))
               : null,
@@ -586,6 +671,17 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
         final question = _questions[_index];
         final moduleQuestions = _moduleQuestions;
         final taking = ExamQuestionTakingView(
+          bluebookTools: true,
+          markedQuestionIds: _marked,
+          onToggleMark: () => _toggleMark(question.id),
+          eliminator: question.isGridIn
+              ? null
+              : ExamEliminator(
+                  struck: _eliminated[question.id] ?? const {},
+                  onToggle: (key) => _toggleEliminated(question.id, key),
+                ),
+          timerVisible: _timerVisible,
+          onToggleTimer: () => setState(() => _timerVisible = !_timerVisible),
           remaining: _remaining,
           isMath: _module.isMath,
           sectionNumber:
@@ -600,7 +696,12 @@ class _PracticeTestScreenState extends State<PracticeTestScreen> {
           showMathToolsHint: _showMathToolsHint,
           canGoBack:
               moduleQuestions.indexWhere((q) => q.id == question.id) > 0,
-          onSelect: (value) => _recordAnswer(question, value),
+          onSelect: (value) {
+            // Picking a choice you had struck out is a change of mind, so the
+            // strike goes rather than sitting on top of the selection.
+            _eliminated[question.id]?.remove(value);
+            _recordAnswer(question, value);
+          },
           onBack: _completing ? null : _back,
           onNext: _completing ? null : _next,
           onJumpToQuestion: (target) =>
