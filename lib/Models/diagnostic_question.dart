@@ -46,8 +46,10 @@ class DiagnosticQuestion {
   final String? questionImage;
   final String? questionImagePublicId;
   final double imageScale;
+  final ExamAnswerType answerType;
   final List<DiagnosticChoice> choices;
   final String? correctChoice;
+  final List<String>? correctAnswers;
   final String? explanation;
 
   const DiagnosticQuestion({
@@ -64,11 +66,14 @@ class DiagnosticQuestion {
     this.questionImage,
     this.questionImagePublicId,
     this.imageScale = kDiagnosticImageScaleDefault,
+    this.answerType = ExamAnswerType.multipleChoice,
     this.correctChoice,
+    this.correctAnswers,
     this.explanation,
   });
 
   bool get isMath => section == 'math';
+  bool get isGridIn => answerType == ExamAnswerType.gridIn;
 
   bool get hasPassage {
     final value = passageText?.trim() ?? '';
@@ -100,8 +105,12 @@ class DiagnosticQuestion {
       questionImage: _optionalText(json['question_image']),
       questionImagePublicId: _optionalText(json['question_image_public_id']),
       imageScale: _parseImageScale(json['image_scale']),
+      answerType: examAnswerTypeFrom(json['answer_type']),
       choices: choices,
       correctChoice: json['correct_choice']?.toString(),
+      correctAnswers: (json['correct_answers'] as List<dynamic>?)
+          ?.map((item) => item.toString())
+          .toList(),
       explanation: json['explanation']?.toString(),
     );
   }
@@ -116,10 +125,12 @@ class DiagnosticQuestion {
       questionText: questionText,
       questionImage: questionImage,
       imageScale: imageScale,
+      answerType: answerType,
       choices: choices
           .map((choice) => ExamChoice(key: choice.key, text: choice.text))
           .toList(),
       correctChoice: correctChoice,
+      correctAnswers: correctAnswers,
       explanation: explanation,
     );
   }
@@ -137,8 +148,11 @@ class DiagnosticQuestion {
       'question_image': questionImage,
       'question_image_public_id': questionImagePublicId,
       'image_scale': clampDiagnosticImageScale(imageScale),
-      'choices': choices.map((choice) => choice.toJson()).toList(),
-      'correct_choice': correctChoice,
+      'answer_type': isGridIn ? 'spr' : 'mcq',
+      'choices':
+          isGridIn ? null : choices.map((choice) => choice.toJson()).toList(),
+      'correct_choice': isGridIn ? null : correctChoice,
+      'correct_answers': isGridIn ? correctAnswers : null,
       'explanation': explanation,
     };
   }

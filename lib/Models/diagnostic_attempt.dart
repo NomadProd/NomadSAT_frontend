@@ -4,12 +4,14 @@ import 'package:flutter_web/Models/diagnostic_question.dart';
 class DiagnosticAnswer {
   final int questionId;
   final String? selectedChoice;
+  final String? responseText;
   final DateTime? answeredAt;
   final bool? isCorrect;
 
   const DiagnosticAnswer({
     required this.questionId,
     this.selectedChoice,
+    this.responseText,
     this.answeredAt,
     this.isCorrect,
   });
@@ -18,6 +20,7 @@ class DiagnosticAnswer {
     return DiagnosticAnswer(
       questionId: json['question_id'] ?? 0,
       selectedChoice: json['selected_choice']?.toString(),
+      responseText: json['response_text']?.toString(),
       answeredAt: _parseDateTime(json['answered_at']),
       isCorrect: json['is_correct'] as bool?,
     );
@@ -192,7 +195,9 @@ class DiagnosticAnswerReview {
   final double imageScale;
   final List<DiagnosticChoice> choices;
   final String? selectedChoice;
+  final String? responseText;
   final String correctChoice;
+  final List<String>? correctAnswers;
   final bool? isCorrect;
   final String? explanation;
 
@@ -209,6 +214,8 @@ class DiagnosticAnswerReview {
     this.questionImage,
     this.imageScale = kDiagnosticImageScaleDefault,
     this.selectedChoice,
+    this.responseText,
+    this.correctAnswers,
     this.isCorrect,
     this.explanation,
   });
@@ -227,15 +234,19 @@ class DiagnosticAnswerReview {
           .map((choice) => ExamChoice(key: choice.key, text: choice.text))
           .toList(),
       selectedChoice: selectedChoice,
+      responseText: responseText,
       correctChoice: correctChoice,
+      correctAnswers: correctAnswers,
       isCorrect: isCorrect,
       explanation: explanation,
     );
   }
 
   bool get isMath => section == 'math';
-  bool get isUnanswered =>
-      selectedChoice == null || selectedChoice!.trim().isEmpty;
+  bool get isUnanswered {
+    final given = choices.isEmpty ? responseText : selectedChoice;
+    return given == null || given.trim().isEmpty;
+  }
   bool get hasExplanation {
     final value = explanation?.trim() ?? '';
     return value.isNotEmpty;
@@ -263,7 +274,11 @@ class DiagnosticAnswerReview {
       imageScale: _parseReviewImageScale(json['image_scale']),
       choices: choices,
       selectedChoice: json['selected_choice']?.toString(),
+      responseText: json['response_text']?.toString(),
       correctChoice: json['correct_choice']?.toString() ?? '',
+      correctAnswers: (json['correct_answers'] as List<dynamic>?)
+          ?.map((item) => item.toString())
+          .toList(),
       isCorrect: json['is_correct'] as bool?,
       explanation: json['explanation']?.toString(),
     );

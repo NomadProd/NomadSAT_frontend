@@ -2,16 +2,16 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
-import 'package:http/browser_client.dart';
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter_web/Models/diagnostic_attempt.dart';
 import 'package:flutter_web/Models/diagnostic_question.dart';
 import 'package:flutter_web/Services/api_config.dart';
 import 'package:flutter_web/Services/api_json.dart';
+import 'package:flutter_web/Services/authed_client.dart';
 
 class DiagnosticService {
   final String baseUrl = ApiConfig.baseUrl;
-  final http.Client _client = BrowserClient()..withCredentials = true;
+  final http.Client _client = createAuthedClient();
 
   Future<List<DiagnosticQuestion>> fetchQuestionBank() async {
     final response = await _client.get(
@@ -236,7 +236,8 @@ class DiagnosticService {
   Future<void> submitAnswer({
     required int attemptId,
     required int questionId,
-    required String selectedChoice,
+    String? selectedChoice,
+    String? responseText,
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/diagnostic/attempts/$attemptId/answers'),
@@ -244,6 +245,7 @@ class DiagnosticService {
       body: jsonEncode({
         'question_id': questionId,
         'selected_choice': selectedChoice,
+        'response_text': responseText,
       }),
     );
     final data = decodeJsonResponse(response);

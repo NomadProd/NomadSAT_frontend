@@ -375,6 +375,10 @@ class _ReviewQuestionCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
+          if (answer.isGridIn) ...[
+            _ReviewGridIn(answer: answer),
+            const SizedBox(height: 8),
+          ],
           for (final choice in answer.choices) ...[
             _ReviewChoiceTile(answer: answer, choice: choice),
             const SizedBox(height: 8),
@@ -457,6 +461,60 @@ class _ReviewChoiceTile extends StatelessWidget {
             ),
           ),
           if (icon != null) Icon(icon, color: iconColor, size: 20),
+        ],
+      ),
+    );
+  }
+}
+
+/// A grid-in has no choices to colour: show what was typed and what was accepted.
+class _ReviewGridIn extends StatelessWidget {
+  final ExamReviewAnswer answer;
+
+  const _ReviewGridIn({required this.answer});
+
+  @override
+  Widget build(BuildContext context) {
+    final correct = answer.isCorrect == true;
+    return Container(
+      key: Key('exam-review-grid-in-${answer.orderIndex}'),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      decoration: BoxDecoration(
+        color: TuranColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: TuranColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!answer.isUnanswered)
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Your answer: ${answer.responseText!.trim()}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: TuranColors.textDark,
+                    ),
+                  ),
+                ),
+                Icon(
+                  correct ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                  color: correct ? TuranColors.success : TuranColors.error,
+                  size: 20,
+                ),
+              ],
+            ),
+          if (!answer.isUnanswered) const SizedBox(height: 6),
+          Text(
+            'Accepted: ${answer.correctAnswerLabel}',
+            style: const TextStyle(
+              color: TuranColors.success,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );

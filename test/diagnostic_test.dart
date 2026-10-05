@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_web/Models/diagnostic_attempt.dart';
 import 'package:flutter_web/Models/diagnostic_question.dart';
 import 'package:flutter_web/Models/exam_question.dart';
+import 'package:flutter_web/Services/diagnostic_service.dart';
 import 'package:flutter_web/Utils/desmos_config.dart';
 import 'package:flutter_web/Utils/diagnostic_layout.dart';
 import 'package:flutter_web/Utils/math_reference.dart';
@@ -16,6 +17,7 @@ import 'package:flutter_web/Widgets/exam_question_taking_view.dart';
 import 'package:flutter_web/Widgets/exam_timer_bar.dart';
 import 'package:flutter_web/Widgets/math_reference_sheet_panel.dart';
 import 'package:flutter_web/screens/student/diagnostic_results_screen.dart';
+import 'package:flutter_web/screens/student/diagnostic_test_screen.dart';
 
 DiagnosticAttempt _completedAttempt() {
   return DiagnosticAttempt(
@@ -896,6 +898,72 @@ void main() {
     await pumpAt(const Size(1280, 800));
     await tester.binding.setSurfaceSize(null);
   });
+
+  testWidgets('review shows a grid-in answer and the accepted answers', (
+    tester,
+  ) async {
+    final detail = DiagnosticAttemptDetail.fromJson({
+      'attempt_id': 3,
+      'student': {'id': 7, 'name': 'Ada', 'surname': 'Lovelace'},
+      'status': 'completed',
+      'total_range_low': 1200,
+      'total_range_high': 1360,
+      'answers': [
+        {
+          'order_index': 12,
+          'section': 'math',
+          'domain': 'Advanced Math',
+          'difficulty': 'easy',
+          'points': 3,
+          'question_text': 'Solve for x',
+          'answer_type': 'spr',
+          'choices': [],
+          'response_text': '.6667',
+          'correct_answers': ['2/3'],
+          'is_correct': true,
+        },
+      ],
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ExamAttemptReviewView(
+            detail: detail.toExamReview(),
+            showStudentName: false,
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Your answer: .6667'), findsOneWidget);
+    expect(find.text('Accepted: 2/3'), findsOneWidget);
+  });
+
+  testWidgets('diagnostic grid-in shows a text field and saves what is typed', (
+    tester,
+  ) async {
+    final service = _GridInService();
+    await tester.pumpWidget(
+      MaterialApp(home: DiagnosticTestScreen(service: service)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Continue test'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byKey(const Key('exam-grid-in-field')), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('exam-grid-in-field')), '2/3');
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(service.submitted, [(questionId: 12, choice: null, response: '2/3')]);
+
+    // Emptying the field sends an empty answer, which the server clears.
+    await tester.enterText(find.byKey(const Key('exam-grid-in-field')), '');
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(service.submitted.last, (questionId: 12, choice: null, response: ''));
+
+    // Stop the section timer before the test ends.
+    await tester.pumpWidget(const SizedBox());
+  });
 }
 
 const _kReviewDetail = DiagnosticAttemptDetail(
@@ -1107,4 +1175,72 @@ class _TakingHarnessState extends State<_TakingHarness> {
       ),
     );
   }
+
+}
+
+class _GridInService implements DiagnosticService {
+  final List<({int questionId, String? choice, String? response})> submitted = [];
+
+  final _attempt = DiagnosticAttempt(
+    id: 5,
+    studentId: 7,
+    startedAt: DateTime.now().subtract(const Duration(minutes: 13)),
+    status: 'in_progress',
+    mathStartedAt: DateTime.now(),
+    currentQuestionId: 12,
+  );
+
+  @override
+  Future<List<DiagnosticAttempt>> fetchAttempts() async => [_attempt];
+
+  @override
+  Future<List<DiagnosticQuestion>> fetchAttemptQuestions(int attemptId) async =>
+      const [
+        DiagnosticQuestion(
+          id: 1,
+          section: 'reading_writing',
+          domain: 'Craft and Structure',
+          difficulty: 'easy',
+          orderIndex: 1,
+          questionText: 'RW Q1',
+          choices: [
+            DiagnosticChoice(key: 'A', text: 'A'),
+            DiagnosticChoice(key: 'B', text: 'B'),
+          ],
+        ),
+        DiagnosticQuestion(
+          id: 12,
+          section: 'math',
+          domain: 'Advanced Math',
+          difficulty: 'easy',
+          orderIndex: 12,
+          questionText: 'Math grid-in',
+          choices: [],
+          answerType: ExamAnswerType.gridIn,
+        ),
+      ];
+
+  @override
+  Future<DiagnosticProgressSnapshot> saveProgress({
+    required int attemptId,
+    required int currentQuestionId,
+    DateTime? mathStartedAt,
+    bool? pauseTimer,
+  }) async =>
+      DiagnosticProgressSnapshot(currentQuestionId: currentQuestionId);
+
+  @override
+  Future<void> submitAnswer({
+    required int attemptId,
+    required int questionId,
+    String? selectedChoice,
+    String? responseText,
+  }) async {
+    submitted.add(
+      (questionId: questionId, choice: selectedChoice, response: responseText),
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

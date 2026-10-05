@@ -18,14 +18,17 @@ import 'package:flutter_web/screens/student/diagnostic_results_screen.dart';
 import 'package:flutter_web/theme/turan_theme.dart';
 
 class DiagnosticTestScreen extends StatefulWidget {
-  const DiagnosticTestScreen({super.key});
+  const DiagnosticTestScreen({super.key, this.service});
+
+  /// Injected by tests; the screen builds its own otherwise.
+  final DiagnosticService? service;
 
   @override
   State<DiagnosticTestScreen> createState() => _DiagnosticTestScreenState();
 }
 
 class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
-  final _service = DiagnosticService();
+  late final _service = widget.service ?? DiagnosticService();
 
   bool _loading = true;
   bool _starting = false;
@@ -45,6 +48,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
   Future<void> _saveChain = Future.value();
   final Map<int, String> _persistedChoices = {};
   Timer? _timer;
+  Timer? _gridInDebounce;
   Duration _remaining = const Duration(seconds: kDiagnosticRwSeconds);
   int _pauseSeconds = 0;
   bool _expiryHandled = false;
@@ -62,6 +66,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _gridInDebounce?.cancel();
     super.dispose();
   }
 
@@ -151,7 +156,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     questions.sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
     final saved = <int, String>{};
     for (final answer in existingAnswers) {
-      final choice = answer.selectedChoice;
+      final choice = answer.selectedChoice ?? answer.responseText;
       if (choice != null && choice.isNotEmpty) {
         saved[answer.questionId] = choice;
       }
@@ -259,6 +264,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
 
   void _queueSaveCurrentSelection({String? choiceOverride}) {
     if (_questions.isEmpty) return;
+    _gridInDebounce?.cancel();
     unawaited(
       _saveSelection(
         questionId: _questions[_index].id,
@@ -269,6 +275,7 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
 
   Future<void> _saveCurrentSelection({String? choiceOverride}) async {
     if (_questions.isEmpty) return;
+    _gridInDebounce?.cancel();
     await _saveSelection(
       questionId: _questions[_index].id,
       choice: choiceOverride ?? _selectedChoice,
@@ -282,22 +289,34 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
     bool reportError = false,
   }) async {
     final attemptId = _attemptId;
-    if (attemptId == null || choice == null || choice.isEmpty) return;
-    _savedChoices[questionId] = choice;
-    if (_persistedChoices[questionId] == choice) return;
+    if (attemptId == null || choice == null) return;
+    final isGridIn = _questions.any((q) => q.id == questionId && q.isGridIn);
+    // An emptied grid-in is sent so the server clears it; an MCQ has no "empty".
+    if (choice.isEmpty && !isGridIn) return;
+    if (choice.isEmpty) {
+      _savedChoices.remove(questionId);
+    } else {
+      _savedChoices[questionId] = choice;
+    }
+    if ((_persistedChoices[questionId] ?? '') == choice) return;
 
     final previous = _saveChain;
     final gate = Completer<void>();
     _saveChain = gate.future;
     try {
       await previous;
-      if (_persistedChoices[questionId] == choice) return;
+      if ((_persistedChoices[questionId] ?? '') == choice) return;
       await _service.submitAnswer(
         attemptId: attemptId,
         questionId: questionId,
-        selectedChoice: choice,
+        selectedChoice: isGridIn ? null : choice,
+        responseText: isGridIn ? choice : null,
       );
-      _persistedChoices[questionId] = choice;
+      if (choice.isEmpty) {
+        _persistedChoices.remove(questionId);
+      } else {
+        _persistedChoices[questionId] = choice;
+      }
     } catch (error) {
       if (!mounted || !reportError) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -541,8 +560,27 @@ class _DiagnosticTestScreenState extends State<DiagnosticTestScreen> {
         showMathToolsHint: _showMathToolsHint,
         canGoBack: _canGoBack,
         onSelect: (choice) {
-          setState(() => _selectedChoice = choice);
-          unawaited(_saveCurrentSelection(choiceOverride: choice));
+          final question = _questions[_index];
+          setState(() {
+            _selectedChoice = choice;
+            if (question.isGridIn) {
+              if (choice.isEmpty) {
+                _savedChoices.remove(question.id);
+              } else {
+                _savedChoices[question.id] = choice;
+              }
+            }
+          });
+          if (!question.isGridIn) {
+            unawaited(_saveCurrentSelection(choiceOverride: choice));
+            return;
+          }
+          // A grid-in fires on every keystroke: send once typing stops.
+          // Navigation and leaving save the current value straight away.
+          _gridInDebounce?.cancel();
+          _gridInDebounce = Timer(const Duration(milliseconds: 400), () {
+            unawaited(_saveSelection(questionId: question.id, choice: choice));
+          });
         },
         onBack: _completing ? null : () => unawaited(_goBack()),
         onNext: _completing ? null : () => unawaited(_goNext()),

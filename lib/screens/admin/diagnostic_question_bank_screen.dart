@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_web/Models/class_models.dart';
 import 'package:flutter_web/Models/diagnostic_question.dart';
+import 'package:flutter_web/Models/exam_question.dart';
 import 'package:flutter_web/Services/api_json.dart';
 import 'package:flutter_web/Services/auth_service.dart';
 import 'package:flutter_web/Services/diagnostic_service.dart';
@@ -387,6 +388,8 @@ class _DiagnosticQuestionFormScreenState
     'D': TextEditingController(),
   };
   String _correctChoice = 'A';
+  final _answersController = TextEditingController();
+  bool _gridIn = false;
   bool _saving = false;
   bool _uploadingImage = false;
   String? _error;
@@ -407,6 +410,8 @@ class _DiagnosticQuestionFormScreenState
       _imagePublicId = question.questionImagePublicId;
       _imageScale = clampDiagnosticImageScale(question.imageScale);
       _correctChoice = (question.correctChoice ?? 'A').toUpperCase();
+      _gridIn = question.isGridIn;
+      _answersController.text = (question.correctAnswers ?? const []).join(', ');
       for (final choice in question.choices) {
         _choiceControllers[choice.key]?.text = choice.text;
       }
@@ -419,6 +424,7 @@ class _DiagnosticQuestionFormScreenState
     _passageController.dispose();
     _urlController.dispose();
     _explanationController.dispose();
+    _answersController.dispose();
     for (final controller in _choiceControllers.values) {
       controller.dispose();
     }
@@ -462,6 +468,15 @@ class _DiagnosticQuestionFormScreenState
     });
   }
 
+  // Grid-in is Math only; the switch is hidden on RW slots.
+  bool get _isGridIn => widget.slot.isMath && _gridIn;
+
+  List<String> get _parsedAnswers => _answersController.text
+      .split(RegExp(r'[,\n]'))
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
+
   DiagnosticQuestion _draftQuestion() {
     final slot = widget.slot;
     return DiagnosticQuestion(
@@ -483,16 +498,20 @@ class _DiagnosticQuestionFormScreenState
       questionImage: _imageUrl,
       questionImagePublicId: _imagePublicId,
       imageScale: _imageScale,
-      choices: [
-        for (final key in ['A', 'B', 'C', 'D'])
-          DiagnosticChoice(
-            key: key,
-            text: _choiceControllers[key]!.text.trim().isEmpty
-                ? key
-                : _choiceControllers[key]!.text.trim(),
-          ),
-      ],
+      choices: _isGridIn
+          ? const []
+          : [
+              for (final key in ['A', 'B', 'C', 'D'])
+                DiagnosticChoice(
+                  key: key,
+                  text: _choiceControllers[key]!.text.trim().isEmpty
+                      ? key
+                      : _choiceControllers[key]!.text.trim(),
+                ),
+            ],
       correctChoice: _correctChoice,
+      answerType: _isGridIn ? ExamAnswerType.gridIn : ExamAnswerType.multipleChoice,
+      correctAnswers: _parsedAnswers,
       explanation: _explanationController.text.trim().isEmpty
           ? null
           : _explanationController.text.trim(),
@@ -534,10 +553,17 @@ class _DiagnosticQuestionFormScreenState
       setState(() => _error = 'Question text is required');
       return;
     }
-    for (final entry in _choiceControllers.entries) {
-      if (entry.value.text.trim().isEmpty) {
-        setState(() => _error = 'Choice ${entry.key} is required');
+    if (_isGridIn) {
+      if (_parsedAnswers.isEmpty) {
+        setState(() => _error = 'At least one accepted answer is required');
         return;
+      }
+    } else {
+      for (final entry in _choiceControllers.entries) {
+        if (entry.value.text.trim().isEmpty) {
+          setState(() => _error = 'Choice ${entry.key} is required');
+          return;
+        }
       }
     }
 
@@ -563,6 +589,8 @@ class _DiagnosticQuestionFormScreenState
           DiagnosticChoice(key: key, text: _choiceControllers[key]!.text.trim()),
       ],
       correctChoice: _correctChoice,
+      answerType: _isGridIn ? ExamAnswerType.gridIn : ExamAnswerType.multipleChoice,
+      correctAnswers: _parsedAnswers,
       explanation: _explanationController.text.trim().isEmpty
           ? null
           : _explanationController.text.trim(),
@@ -741,26 +769,51 @@ class _DiagnosticQuestionFormScreenState
                           ),
                         ),
                         const SizedBox(height: 16),
-                        for (final key in ['A', 'B', 'C', 'D']) ...[
-                          TextField(
-                            controller: _choiceControllers[key],
-                            maxLines: 2,
-                            decoration: InputDecoration(labelText: 'Choice $key'),
+                        if (slot.isMath)
+                          SwitchListTile(
+                            key: const Key('diagnostic-form-gridin-switch'),
+                            contentPadding: EdgeInsets.zero,
+                            value: _gridIn,
+                            title: const Text('Student-produced response (grid-in)'),
+                            subtitle: const Text(
+                              'The student types an answer instead of picking a choice.',
+                            ),
+                            onChanged: (value) => setState(() => _gridIn = value),
                           ),
-                          const SizedBox(height: 10),
-                        ],
-                        DropdownButtonFormField<String>(
-                          value: _correctChoice,
-                          decoration: const InputDecoration(labelText: 'Correct choice'),
-                          items: [
-                            for (final key in ['A', 'B', 'C', 'D'])
-                              DropdownMenuItem(value: key, child: Text(key)),
+                        if (_isGridIn)
+                          TextField(
+                            key: const Key('diagnostic-form-answers'),
+                            controller: _answersController,
+                            decoration: const InputDecoration(
+                              labelText: 'Accepted answers',
+                              helperText:
+                                  'Comma separated, e.g. 2/3, 0.667. Equivalent forms '
+                                  'are matched automatically.',
+                              helperMaxLines: 3,
+                            ),
+                          )
+                        else ...[
+                          for (final key in ['A', 'B', 'C', 'D']) ...[
+                            TextField(
+                              controller: _choiceControllers[key],
+                              maxLines: 2,
+                              decoration: InputDecoration(labelText: 'Choice $key'),
+                            ),
+                            const SizedBox(height: 10),
                           ],
-                          onChanged: (value) {
-                            if (value == null) return;
-                            setState(() => _correctChoice = value);
-                          },
-                        ),
+                          DropdownButtonFormField<String>(
+                            value: _correctChoice,
+                            decoration: const InputDecoration(labelText: 'Correct choice'),
+                            items: [
+                              for (final key in ['A', 'B', 'C', 'D'])
+                                DropdownMenuItem(value: key, child: Text(key)),
+                            ],
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(() => _correctChoice = value);
+                            },
+                          ),
+                        ],
                         const SizedBox(height: 12),
                         TextField(
                           controller: _explanationController,
