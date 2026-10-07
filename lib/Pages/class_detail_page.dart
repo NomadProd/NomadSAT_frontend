@@ -2442,7 +2442,8 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
       );
       return;
     }
-    int? selectedId = available.first.userId;
+    final byId = {for (final s in available) s.userId: s};
+    int? selectedId;
     final result = await showDialog<int?>(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -2452,18 +2453,26 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
           width: 460,
           content: Padding(
             padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-            child: DropdownButtonFormField<int>(
-              value: selectedId,
-              decoration: _fieldDeco('Select student'),
-              items: available
+            child: DropdownMenu<int>(
+              expandedInsets: EdgeInsets.zero,
+              enableFilter: true,
+              requestFocusOnTap: true,
+              menuHeight: 320,
+              label: const Text('Select student'),
+              hintText: 'Search by name or ID',
+              leadingIcon: const Icon(Icons.search_rounded),
+              filterCallback: (entries, query) => entries
+                  .where((e) => byId[e.value]!.matchesSearch(query))
+                  .toList(),
+              dropdownMenuEntries: available
                   .map(
-                    (s) => DropdownMenuItem<int>(
+                    (s) => DropdownMenuEntry<int>(
                       value: s.userId,
-                      child: Text('${s.name} ${s.surname}  (ID: ${s.userId})'),
+                      label: '${s.name} ${s.surname}  (ID: ${s.userId})',
                     ),
                   )
                   .toList(),
-              onChanged: (v) => setDlg(() => selectedId = v),
+              onSelected: (v) => setDlg(() => selectedId = v),
             ),
           ),
           actions: [
@@ -2473,7 +2482,9 @@ class _ClassDetailPageState extends State<ClassDetailPage> {
             ),
             const SizedBox(width: 8),
             FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(selectedId),
+              onPressed: selectedId == null
+                  ? null
+                  : () => Navigator.of(ctx).pop(selectedId),
               child: const Text('Add'),
             ),
           ],

@@ -17,6 +17,7 @@ class _UserListScreenState extends State<UserListScreen> {
   final _classService = ClassService();
   final _authService = AuthService();
   late Future<_UserListData> _future;
+  String _query = '';
 
   @override
   void initState() {
@@ -58,7 +59,8 @@ class _UserListScreenState extends State<UserListScreen> {
     return false;
   }
 
-  List<UserInfo> _visibleUsers(UserInfo actor, List<UserInfo> users) => users;
+  List<UserInfo> _visibleUsers(UserInfo actor, List<UserInfo> users) =>
+      users.where((u) => u.matchesSearch(_query)).toList();
 
   Future<void> _showCreateDialog(UserInfo actor) async {
     final nameController = TextEditingController();
@@ -376,15 +378,35 @@ class _UserListScreenState extends State<UserListScreen> {
                     ? Center(child: Text('Failed to load users: ${snap.error}'))
                     : !canAccess
                     ? const Center(child: Text('Access denied'))
-                    : _UserListBody(
-                        users: _visibleUsers(currentUser!, snap.data!.users),
-                        currentUser: currentUser,
-                        canEdit: (target) =>
-                            _canEditTarget(currentUser, target),
-                        canDelete: (target) =>
-                            _canDeleteTarget(currentUser, target),
-                        onEdit: (user) => _showEditDialog(currentUser, user),
-                        onDelete: _deleteUser,
+                    : Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(22, 22, 22, 0),
+                            child: TextField(
+                              decoration: const InputDecoration(
+                                prefixIcon: Icon(Icons.search_rounded),
+                                hintText: 'Search by name or ID',
+                              ),
+                              onChanged: (v) => setState(() => _query = v),
+                            ),
+                          ),
+                          Expanded(
+                            child: _UserListBody(
+                              users: _visibleUsers(
+                                currentUser!,
+                                snap.data!.users,
+                              ),
+                              currentUser: currentUser,
+                              canEdit: (target) =>
+                                  _canEditTarget(currentUser, target),
+                              canDelete: (target) =>
+                                  _canDeleteTarget(currentUser, target),
+                              onEdit: (user) =>
+                                  _showEditDialog(currentUser, user),
+                              onDelete: _deleteUser,
+                            ),
+                          ),
+                        ],
                       ),
               ),
             ],

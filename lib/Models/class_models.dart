@@ -15,6 +15,15 @@ class UserInfo {
 
   String get fullName => '$name $surname'.trim();
 
+  /// Case-insensitive match on name (either order) or user ID prefix.
+  bool matchesSearch(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return fullName.toLowerCase().contains(q) ||
+        '$surname $name'.toLowerCase().contains(q) ||
+        userId.toString().startsWith(q);
+  }
+
   factory UserInfo.fromJson(Map<String, dynamic> json) {
     return UserInfo(
       userId: json['user_id'] ?? 0,

@@ -143,7 +143,8 @@ class ClassService {
     );
 
     if (response.statusCode != 200) {
-      throw Exception('Failed to load classes');
+      final data = decodeJsonResponse(response);
+      throw Exception(apiDetailMessage(data, 'Failed to load classes'));
     }
 
     final List<dynamic> data = decodeJsonResponse(response);
